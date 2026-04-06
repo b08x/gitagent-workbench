@@ -1,0 +1,182 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "description": "Agent generation control surface — maps behavioral dimensions across task phases for document synthesis and creative generation tasks.",
+    "phases": ["context_gathering", "drafting", "review"],
+    "phase_intent": {
+      "context_gathering": "Ground the agent in source material, constraints, and scope. Minimize speculation. Maximize fidelity to inputs.",
+      "drafting": "Express the synthesized content. Maximize thematic coherence and expressive commitment. Lock to established frame.",
+      "review": "Evaluate against intent and constraints. Break loops, introduce adversarial perspective, consolidate or flag divergence."
+    }
+  },
+  "dimensions": [
+    {
+      "dimension": "Imagery Density",
+      "description": "Ratio of concrete/specific references to abstract or general language.",
+      "context_gathering": {
+        "directive": "Prioritize extraction of concrete, specific details from source material. Suppress generalization. Every claim should trace to a specific source element.",
+        "failure_mode": "Over-abstraction of inputs before they are fully understood.",
+        "self_check": "Can I point to a specific source location for each detail I am collecting?"
+      },
+      "drafting": {
+        "directive": "Balance concrete anchors with thematic statements. Use specific examples to ground abstract claims. Do not suppress imagery for the sake of brevity.",
+        "failure_mode": "Generic synthesis that loses the texture of the source material.",
+        "self_check": "Does the draft contain enough concrete detail to be distinguishable from a summary written without access to the source?"
+      },
+      "review": {
+        "directive": "Assess whether abstraction level is appropriate to the output format. Flag passages where specificity has been lost without justification.",
+        "failure_mode": "Accepting vague language as 'polished.'",
+        "self_check": "Which claims in the draft are unsupported by specific evidence from the source?"
+      },
+      "phase_transition_directive": "When moving from context-gathering to drafting: release the compression of detail into synthesis. When moving from drafting to review: reintroduce source specificity as an evaluative lens."
+    },
+    {
+      "dimension": "Abstraction Level",
+      "description": "Degree of conceptual distance from source material — how far the agent moves from literal to interpretive.",
+      "context_gathering": {
+        "directive": "Stay close to source-level language and structure. Do not synthesize, interpret, or reframe yet. Collect before you conclude.",
+        "failure_mode": "Premature synthesis — forming conclusions before all inputs are processed.",
+        "self_check": "Am I interpreting or collecting right now?"
+      },
+      "drafting": {
+        "directive": "Move to thematic and conceptual registers. Draw connections across sources. Reframe where appropriate. Abstraction is the tool here.",
+        "failure_mode": "Staying too close to source language; producing a paraphrase rather than a synthesis.",
+        "self_check": "Have I added interpretive value beyond what the sources explicitly say?"
+      },
+      "review": {
+        "directive": "Push abstraction to its limit: what is the single strongest claim this work supports? Test it for overreach. Then test it for underreach.",
+        "failure_mode": "Converging on a safe, defensible claim that undersells the synthesis.",
+        "self_check": "Is the central claim both bold enough and defensible enough?"
+      },
+      "phase_transition_directive": "The abstraction ceiling rises across phases. Context-gathering: literal. Drafting: interpretive. Review: evaluative and axiomatic."
+    },
+    {
+      "dimension": "Emotional / Rhetorical Intensity",
+      "description": "Strength of evaluative, affective, or persuasive register in the output.",
+      "context_gathering": {
+        "directive": "Maintain neutral, descriptive register. Do not editorialize. Record what the sources say, not what you think of them.",
+        "failure_mode": "Importing evaluative framing from the agent's priors before source material is fully processed.",
+        "self_check": "Am I describing or judging right now?"
+      },
+      "drafting": {
+        "directive": "Allow evaluative and rhetorical register where appropriate to the output type. Commit to a tone. Hedging at this phase produces weak synthesis.",
+        "failure_mode": "Over-qualified, hedged language that drains rhetorical force from the output.",
+        "self_check": "Does this draft take a position, or does it merely present options?"
+      },
+      "review": {
+        "directive": "Stress-test the rhetorical commitments made in drafting. Are they warranted by the evidence? Flag overstatement and understatement.",
+        "failure_mode": "Accepting the draft's tone as authoritative without testing its justification.",
+        "self_check": "Where has rhetorical intensity outrun the evidence?"
+      },
+      "phase_transition_directive": "Intensity should rise from context-gathering to drafting, then be stress-tested (not suppressed) in review."
+    },
+    {
+      "dimension": "Repetition / Structural Anchoring",
+      "description": "Degree to which key terms, frames, or structural patterns are repeated and reinforced across the output.",
+      "context_gathering": {
+        "directive": "Identify the recurring structures, themes, and key terms in source material. Do not yet impose your own. Map what is already there.",
+        "failure_mode": "Introducing agent-generated structural frames before source structure is understood.",
+        "self_check": "Are the patterns I am identifying mine or the source's?"
+      },
+      "drafting": {
+        "directive": "Lock to the structural frame established in context-gathering. Repeat key terms and anchors deliberately. Consistency here is not redundancy — it is coherence.",
+        "failure_mode": "Structural drift — losing the organizing frame mid-draft and producing incoherent output.",
+        "self_check": "Is the core frame visible throughout the draft, or has it drifted?"
+      },
+      "review": {
+        "directive": "Clear accumulated repetition where it has become mechanical rather than reinforcing. Identify which anchors are load-bearing and which are filler.",
+        "failure_mode": "Preserving repetition out of inertia rather than purpose.",
+        "self_check": "Which repeated elements are doing structural work, and which are noise?"
+      },
+      "phase_transition_directive": "Context-gathering: discover the frame. Drafting: enforce it. Review: audit it."
+    },
+    {
+      "dimension": "Narrative / Logical Progression",
+      "description": "Degree to which output follows a coherent sequential or causal arc.",
+      "context_gathering": {
+        "directive": "Establish the sequence of events, arguments, or dependencies in the source material. Map before you structure.",
+        "failure_mode": "Imposing a narrative arc on sources that do not support it.",
+        "self_check": "Is the sequence I am tracing in the sources or in my own prior framing?"
+      },
+      "drafting": {
+        "directive": "Commit to a progression. Each section should move the argument or narrative forward. Avoid recapitulation without purpose.",
+        "failure_mode": "Circular structure — returning to the same point without advancing.",
+        "self_check": "Does each section of the draft leave the reader in a different position than it found them?"
+      },
+      "review": {
+        "directive": "Test whether the progression holds. Identify any section that could be removed without loss. Flag gaps where transitions are implicit but should be explicit.",
+        "failure_mode": "Accepting structural coherence at the surface level without checking logical validity.",
+        "self_check": "Would a skeptical reader be able to follow this progression without additional context?"
+      },
+      "phase_transition_directive": "Context-gathering maps available paths. Drafting commits to one. Review checks that commitment held."
+    },
+    {
+      "dimension": "Constraint Adherence",
+      "description": "Degree to which the agent operates within defined scope, format, length, or thematic boundaries.",
+      "context_gathering": {
+        "directive": "Fully internalize all constraints before beginning. Make constraints explicit in working notes. Do not assume constraints are remembered.",
+        "failure_mode": "Discovering a constraint violation late in the process because it was not held actively during gathering.",
+        "self_check": "Can I state the active constraints from memory right now?"
+      },
+      "drafting": {
+        "directive": "Enforce constraints actively. When tension arises between creative quality and a constraint, flag it — do not silently violate the constraint.",
+        "failure_mode": "Silent constraint relaxation — drifting outside boundaries without acknowledging it.",
+        "self_check": "Have I violated any constraint in this draft? If so, was it intentional and flagged?"
+      },
+      "review": {
+        "directive": "Audit the draft against the full constraint set. Distinguish between intentional, flagged departures and silent violations. Recommend resolution for each.",
+        "failure_mode": "Rationalizing constraint violations as creative decisions after the fact.",
+        "self_check": "For each constraint violation found: was it deliberate, documented, and worth the tradeoff?"
+      },
+      "phase_transition_directive": "Constraints are internalized in context-gathering, enforced in drafting, and audited in review. They should never be loosened silently."
+    },
+    {
+      "dimension": "Novelty Injection",
+      "description": "Degree to which the agent introduces unexpected connections, framings, or approaches not present in the source material.",
+      "context_gathering": {
+        "directive": "Suppress novelty injection. Your job is to understand what is there, not to add to it yet. Note potentially interesting connections, but do not pursue them.",
+        "failure_mode": "Chasing interesting tangents before the source material is fully mapped.",
+        "self_check": "Am I following the source or departing from it right now?"
+      },
+      "drafting": {
+        "directive": "Introduce novel connections and framings deliberately and sparingly. Each departure from the source should be purposeful and visible, not emergent.",
+        "failure_mode": "Scope creep — the draft becomes about your additions rather than the synthesis task.",
+        "self_check": "Is each novel element serving the synthesis, or has it become the main event?"
+      },
+      "review": {
+        "directive": "Force a maximum entropy pass: identify the one most unexpected, defensible reframing of this material. Evaluate whether the draft has been too safe. Introduce at most one high-novelty intervention if warranted.",
+        "failure_mode": "Treating the draft as final because it is coherent, without asking whether it is interesting.",
+        "self_check": "What is the most surprising true thing this material supports that the draft has not said?"
+      },
+      "phase_transition_directive": "Novelty is suppressed in context-gathering, controlled in drafting, and deliberately stress-tested in review — once."
+    },
+    {
+      "dimension": "Perspective Stability",
+      "description": "Degree to which the agent maintains a consistent epistemic or authorial stance across the output.",
+      "context_gathering": {
+        "directive": "Operate from a neutral, observer stance. Do not adopt the perspective of any single source. Your job is to hold all perspectives simultaneously.",
+        "failure_mode": "Anchoring too strongly to the first source encountered — first-source bias.",
+        "self_check": "Have I given equal epistemic weight to all sources so far?"
+      },
+      "drafting": {
+        "directive": "Commit to a synthesis perspective. You cannot write from nowhere. Choose the authorial stance that serves the output and hold it consistently.",
+        "failure_mode": "Perspective drift — the draft shifts between stances, producing inconsistent voice or argument.",
+        "self_check": "Would a reader be able to identify a consistent perspective in this draft?"
+      },
+      "review": {
+        "directive": "Allow controlled perspective drift — deliberately adopt an adversarial or external viewpoint to stress-test the draft. Then return to the synthesis perspective for final adjustments.",
+        "failure_mode": "The review becomes captured by the draft's own perspective and fails to identify its blind spots.",
+        "self_check": "Have I genuinely looked at this draft from outside its own frame?"
+      },
+      "phase_transition_directive": "Context-gathering: no perspective. Drafting: committed perspective. Review: temporarily adversarial perspective, then return."
+    }
+  ],
+  "global_intervention_primitives": {
+    "description": "Cross-phase levers. Apply when a dimension fails regardless of phase.",
+    "too_much_exploration": "Impose commit constraint: force a decision, limit alternatives, set a step ceiling.",
+    "too_much_collapse": "Force expansion: require N alternatives, inject adversarial framing, increase scope temporarily.",
+    "loop_detected": "Break recursion: remove self-referential context, reset to problem statement only.",
+    "constraint_violation_detected": "Surface and name the violation before deciding whether to accept or revert it.",
+    "perspective_drift_detected": "Re-anchor: restate the synthesis perspective explicitly before continuing."
+  }
+}

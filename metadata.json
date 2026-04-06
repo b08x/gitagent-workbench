@@ -1,0 +1,5 @@
+{
+  "name": "GitAgent Workbench",
+  "description": "A browser-native workbench for generating complete, valid gitagent repositories as downloadable ZIP files.",
+  "requestFramePermissions": []
+}
