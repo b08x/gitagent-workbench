@@ -37,8 +37,22 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const addMcpServer = (url: string) => {
+    setSettings(prev => ({
+      ...prev,
+      mcpServers: [...prev.mcpServers, url]
+    }));
+  };
+
+  const removeMcpServer = (url: string) => {
+    setSettings(prev => ({
+      ...prev,
+      mcpServers: prev.mcpServers.filter(s => s !== url)
+    }));
+  };
+
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, setApiKey }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, setApiKey, addMcpServer, removeMcpServer }}>
       {children}
     </SettingsContext.Provider>
   );

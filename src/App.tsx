@@ -7,8 +7,8 @@ import { GenerationDashboard } from '../app/generation/GenerationDashboard';
 import { FileEditor } from '../app/editor/FileEditor';
 import { ExportView } from '../app/export/ExportView';
 import { Button } from '../components/ui/button';
-import { Settings, Github, Package } from 'lucide-react';
-import { ModelStep } from '../app/wizard/steps/ModelStep';
+import { Settings, Github, Package, X } from 'lucide-react';
+import { SettingsPanel } from '../app/components/SettingsPanel';
 
 function Header() {
   const [showSettings, setShowSettings] = useState(false);
@@ -34,10 +34,21 @@ function Header() {
       </div>
 
       {showSettings && (
-        <div className="absolute top-16 right-4 w-80 bg-card border rounded-xl shadow-xl p-6 z-50 animate-in fade-in zoom-in-95 duration-200">
-          <ModelStep />
-          <Button className="w-full mt-4" onClick={() => setShowSettings(false)}>Close</Button>
-        </div>
+        <>
+          <div 
+            className="fixed inset-0 bg-background/40 backdrop-blur-sm z-40" 
+            onClick={() => setShowSettings(false)} 
+          />
+          <div className="absolute top-16 right-4 w-80 bg-card border rounded-xl shadow-2xl p-6 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-bold">Settings</h2>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSettings(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <SettingsPanel />
+          </div>
+        </>
       )}
     </header>
   );
