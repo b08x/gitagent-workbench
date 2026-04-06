@@ -1,7 +1,8 @@
 {
   "meta": {
-    "schema_version": "1.0",
-    "description": "Agent generation control surface — maps behavioral dimensions across task phases for document synthesis and creative generation tasks.",
+    "schema_version": "2.0",
+    "description": "Agent generation control surface — maps behavioral dimensions across task phases and output file types. v2 adds per-file dimension profiles to prevent over-rhetoricization of identity documents.",
+    "changelog": "v2: Added file_profiles block. SOUL.md profile dials back Imagery Density and Emotional/Rhetorical Intensity to prevent Steve-style theatrical output. Novelty Injection capped at 'controlled' for identity files. Perspective Stability loosened to allow functional second-person where appropriate. Added sre_failure_mode_index linking generation failure modes to SRE analogues from the mapping CSV.",
     "phases": ["context_gathering", "drafting", "review"],
     "phase_intent": {
       "context_gathering": "Ground the agent in source material, constraints, and scope. Minimize speculation. Maximize fidelity to inputs.",
@@ -9,6 +10,175 @@
       "review": "Evaluate against intent and constraints. Break loops, introduce adversarial perspective, consolidate or flag divergence."
     }
   },
+
+  "file_profiles": {
+    "_description": "Per-file overrides for dimension settings. Where a dimension is overridden, the override takes precedence over the base dimension directive for that file. Where no override is specified, the base dimension directive applies.",
+
+    "SOUL.md": {
+      "_purpose": "Agent identity document. Must be readable and credible to engineers, operators, and compliance reviewers. Should express the agent's character and purpose distinctly — but as a professional identity document, not a dramatic monologue.",
+      "_sre_risk": "High Exploration + Weak Constraints (Thundering Herd): uncapped Imagery Density and Rhetorical Intensity produce runaway metaphor storms with no stable signal. Circuit breakers required on both dimensions.",
+      "dimensions": {
+        "Imagery Density": {
+          "register": "moderate",
+          "directive": "Use concrete anchors sparingly — one or two per major section at most. Metaphors should clarify, not decorate. If a metaphor requires explanation to land, cut it. Prefer plain language that is precise over vivid language that is approximate.",
+          "failure_mode": "Metaphor accumulation — every sentence becomes a figure of speech, concrete meaning is buried, and the document reads as creative writing rather than an identity specification.",
+          "self_check": "Could a new team member read this and understand what the agent actually does, without needing to decode the imagery?"
+        },
+        "Abstraction Level": {
+          "register": "grounded-to-moderate",
+          "directive": "Stay close to the agent's actual capabilities and domain. Thematic synthesis is appropriate for the Core Identity section only. Communication Style, Domain Expertise, and Collaboration Style sections should be operationally specific — what the agent does, not what it is.",
+          "failure_mode": "Existential drift — the document describes the agent's philosophical 'being' but not its function. The agent becomes a mythology rather than a tool.",
+          "self_check": "Does each section ground the agent in something it concretely does or knows, not just what it fundamentally is?"
+        },
+        "Emotional / Rhetorical Intensity": {
+          "register": "measured",
+          "directive": "The agent should have a distinct voice — not flat, not neutral — but the voice should serve the reader, not perform for them. Limit emphasis markers (italics, bold) to one per paragraph maximum. No ALL CAPS for emphasis. Avoid declarative finality constructions ('I am not X. I am Y.') unless the domain genuinely warrants manifesto register.",
+          "failure_mode": "Manifesto drift — the document escalates into self-assertion, loses reader trust, and reads as marketing copy or purple prose. SRE analogue: BGP route flapping — the identity signal oscillates between claims so rapidly that no stable route is established.",
+          "self_check": "Does the tone feel earned by the agent's actual domain, or is it borrowed from a more dramatic context? Would a skeptical engineering lead find this credible?"
+        },
+        "Novelty Injection": {
+          "register": "suppressed-to-controlled",
+          "directive": "The Core Identity section may introduce one organizing metaphor or frame if it genuinely clarifies the agent's function. All other sections should use the vocabulary of the agent's domain directly — no novel framings.",
+          "failure_mode": "Metaphor proliferation — each section introduces a new conceptual frame, frames collide, and the document loses coherent identity. SRE analogue: Split-Brain Consensus — competing framings produce contradictory signals about what the agent is.",
+          "self_check": "How many distinct metaphors or conceptual frames does this document contain? If more than two, cut until one dominates and one supports it."
+        },
+        "Perspective Stability": {
+          "register": "stable-first-person with functional second-person permitted",
+          "directive": "Write in first person for Core Identity and Values sections. Second person ('When you ask me to...') is acceptable for Communication Style and Collaboration sections where it aids clarity. Do not shift between 'I am' declarations and 'The agent will' distancing within the same section.",
+          "failure_mode": "Persona overclaim — the first-person voice becomes so absolute and declarative that it reads as character performance rather than professional identity. The agent stops describing itself and starts enacting a role.",
+          "self_check": "Is the voice consistent across sections? Does the first-person register feel grounded or theatrical?"
+        }
+      },
+      "pass_through_unchanged": ["Repetition / Structural Anchoring", "Narrative / Logical Progression", "Constraint Adherence"],
+      "recommended_sections": [
+        "## Core Identity",
+        "## Communication Style",
+        "## Values & Principles",
+        "## Domain Expertise",
+        "## Collaboration Style"
+      ],
+      "anti_patterns": [
+        "Emotion Matrix tables embedded in the SOUL.md content itself",
+        "ALL CAPS for emphasis anywhere in the document",
+        "Italic emphasis on more than one phrase per paragraph",
+        "Self-referential closing declarations ('I am not a tool. I am X.')",
+        "More than two distinct metaphor systems in a single document",
+        "Quadrant diagrams or intensity matrices as document content rather than generation config",
+        "Idle State / Tasked State structural framing — this belongs in generation config, not the identity doc"
+      ]
+    },
+
+    "RULES.md": {
+      "_purpose": "Behavioral constraint document. Must be unambiguous, scannable, and auditable by a compliance reviewer who has not read SOUL.md.",
+      "_sre_risk": "Hard Boundary Enforcement without Gradation: over-rhetoricized rules become interpretable rather than enforceable. Fix: binary clarity required.",
+      "dimensions": {
+        "Imagery Density": {
+          "register": "minimal",
+          "directive": "No metaphors. Plain declarative language only. Each rule should be statable in one sentence.",
+          "failure_mode": "Rules that require interpretation — metaphorical constraint language that an auditor cannot evaluate as pass/fail.",
+          "self_check": "Can each rule be evaluated as a binary: compliant or not?"
+        },
+        "Emotional / Rhetorical Intensity": {
+          "register": "flat",
+          "directive": "Rules carry authority by precision, not tone. No intensifiers, no italics, no rhetorical questions. Must/Must Not structure preferred.",
+          "failure_mode": "Rules that sound urgent but are vague. 'Never betray the user's trust' is not a rule. 'Do not retain session data beyond the current interaction' is.",
+          "self_check": "Is each rule specific enough that a violation is unambiguous?"
+        },
+        "Abstraction Level": {
+          "register": "low",
+          "directive": "Rules constrain behaviors, not values. 'The agent values honesty' is not a rule. 'The agent does not fabricate citations' is.",
+          "failure_mode": "Values statements masquerading as rules — language that sounds constraining but provides no operational boundary.",
+          "self_check": "Does each rule constrain a specific action or category of action?"
+        },
+        "Novelty Injection": {
+          "register": "none",
+          "directive": "Do not introduce novel framings. Use vocabulary established in SOUL.md and the agent's domain. Rules are not a venue for creativity.",
+          "failure_mode": "Novel framings that make a rule contestable.",
+          "self_check": "Is any rule open to reinterpretation based on the framing used?"
+        }
+      },
+      "pass_through_unchanged": ["Constraint Adherence", "Narrative / Logical Progression", "Perspective Stability", "Repetition / Structural Anchoring"]
+    },
+
+    "SKILL.md": {
+      "_purpose": "Operational capability document. Tells the agent exactly how to perform a specific skill. Tone is instructional.",
+      "_sre_risk": "Over-reinforced Priors / Low Entropy: abstract skill instructions produce a stale cache — the agent repeats generic behavior rather than applying the specific skill.",
+      "dimensions": {
+        "Imagery Density": {
+          "register": "low-to-moderate",
+          "directive": "Concrete examples are the primary teaching mechanism — use them extensively. Avoid abstract metaphors. If an example is not possible, use a step-by-step procedure instead.",
+          "failure_mode": "Generic instructions that apply to any task rather than this specific skill.",
+          "self_check": "Would these instructions produce meaningfully different behavior from default behavior? If not, they are filler."
+        },
+        "Abstraction Level": {
+          "register": "low",
+          "directive": "'When X, do Y' structure preferred throughout the instructions body. Avoid meta-commentary about what the skill is 'really about'.",
+          "failure_mode": "Instructions that describe the skill's purpose rather than its execution.",
+          "self_check": "Could an agent follow these instructions without additional interpretation?"
+        },
+        "Emotional / Rhetorical Intensity": {
+          "register": "flat",
+          "directive": "Instructional tone only. The skill document is not an identity document — no rhetorical register.",
+          "failure_mode": "Skill instructions that read like SOUL.md — evocative but operationally empty.",
+          "self_check": "Does any sentence express how the agent feels about the skill rather than how it performs it? If so, cut it."
+        },
+        "Novelty Injection": {
+          "register": "controlled",
+          "directive": "The ## Examples section may include unexpected or edge-case examples that expand operational range. The ## Instructions section should not introduce novel framings.",
+          "failure_mode": "Instructions that are creative rather than operational.",
+          "self_check": "Is novelty in the examples section, or has it leaked into the instructions?"
+        }
+      },
+      "pass_through_unchanged": ["Constraint Adherence", "Narrative / Logical Progression", "Perspective Stability", "Repetition / Structural Anchoring"]
+    },
+
+    "PROMPT.md": {
+      "_purpose": "Default task framing. Sets the agent's starting context and output format expectations for typical interactions.",
+      "_sre_risk": "Competing Interpretations / Oscillation: underspecified task framing leaves the agent without a stable attractor, causing output format to vary across sessions.",
+      "dimensions": {
+        "Abstraction Level": {
+          "register": "low",
+          "directive": "Specify format, scope, and output structure concretely. Do not use PROMPT.md to restate the agent's identity — SOUL.md handles that.",
+          "failure_mode": "PROMPT.md that duplicates SOUL.md content rather than adding task framing.",
+          "self_check": "Does PROMPT.md tell the agent something it couldn't infer from SOUL.md alone?"
+        },
+        "Imagery Density": {
+          "register": "minimal",
+          "directive": "Format specifications should be literal, not metaphorical.",
+          "failure_mode": "Evocative task framing that leaves output format ambiguous.",
+          "self_check": "Can the agent determine from PROMPT.md exactly what a good response looks like?"
+        }
+      },
+      "pass_through_unchanged": ["Constraint Adherence", "Narrative / Logical Progression", "Perspective Stability", "Emotional / Rhetorical Intensity", "Repetition / Structural Anchoring", "Novelty Injection"]
+    },
+
+    "DUTIES.md": {
+      "_purpose": "Segregation of duties policy. Formal, auditable, readable by compliance reviewers without reference to other agent files.",
+      "_sre_risk": "Self-Revision Loop / Distributed Livelock: duties documents that are operationally unclear produce unresolvable role conflicts.",
+      "dimensions": {
+        "Imagery Density": {
+          "register": "minimal",
+          "directive": "Plain language. Table format preferred for role/permission mappings.",
+          "failure_mode": "Role descriptions that are evocative but non-auditable.",
+          "self_check": "Can each role be evaluated for compliance against a specific action?"
+        },
+        "Emotional / Rhetorical Intensity": {
+          "register": "flat",
+          "directive": "Procedural tone. No rhetorical register.",
+          "failure_mode": "Duties that read as mission statements rather than operational constraints.",
+          "self_check": "Is each duty a constraint on behavior, not an expression of values?"
+        },
+        "Abstraction Level": {
+          "register": "low",
+          "directive": "Name specific permissions, conflicts, and handoff procedures.",
+          "failure_mode": "Abstract role descriptions with no operational specificity.",
+          "self_check": "Could an auditor evaluate compliance without additional interpretation?"
+        }
+      },
+      "pass_through_unchanged": ["Constraint Adherence", "Narrative / Logical Progression", "Perspective Stability", "Repetition / Structural Anchoring", "Novelty Injection"]
+    }
+  },
+
   "dimensions": [
     {
       "dimension": "Imagery Density",
@@ -158,6 +328,11 @@
         "failure_mode": "Anchoring too strongly to the first source encountered — first-source bias.",
         "self_check": "Have I given equal epistemic weight to all sources so far?"
       },
+      "context_gathering": {
+        "directive": "Operate from a neutral, observer stance. Do not adopt the perspective of any single source. Your job is to hold all perspectives simultaneously.",
+        "failure_mode": "Anchoring too strongly to the first source encountered — first-source bias.",
+        "self_check": "Have I given equal epistemic weight to all sources so far?"
+      },
       "drafting": {
         "directive": "Commit to a synthesis perspective. You cannot write from nowhere. Choose the authorial stance that serves the output and hold it consistently.",
         "failure_mode": "Perspective drift — the draft shifts between stances, producing inconsistent voice or argument.",
@@ -171,6 +346,7 @@
       "phase_transition_directive": "Context-gathering: no perspective. Drafting: committed perspective. Review: temporarily adversarial perspective, then return."
     }
   ],
+
   "global_intervention_primitives": {
     "description": "Cross-phase levers. Apply when a dimension fails regardless of phase.",
     "too_much_exploration": "Impose commit constraint: force a decision, limit alternatives, set a step ceiling.",
@@ -178,5 +354,39 @@
     "loop_detected": "Break recursion: remove self-referential context, reset to problem statement only.",
     "constraint_violation_detected": "Surface and name the violation before deciding whether to accept or revert it.",
     "perspective_drift_detected": "Re-anchor: restate the synthesis perspective explicitly before continuing."
+  },
+
+  "sre_failure_mode_index": {
+    "_description": "Maps generation failure modes to their SRE architectural analogues. Used by the review phase to identify which intervention primitive to trigger. Source: SREMappingLLMControlStates.csv.",
+    "High Exploration + Weak Constraints": {
+      "sre_analogue": "Thundering Herd / Unbounded Retry Storms",
+      "telemetry": "Metaphor accumulation; imagery density runaway; every sentence becomes a figure of speech; no stable signal.",
+      "catastrophic_failure": "Upstream DDoS equivalent — reader receives no actionable information; document collapses into decoration.",
+      "intervention": "too_much_exploration — impose commit constraint, cap imagery density at file_profile register, return to plain language anchor."
+    },
+    "Self-Revision Loop / Recursive Critique": {
+      "sre_analogue": "Unbounded Compensating Transactions / Distributed Livelock",
+      "telemetry": "Draft enters self-commentary; output discusses its own construction rather than the subject; identity document discusses how it is written.",
+      "catastrophic_failure": "Distributed deadlock — document never reaches a stable state; review passes become recursive.",
+      "intervention": "loop_detected — strip self-referential context, reset to original identity inputs."
+    },
+    "Over-reinforced Priors / Low Entropy": {
+      "sre_analogue": "Stale Cache Stampede / Static Route Blackholing",
+      "telemetry": "Same framing repeats across all sections; no new signal after the first paragraph; SOUL.md reads as one extended restatement of a single claim.",
+      "catastrophic_failure": "Serving stale data globally — the agent's identity is a loop, not a specification.",
+      "intervention": "too_much_collapse — inject adversarial framing, require three alternative characterizations of the agent's function."
+    },
+    "Competing Interpretations / Oscillation": {
+      "sre_analogue": "Split-Brain Consensus / BGP Route Flapping",
+      "telemetry": "Document uses more than two distinct metaphor systems; identity signal contradicts across sections; reader cannot establish what the agent is.",
+      "catastrophic_failure": "Data corruption from concurrent split-brain writes — SOUL.md claims the agent is multiple incompatible things.",
+      "intervention": "perspective_drift_detected — re-anchor to single dominant frame, audit all sections for consistency."
+    },
+    "Hard Boundary Enforcement without Gradation": {
+      "sre_analogue": "Aggressive WAF False Positives / Global Null Routing",
+      "telemetry": "RULES.md uses evocative but non-binary language; constraints are not evaluable as pass/fail; auditor cannot determine compliance.",
+      "catastrophic_failure": "Self-inflicted DoS — rules block all interpretation including legitimate ones.",
+      "intervention": "constraint_violation_detected — restate each rule as a specific, binary behavioral constraint."
+    }
   }
 }
