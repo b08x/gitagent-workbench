@@ -1,62 +1,163 @@
-import { z } from 'zod';
-
 export type StructureType = 'minimal' | 'standard' | 'full' | 'inheritance' | 'multi-repo' | 'monorepo';
+
+// ─── Compliance ─────────────────────────────────────────────────────────────
+
+export interface ComplianceSupervision {
+  designated_supervisor?: string | null;
+  review_cadence?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'semi_annual' | 'annual';
+  human_in_the_loop: 'always' | 'conditional' | 'advisory' | 'none';
+  escalation_triggers?: Array<Record<string, unknown>>;
+  override_capability?: boolean;
+  kill_switch?: boolean;
+}
+
+export interface ComplianceRecordkeeping {
+  audit_logging?: boolean;
+  log_format?: 'structured_json' | 'plaintext';
+  retention_period?: string;
+  log_contents?: Array<'prompts_and_responses' | 'tool_calls' | 'decision_pathways' | 'model_version' | 'timestamps'>;
+  immutable?: boolean;
+}
+
+export interface AgentCompliance {
+  risk_tier: 'low' | 'standard' | 'high' | 'critical';
+  frameworks?: string[];
+  supervision?: ComplianceSupervision;
+  // NOTE: recordkeeping is a SIBLING of supervision — NOT nested under it
+  recordkeeping?: ComplianceRecordkeeping;
+  model_risk?: Record<string, unknown>;
+  data_governance?: Record<string, unknown>;
+  communications?: Record<string, unknown>;
+  vendor_management?: Record<string, unknown>;
+  segregation_of_duties?: Record<string, unknown>;
+}
+
+// ─── Agent Manifest ─────────────────────────────────────────────────────────
 
 export interface AgentManifest {
   name: string;
   version: string;
   description: string;
+  spec_version?: string;
   author?: string;
+  license?: string;
   extends?: string;
-  dependencies?: string[];
+  dependencies?: Array<{
+    name: string;
+    source: string;
+    version?: string;
+    mount?: string;
+    vendor_management?: Record<string, unknown>;
+  }>;
   skills?: string[];
   tools?: string[];
-  compliance?: {
-    risk_tier: 'low' | 'standard' | 'high' | 'critical';
-    frameworks?: string[];
-    supervision?: {
-      human_in_the_loop: 'always' | 'conditional' | 'advisory' | 'none';
-      recordkeeping?: boolean;
+  agents?: Record<string, {
+    description?: string;
+    delegation?: { mode?: string; triggers?: string[] };
+  }>;
+  delegation?: { mode?: string; router?: string };
+  model?: {
+    preferred?: string;
+    fallback?: string[];
+    constraints?: {
+      temperature?: number;
+      max_tokens?: number;
+      top_p?: number;
+      top_k?: number;
+      stop_sequences?: string[];
+      presence_penalty?: number;
+      frequency_penalty?: number;
     };
   };
-  config?: Record<string, any>;
+  runtime?: { max_turns?: number; temperature?: number; timeout?: number };
+  a2a?: Record<string, unknown>;
+  compliance?: AgentCompliance;
+  tags?: string[];
+  metadata?: Record<string, string | number | boolean>;
+  registries?: Array<{ name: string; url?: string }>;
 }
+
+// ─── Skills ─────────────────────────────────────────────────────────────────
 
 export interface ParsedSkill {
   name: string;
   description: string;
   instructions: string;
+  allowedTools?: string[];
+  license?: string;
+  compatibility?: string;
 }
+
+// ─── Tools ──────────────────────────────────────────────────────────────────
 
 export interface ToolSchema {
   name: string;
   description: string;
-  parameters: Record<string, any>;
+  // MCP-compatible — required by gitagent spec. NOT `parameters`.
+  input_schema: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+// ─── Workflows ──────────────────────────────────────────────────────────────
+
+export interface WorkflowStep {
+  id: string;
+  action: string;
+  skill?: string;
+  agent?: string;
+  tool?: string;
+  depends_on?: string[];
+  inputs?: Record<string, unknown>;
+  outputs?: string[];
+  conditions?: string[];
+  compliance?: Record<string, unknown>;
 }
 
 export interface WorkflowSchema {
   name: string;
-  description: string;
-  steps: any[];
+  description?: string;
+  version?: string;
+  inputs?: Array<{ name: string; type: string; required?: boolean; default?: unknown }>;
+  outputs?: Array<{ name: string; type: string }>;
+  steps: WorkflowStep[];
+  error_handling?: { on_step_failure?: string; escalation_target?: string };
+}
+
+// ─── Knowledge ──────────────────────────────────────────────────────────────
+
+export interface KnowledgeEntry {
+  path: string;
+  always_load: boolean;
+  description?: string;
 }
 
 export interface KnowledgeIndex {
-  files: string[];
+  documents: KnowledgeEntry[];
 }
 
+// ─── Memory ─────────────────────────────────────────────────────────────────
+
 export interface MemoryConfig {
-  type: string;
-  config: Record<string, any>;
+  type?: string;
+  max_lines?: number;
+  config?: Record<string, unknown>;
 }
+
+// ─── Validation ─────────────────────────────────────────────────────────────
 
 export interface ValidationError {
   file: string;
+  field?: string;
   message: string;
   code?: string;
 }
 
 export interface ValidationWarning {
   file: string;
+  field?: string;
   message: string;
 }
 
@@ -65,6 +166,8 @@ export interface ValidationResult {
   errors: ValidationError[];
   warnings: ValidationWarning[];
 }
+
+// ─── Workspace ──────────────────────────────────────────────────────────────
 
 export interface AgentWorkspace {
   meta: {
@@ -85,7 +188,7 @@ export interface AgentWorkspace {
   knowledge: KnowledgeIndex | null;
   memory: MemoryConfig | null;
   examples: { goodOutputs: string | null; badOutputs: string | null };
-  config: { default: Record<string, any> | null; production: Record<string, any> | null };
+  config: { default: Record<string, unknown> | null; production: Record<string, unknown> | null };
   subAgents: Record<string, AgentWorkspace>;
   validationResult: ValidationResult | null;
 }

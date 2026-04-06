@@ -8,14 +8,14 @@ export function ComplianceStep() {
   const { state, dispatch } = useAgentWorkspace();
 
   const updateCompliance = (field: string, value: any) => {
-    dispatch({ 
-      type: 'UPDATE_MANIFEST', 
-      payload: { 
-        compliance: { 
+    dispatch({
+      type: 'UPDATE_MANIFEST',
+      payload: {
+        compliance: {
           ...(state.manifest.compliance || { risk_tier: 'low' }),
-          [field]: value 
-        } 
-      } 
+          [field]: value,
+        },
+      },
     });
   };
 
@@ -27,10 +27,26 @@ export function ComplianceStep() {
           ...(state.manifest.compliance || { risk_tier: 'low' }),
           supervision: {
             ...(state.manifest.compliance?.supervision || { human_in_the_loop: 'none' }),
-            [field]: value
-          }
-        }
-      }
+            [field]: value,
+          },
+        },
+      },
+    });
+  };
+
+  // recordkeeping is a SIBLING of supervision at the compliance level — not nested inside it
+  const updateRecordkeeping = (field: string, value: any) => {
+    dispatch({
+      type: 'UPDATE_MANIFEST',
+      payload: {
+        compliance: {
+          ...(state.manifest.compliance || { risk_tier: 'low' }),
+          recordkeeping: {
+            ...(state.manifest.compliance?.recordkeeping || {}),
+            [field]: value,
+          },
+        },
+      },
     });
   };
 
@@ -44,13 +60,11 @@ export function ComplianceStep() {
       <div className="grid gap-6">
         <div className="grid gap-2">
           <Label>Risk Tier</Label>
-          <Select 
-            value={state.manifest.compliance?.risk_tier || 'low'} 
+          <Select
+            value={state.manifest.compliance?.risk_tier || 'low'}
             onValueChange={v => updateCompliance('risk_tier', v)}
           >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="low">Low</SelectItem>
               <SelectItem value="standard">Standard</SelectItem>
@@ -62,13 +76,11 @@ export function ComplianceStep() {
 
         <div className="grid gap-2">
           <Label>Human in the Loop</Label>
-          <Select 
-            value={state.manifest.compliance?.supervision?.human_in_the_loop || 'none'} 
+          <Select
+            value={state.manifest.compliance?.supervision?.human_in_the_loop || 'none'}
             onValueChange={v => updateSupervision('human_in_the_loop', v)}
           >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="always">Always</SelectItem>
               <SelectItem value="conditional">Conditional</SelectItem>
@@ -78,12 +90,16 @@ export function ComplianceStep() {
           </Select>
         </div>
 
+        {/* Recordkeeping dispatches to compliance.recordkeeping — NOT compliance.supervision */}
         <div className="flex items-center justify-between">
-          <Label htmlFor="recordkeeping">Recordkeeping</Label>
-          <Switch 
+          <div>
+            <Label htmlFor="recordkeeping">Audit Logging</Label>
+            <p className="text-xs text-muted-foreground mt-0.5">Log all decisions and actions</p>
+          </div>
+          <Switch
             id="recordkeeping"
-            checked={state.manifest.compliance?.supervision?.recordkeeping || false}
-            onCheckedChange={v => updateSupervision('recordkeeping', v)}
+            checked={state.manifest.compliance?.recordkeeping?.audit_logging || false}
+            onCheckedChange={v => updateRecordkeeping('audit_logging', v)}
           />
         </div>
       </div>
