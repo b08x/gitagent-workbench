@@ -108,7 +108,18 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
 
   // ── knowledge/ ─────────────────────────────────────────────────────────────
   if (workspace.knowledge) {
-    zip.file('knowledge/index.yaml', yaml.dump(workspace.knowledge, { indent: 2 }));
+    // Write index.yaml (metadata only — no content)
+    const indexForYaml = {
+      documents: workspace.knowledge.documents.map(({ content, ...entry }) => entry)
+    };
+    zip.file('knowledge/index.yaml', yaml.dump(indexForYaml, { indent: 2 }));
+
+    // Write document files for entries that have content
+    for (const doc of workspace.knowledge.documents) {
+      if (doc.content) {
+        zip.file(`knowledge/${doc.path}`, doc.content);
+      }
+    }
   }
 
   // ── memory/ ────────────────────────────────────────────────────────────────

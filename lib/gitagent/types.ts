@@ -160,8 +160,11 @@ export interface WorkflowSchema {
 
 export interface KnowledgeEntry {
   path: string;
+  tags?: string[];
+  priority?: 'high' | 'medium' | 'low';
   always_load: boolean;
   description?: string;
+  content?: string;
 }
 
 export interface KnowledgeIndex {

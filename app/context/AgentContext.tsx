@@ -28,6 +28,7 @@ const initialState: AgentWorkspace = {
   workflows: {},
   knowledge: null,
   memory: null,
+  memory_md: null,
   examples: { goodOutputs: null, badOutputs: null },
   config: { default: null, production: null },
   subAgents: {},
