@@ -38,6 +38,8 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
         frontmatterObj['allowed-tools'] = skill.allowedTools.join(' ');
       }
       if (skill.license) frontmatterObj['license'] = skill.license;
+      if (skill.compatibility) frontmatterObj['compatibility'] = skill.compatibility;
+      if (skill.metadata) frontmatterObj['metadata'] = skill.metadata;
 
       const frontmatterYaml = yaml.dump(frontmatterObj, { indent: 2 }).trimEnd();
 
@@ -51,6 +53,28 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
       //   Instructions body...
       const skillMdContent = `---\n${frontmatterYaml}\n---\n\n${skill.instructions || ''}`;
       zip.file(`skills/${name}/SKILL.md`, skillMdContent);
+
+      // ── references/ ────────────────────────────────────────────────────────
+      if (skill.references && skill.references.length > 0) {
+        skill.references.forEach(ref => {
+          zip.file(`skills/${name}/references/${ref.name}`, ref.content);
+        });
+      }
+
+      // ── examples/ ──────────────────────────────────────────────────────────
+      if (skill.examples && skill.examples.length > 0) {
+        skill.examples.forEach((ex, idx) => {
+          const content = `Input:\n${ex.input}\n\nOutput:\n${ex.output}`;
+          zip.file(`skills/${name}/examples/example-${idx + 1}.md`, content);
+        });
+      }
+
+      // ── scripts/ ───────────────────────────────────────────────────────────
+      if (skill.scripts && skill.scripts.length > 0) {
+        skill.scripts.forEach(script => {
+          zip.file(`skills/${name}/scripts/${script}`, '# Placeholder for script content');
+        });
+      }
     }
   }
 
@@ -137,6 +161,22 @@ export function downloadZip(blob: Blob, filename: string): void {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+export function serializeSkill(skill: any): string {
+  const frontmatterObj: Record<string, unknown> = {
+    name: skill.name,
+    description: skill.description,
+  };
+  if (skill.allowedTools && skill.allowedTools.length > 0) {
+    frontmatterObj['allowed-tools'] = skill.allowedTools.join(' ');
+  }
+  if (skill.license) frontmatterObj['license'] = skill.license;
+  if (skill.compatibility) frontmatterObj['compatibility'] = skill.compatibility;
+  if (skill.metadata) frontmatterObj['metadata'] = skill.metadata;
+
+  const frontmatterYaml = yaml.dump(frontmatterObj, { indent: 2 }).trimEnd();
+  return `---\n${frontmatterYaml}\n---\n\n${skill.instructions || ''}`;
 }
 
 // Recursively remove null/undefined so serialized YAML is clean and doesn't

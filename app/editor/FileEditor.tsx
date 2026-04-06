@@ -33,19 +33,19 @@ export function FileEditor() {
         dispatch({ type: 'UPDATE_MANIFEST', payload: manifest });
       } catch (e) {}
     } else if (selectedFile === 'SOUL.md') {
-      dispatch({ type: 'UPDATE_META', payload: { soul: content } });
+      dispatch({ type: 'UPDATE_WORKSPACE', payload: { soul: content } });
     } else if (selectedFile === 'RULES.md') {
-      dispatch({ type: 'UPDATE_META', payload: { rules: content } });
+      dispatch({ type: 'UPDATE_WORKSPACE', payload: { rules: content } });
     } else if (selectedFile === 'PROMPT.md') {
-      dispatch({ type: 'UPDATE_META', payload: { prompt_md: content } });
+      dispatch({ type: 'UPDATE_WORKSPACE', payload: { prompt_md: content } });
     } else if (selectedFile === 'DUTIES.md') {
-      dispatch({ type: 'UPDATE_META', payload: { duties: content } });
+      dispatch({ type: 'UPDATE_WORKSPACE', payload: { duties: content } });
     } else if (selectedFile.startsWith('skills/')) {
       const name = selectedFile.split('/')[1];
       const updatedSkills = { ...state.skills };
       if (updatedSkills[name]) {
         updatedSkills[name] = { ...updatedSkills[name], instructions: content };
-        dispatch({ type: 'UPDATE_META', payload: { skills: updatedSkills } });
+        dispatch({ type: 'UPDATE_WORKSPACE', payload: { skills: updatedSkills } });
       }
     }
   };

@@ -1,13 +1,16 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
-import { AgentWorkspace, StructureType } from '../../lib/gitagent/types';
+import { AgentWorkspace, StructureType, ParsedSkill } from '../../lib/gitagent/types';
 
 type Action =
   | { type: 'SET_WORKSPACE'; payload: AgentWorkspace }
   | { type: 'UPDATE_META'; payload: Partial<AgentWorkspace['meta']> }
   | { type: 'UPDATE_MANIFEST'; payload: Partial<AgentWorkspace['manifest']> }
-  | { type: 'SET_FILE'; payload: { path: string; content: string } };
+  | { type: 'SET_FILE'; payload: { path: string; content: string } }
+  | { type: 'UPDATE_WORKSPACE'; payload: Partial<AgentWorkspace> }
+  | { type: 'ADD_SKILL'; payload: ParsedSkill };
 
 const initialState: AgentWorkspace = {
+// ... (rest of the file)
   meta: {
     structureType: 'minimal',
     status: 'intake',
@@ -39,9 +42,23 @@ function agentReducer(state: AgentWorkspace, action: Action): AgentWorkspace {
       return { ...state, meta: { ...state.meta, ...action.payload } };
     case 'UPDATE_MANIFEST':
       return { ...state, manifest: { ...state.manifest, ...action.payload } };
+    case 'UPDATE_WORKSPACE':
+      return { ...state, ...action.payload };
     case 'SET_FILE':
       // Simplified file setter
       return { ...state, [action.payload.path]: action.payload.content };
+    case 'ADD_SKILL':
+      return {
+        ...state,
+        manifest: {
+          ...state.manifest,
+          skills: Array.from(new Set([...(state.manifest.skills || []), action.payload.name]))
+        },
+        skills: {
+          ...state.skills,
+          [action.payload.name]: action.payload
+        }
+      };
     default:
       return state;
   }
