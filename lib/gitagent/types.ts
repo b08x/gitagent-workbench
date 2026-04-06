@@ -170,10 +170,23 @@ export interface KnowledgeIndex {
 
 // ─── Memory ─────────────────────────────────────────────────────────────────
 
-export interface MemoryConfig {
-  type?: string;
+export interface MemoryLayer {
+  name: string;
+  path: string;
   max_lines?: number;
-  config?: Record<string, unknown>;
+  format?: 'markdown' | 'yaml';
+  load?: 'always' | 'on_demand' | 'latest';
+  retention?: string;
+  rotation?: 'daily' | 'weekly' | 'monthly';
+}
+
+export interface MemoryConfig {
+  layers: MemoryLayer[];
+  update_triggers?: string[];
+  archive_policy?: {
+    max_entries?: number;
+    compress_after?: string;
+  };
 }
 
 // ─── Validation ─────────────────────────────────────────────────────────────
@@ -217,6 +230,7 @@ export interface AgentWorkspace {
   workflows: Record<string, WorkflowSchema>;
   knowledge: KnowledgeIndex | null;
   memory: MemoryConfig | null;
+  memory_md: string | null;
   examples: { goodOutputs: string | null; badOutputs: string | null };
   config: { default: Record<string, unknown> | null; production: Record<string, unknown> | null };
   subAgents: Record<string, AgentWorkspace>;
