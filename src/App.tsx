@@ -8,8 +8,9 @@ import { GenerationDashboard } from '../app/generation/GenerationDashboard';
 import { FileEditor } from '../app/editor/FileEditor';
 import { ExportView } from '../app/export/ExportView';
 import { SkillWorkbench } from '../app/workbench/skills/SkillWorkbench';
+import { WorkflowWorkbench } from '../app/workbench/WorkflowWorkbench';
 import { Button } from '../components/ui/button';
-import { Settings, Github, Package, X, Download, BookOpen } from 'lucide-react';
+import { Settings, Github, Package, X, Download, BookOpen, Workflow } from 'lucide-react';
 import { SettingsPanel } from '../app/components/SettingsPanel';
 import { cn } from '../lib/utils';
 
@@ -45,6 +46,14 @@ function Header() {
                 size="sm" 
               >
                 Skill Workbench
+              </Button>
+            </Link>
+            <Link to="/workbench/workflows">
+              <Button 
+                variant={location.pathname.startsWith('/workbench/workflows') ? 'secondary' : 'ghost'} 
+                size="sm" 
+              >
+                Workflow Workbench
               </Button>
             </Link>
           </nav>
@@ -124,6 +133,7 @@ function AppContent() {
             <Route path="/editor" element={<FileEditor />} />
             <Route path="/export" element={<ExportView />} />
             <Route path="/workbench/skills" element={<SkillWorkbench />} />
+            <Route path="/workbench/workflows" element={<WorkflowWorkbench />} />
           </Routes>
         </main>
       </div>
