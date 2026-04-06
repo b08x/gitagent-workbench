@@ -10,8 +10,9 @@ import { ExportView } from '../app/export/ExportView';
 import { SkillWorkbench } from '../app/workbench/skills/SkillWorkbench';
 import { WorkflowWorkbench } from '../app/workbench/WorkflowWorkbench';
 import { KnowledgeWorkbench } from '../app/workbench/KnowledgeWorkbench';
+import { ChatWorkbench } from '../app/workbench/ChatWorkbench';
 import { Button } from '../components/ui/button';
-import { Settings, Github, Package, X, Download, BookOpen, Workflow, Database } from 'lucide-react';
+import { Settings, Github, Package, X, Download, BookOpen, Workflow, Database, MessageSquare } from 'lucide-react';
 import { SettingsPanel } from '../app/components/SettingsPanel';
 import { cn } from '../lib/utils';
 
@@ -63,6 +64,14 @@ function Header() {
                 size="sm" 
               >
                 Knowledge Workbench
+              </Button>
+            </Link>
+            <Link to="/workbench/chat">
+              <Button 
+                variant={location.pathname.startsWith('/workbench/chat') ? 'secondary' : 'ghost'} 
+                size="sm" 
+              >
+                Chat Test
               </Button>
             </Link>
           </nav>
@@ -144,6 +153,7 @@ function AppContent() {
             <Route path="/workbench/skills" element={<SkillWorkbench />} />
             <Route path="/workbench/workflows" element={<WorkflowWorkbench />} />
             <Route path="/workbench/knowledge" element={<KnowledgeWorkbench />} />
+            <Route path="/workbench/chat" element={<ChatWorkbench />} />
           </Routes>
         </main>
       </div>
