@@ -4,22 +4,34 @@ export interface AppConfig {
   providerId: string;
   apiKeys: Record<string, string>;
   mcpServers: string[];
+  theme: 'light' | 'dark';
 }
 
 const SettingsContext = createContext<{
   settings: AppConfig;
   updateSettings: (newSettings: Partial<AppConfig>) => void;
   setApiKey: (providerId: string, key: string) => void;
+  addMcpServer: (url: string) => void;
+  removeMcpServer: (url: string) => void;
 } | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppConfig>(() => {
     const saved = sessionStorage.getItem('gitagent_settings');
-    return saved ? JSON.parse(saved) : {
+    const defaults: AppConfig = {
       providerId: 'openrouter',
       apiKeys: {},
-      mcpServers: []
+      mcpServers: [],
+      theme: 'light'
     };
+    if (saved) {
+      try {
+        return { ...defaults, ...JSON.parse(saved) };
+      } catch (e) {
+        return defaults;
+      }
+    }
+    return defaults;
   });
 
   useEffect(() => {

@@ -9,6 +9,7 @@ import { ExportView } from '../app/export/ExportView';
 import { Button } from '../components/ui/button';
 import { Settings, Github, Package, X, Download } from 'lucide-react';
 import { SettingsPanel } from '../app/components/SettingsPanel';
+import { cn } from '../lib/utils';
 
 function Header() {
   const [showSettings, setShowSettings] = useState(false);
@@ -68,21 +69,38 @@ export default function App() {
   return (
     <SettingsProvider>
       <AgentProvider>
-        <BrowserRouter>
-          <div className="min-h-screen bg-background text-foreground font-sans antialiased">
-            <Header />
-            <main>
-              <Routes>
-                <Route path="/" element={<Navigate to="/wizard" replace />} />
-                <Route path="/wizard" element={<WizardShell />} />
-                <Route path="/generating" element={<GenerationDashboard />} />
-                <Route path="/editor" element={<FileEditor />} />
-                <Route path="/export" element={<ExportView />} />
-              </Routes>
-            </main>
-          </div>
-        </BrowserRouter>
+        <AppContent />
       </AgentProvider>
     </SettingsProvider>
+  );
+}
+
+function AppContent() {
+  const { settings } = useSettings();
+
+  React.useEffect(() => {
+    const root = window.document.documentElement;
+    if (settings.theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [settings.theme]);
+
+  return (
+    <BrowserRouter>
+      <div className="min-h-screen bg-background text-foreground font-sans antialiased transition-colors duration-300">
+        <Header />
+        <main>
+          <Routes>
+            <Route path="/" element={<Navigate to="/wizard" replace />} />
+            <Route path="/wizard" element={<WizardShell />} />
+            <Route path="/generating" element={<GenerationDashboard />} />
+            <Route path="/editor" element={<FileEditor />} />
+            <Route path="/export" element={<ExportView />} />
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
   );
 }

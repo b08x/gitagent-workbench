@@ -5,10 +5,11 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, X, Server } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Plus, X, Server, Moon, Sun } from 'lucide-react';
 
 export function SettingsPanel() {
-  const { settings, addMcpServer, removeMcpServer } = useSettings();
+  const { settings, updateSettings, addMcpServer, removeMcpServer } = useSettings();
   const [newMcp, setNewMcp] = useState('');
 
   const handleAddMcp = () => {
@@ -18,8 +19,23 @@ export function SettingsPanel() {
     }
   };
 
+  const toggleTheme = () => {
+    updateSettings({ theme: settings.theme === 'light' ? 'dark' : 'light' });
+  };
+
   return (
     <div className="space-y-8">
+      <div className="flex items-center justify-between border-b pb-4">
+        <div className="flex items-center gap-2">
+          {settings.theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+          <span className="text-sm font-medium">Dark Mode</span>
+        </div>
+        <Switch 
+          checked={settings.theme === 'dark'} 
+          onCheckedChange={toggleTheme} 
+        />
+      </div>
+
       <ModelStep />
       
       <div className="space-y-4 border-t pt-6">
