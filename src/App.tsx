@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AgentProvider, useAgentWorkspace } from '../app/context/AgentContext';
 import { SettingsProvider, useSettings } from '../app/context/SettingsContext';
+import { SkillWorkbenchProvider } from '../app/context/SkillWorkbenchContext';
 import { WizardShell } from '../app/wizard/WizardShell';
 import { GenerationDashboard } from '../app/generation/GenerationDashboard';
 import { FileEditor } from '../app/editor/FileEditor';
 import { ExportView } from '../app/export/ExportView';
+import { SkillWorkbench } from '../app/workbench/skills/SkillWorkbench';
 import { Button } from '../components/ui/button';
-import { Settings, Github, Package, X, Download } from 'lucide-react';
+import { Settings, Github, Package, X, Download, BookOpen } from 'lucide-react';
 import { SettingsPanel } from '../app/components/SettingsPanel';
 import { cn } from '../lib/utils';
 
@@ -22,10 +24,31 @@ function Header() {
   return (
     <header className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
       <div className="container h-full mx-auto px-4 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
-          <Package className="h-6 w-6 text-primary" />
-          <span>GitAgent <span className="text-primary">Workbench</span></span>
-        </Link>
+        <div className="flex items-center gap-8">
+          <Link to="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
+            <Package className="h-6 w-6 text-primary" />
+            <span>GitAgent <span className="text-primary">Workbench</span></span>
+          </Link>
+
+          <nav className="hidden md:flex items-center gap-1">
+            <Link to="/wizard">
+              <Button 
+                variant={location.pathname.startsWith('/wizard') ? 'secondary' : 'ghost'} 
+                size="sm" 
+              >
+                Agent Wizard
+              </Button>
+            </Link>
+            <Link to="/workbench/skills">
+              <Button 
+                variant={location.pathname.startsWith('/workbench/skills') ? 'secondary' : 'ghost'} 
+                size="sm" 
+              >
+                Skill Workbench
+              </Button>
+            </Link>
+          </nav>
+        </div>
         
         <div className="flex items-center gap-4">
           {isComplete && location.pathname !== '/export' && (
@@ -33,11 +56,11 @@ function Header() {
               <Download className="mr-2 h-4 w-4" /> Export
             </Button>
           )}
-          <Button variant="ghost" size="icon" asChild>
-            <a href="https://github.com" target="_blank" rel="noreferrer">
+          <a href="https://github.com" target="_blank" rel="noreferrer">
+            <Button variant="ghost" size="icon">
               <Github className="h-5 w-5" />
-            </a>
-          </Button>
+            </Button>
+          </a>
           <Button variant="outline" size="sm" onClick={() => setShowSettings(!showSettings)}>
             <Settings className="mr-2 h-4 w-4" /> Settings
           </Button>
@@ -69,7 +92,9 @@ export default function App() {
   return (
     <SettingsProvider>
       <AgentProvider>
-        <AppContent />
+        <SkillWorkbenchProvider>
+          <AppContent />
+        </SkillWorkbenchProvider>
       </AgentProvider>
     </SettingsProvider>
   );
@@ -98,6 +123,7 @@ function AppContent() {
             <Route path="/generating" element={<GenerationDashboard />} />
             <Route path="/editor" element={<FileEditor />} />
             <Route path="/export" element={<ExportView />} />
+            <Route path="/workbench/skills" element={<SkillWorkbench />} />
           </Routes>
         </main>
       </div>

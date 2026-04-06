@@ -79,6 +79,32 @@ export interface AgentManifest {
 
 // ─── Skills ─────────────────────────────────────────────────────────────────
 
+export interface SkillMetadata {
+  author?: string;
+  version?: string;
+  category?: string;
+  [key: string]: string | number | boolean | undefined;
+}
+
+export interface SkillExample {
+  input: string;
+  output: string;
+}
+
+export interface SkillDefinition {
+  id: string; // Internal ID for the workbench
+  name: string;
+  description: string;
+  license?: string;
+  compatibility?: string;
+  allowedTools: string[];
+  metadata: SkillMetadata;
+  instructions: string;
+  references: Array<{ name: string; content: string }>;
+  examples: SkillExample[];
+  scripts: string[]; // Just filenames
+}
+
 export interface ParsedSkill {
   name: string;
   description: string;
@@ -86,6 +112,10 @@ export interface ParsedSkill {
   allowedTools?: string[];
   license?: string;
   compatibility?: string;
+  metadata?: Record<string, any>;
+  references?: Array<{ name: string; content: string }>;
+  examples?: Array<{ input: string; output: string }>;
+  scripts?: string[];
 }
 
 // ─── Tools ──────────────────────────────────────────────────────────────────
