@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAgentWorkspace } from '../context/AgentContext';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Folder, ChevronRight, ChevronDown, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { FileText, Folder, ChevronRight, ChevronDown, AlertTriangle, AlertCircle, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function FileEditor() {
   const { state, dispatch } = useAgentWorkspace();
+  const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<string | null>('agent.yaml');
 
   const getFileContent = (path: string) => {
@@ -29,8 +32,21 @@ export function FileEditor() {
         const manifest = JSON.parse(content);
         dispatch({ type: 'UPDATE_MANIFEST', payload: manifest });
       } catch (e) {}
-    } else {
-      // Handle other files
+    } else if (selectedFile === 'SOUL.md') {
+      dispatch({ type: 'UPDATE_META', payload: { soul: content } });
+    } else if (selectedFile === 'RULES.md') {
+      dispatch({ type: 'UPDATE_META', payload: { rules: content } });
+    } else if (selectedFile === 'PROMPT.md') {
+      dispatch({ type: 'UPDATE_META', payload: { prompt_md: content } });
+    } else if (selectedFile === 'DUTIES.md') {
+      dispatch({ type: 'UPDATE_META', payload: { duties: content } });
+    } else if (selectedFile.startsWith('skills/')) {
+      const name = selectedFile.split('/')[1];
+      const updatedSkills = { ...state.skills };
+      if (updatedSkills[name]) {
+        updatedSkills[name] = { ...updatedSkills[name], instructions: content };
+        dispatch({ type: 'UPDATE_META', payload: { skills: updatedSkills } });
+      }
     }
   };
 
@@ -46,10 +62,17 @@ export function FileEditor() {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="h-10 border-b bg-background flex items-center px-4 justify-between">
           <span className="text-sm font-mono text-muted-foreground">{selectedFile}</span>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             {state.validationResult?.errors.some(e => e.file === selectedFile) && (
               <Badge variant="destructive" className="h-6">Error</Badge>
             )}
+            <Button 
+              size="sm" 
+              className="h-7 px-2 text-xs" 
+              onClick={() => navigate('/export')}
+            >
+              Continue to Export <ArrowRight className="ml-1 h-3 w-3" />
+            </Button>
           </div>
         </div>
         <textarea

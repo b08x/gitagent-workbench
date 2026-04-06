@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
-import { AgentProvider } from '../app/context/AgentContext';
+import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { AgentProvider, useAgentWorkspace } from '../app/context/AgentContext';
 import { SettingsProvider, useSettings } from '../app/context/SettingsContext';
 import { WizardShell } from '../app/wizard/WizardShell';
 import { GenerationDashboard } from '../app/generation/GenerationDashboard';
 import { FileEditor } from '../app/editor/FileEditor';
 import { ExportView } from '../app/export/ExportView';
 import { Button } from '../components/ui/button';
-import { Settings, Github, Package, X } from 'lucide-react';
+import { Settings, Github, Package, X, Download } from 'lucide-react';
 import { SettingsPanel } from '../app/components/SettingsPanel';
 
 function Header() {
   const [showSettings, setShowSettings] = useState(false);
+  const { state } = useAgentWorkspace();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isComplete = state.meta.status === 'complete';
 
   return (
     <header className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
@@ -22,6 +27,11 @@ function Header() {
         </Link>
         
         <div className="flex items-center gap-4">
+          {isComplete && location.pathname !== '/export' && (
+            <Button size="sm" onClick={() => navigate('/export')}>
+              <Download className="mr-2 h-4 w-4" /> Export
+            </Button>
+          )}
           <Button variant="ghost" size="icon" asChild>
             <a href="https://github.com" target="_blank" rel="noreferrer">
               <Github className="h-5 w-5" />

@@ -1,12 +1,14 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAgentWorkspace } from '../context/AgentContext';
 import { serializeWorkspace, downloadZip } from '../../lib/gitagent/serializer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Download, CheckCircle, Terminal, Copy, Check } from 'lucide-react';
+import { Download, CheckCircle, Terminal, Copy, Check, ArrowLeft } from 'lucide-react';
 
 export function ExportView() {
   const { state, dispatch } = useAgentWorkspace();
+  const navigate = useNavigate();
   const [copied, setCopied] = React.useState<string | null>(null);
 
   const handleDownload = async () => {
@@ -42,9 +44,14 @@ export function ExportView() {
 
   return (
     <div className="max-w-3xl mx-auto py-12 px-6">
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold tracking-tight">Export Agent</h2>
-        <p className="text-muted-foreground">Your gitagent is ready for deployment.</p>
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Export Agent</h2>
+          <p className="text-muted-foreground">Your gitagent is ready for deployment.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => navigate('/editor')}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Editor
+        </Button>
       </div>
 
       <div className="grid gap-6">
