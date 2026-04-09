@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAgentWorkspace } from '../context/AgentContext';
+import { TemplateSelectStep } from './steps/TemplateSelectStep';
 import { StructureStep } from './steps/StructureStep';
 import { IdentityStep } from './steps/IdentityStep';
 import { ModelStep } from './steps/ModelStep';
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 
 const steps = [
+  { id: 'template', title: 'Template', component: TemplateSelectStep },
   { id: 'structure', title: 'Structure', component: StructureStep },
   { id: 'identity', title: 'Identity', component: IdentityStep },
   { id: 'model', title: 'Model', component: ModelStep },

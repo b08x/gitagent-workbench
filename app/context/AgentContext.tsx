@@ -7,12 +7,17 @@ type Action =
   | { type: 'UPDATE_MANIFEST'; payload: Partial<AgentWorkspace['manifest']> }
   | { type: 'SET_FILE'; payload: { path: string; content: string } }
   | { type: 'UPDATE_WORKSPACE'; payload: Partial<AgentWorkspace> }
-  | { type: 'ADD_SKILL'; payload: ParsedSkill };
+  | { type: 'ADD_SKILL'; payload: ParsedSkill }
+  | { type: 'SET_TEMPLATE'; payload: 'minimal' | 'standard' | 'full' };
 
-const initialState: AgentWorkspace = {
-// ... (rest of the file)
+interface ExtendedWorkspace extends AgentWorkspace {
+  selectedTemplate: 'minimal' | 'standard' | 'full';
+}
+
+const initialState: ExtendedWorkspace = {
+  selectedTemplate: 'standard',
   meta: {
-    structureType: 'minimal',
+    structureType: 'standard',
     status: 'intake',
     currentStep: null,
     lastDownloadedAt: null,
@@ -35,12 +40,16 @@ const initialState: AgentWorkspace = {
   validationResult: null,
 };
 
-function agentReducer(state: AgentWorkspace, action: Action): AgentWorkspace {
+function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspace {
   switch (action.type) {
     case 'SET_WORKSPACE':
-      return action.payload;
+      return { ...action.payload, selectedTemplate: state.selectedTemplate };
     case 'UPDATE_META':
-      return { ...state, meta: { ...state.meta, ...action.payload } };
+      const newState = { ...state, meta: { ...state.meta, ...action.payload } };
+      if (action.payload.structureType && ['minimal', 'standard', 'full'].includes(action.payload.structureType)) {
+        newState.selectedTemplate = action.payload.structureType as 'minimal' | 'standard' | 'full';
+      }
+      return newState;
     case 'UPDATE_MANIFEST':
       return { ...state, manifest: { ...state.manifest, ...action.payload } };
     case 'UPDATE_WORKSPACE':
@@ -48,6 +57,8 @@ function agentReducer(state: AgentWorkspace, action: Action): AgentWorkspace {
     case 'SET_FILE':
       // Simplified file setter
       return { ...state, [action.payload.path]: action.payload.content };
+    case 'SET_TEMPLATE':
+      return { ...state, selectedTemplate: action.payload, meta: { ...state.meta, structureType: action.payload } };
     case 'ADD_SKILL':
       return {
         ...state,
@@ -66,7 +77,7 @@ function agentReducer(state: AgentWorkspace, action: Action): AgentWorkspace {
 }
 
 const AgentContext = createContext<{
-  state: AgentWorkspace;
+  state: ExtendedWorkspace;
   dispatch: React.Dispatch<Action>;
 } | undefined>(undefined);
 
