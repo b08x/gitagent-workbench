@@ -6,7 +6,12 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
   const zip = new JSZip();
 
   // ── agent.yaml ─────────────────────────────────────────────────────────────
-  const manifestClean = stripNulls(workspace.manifest);
+  const ext = workspace as any;
+  const manifestClean = stripNulls({
+    ...workspace.manifest,
+    model: ext.modelConfig,
+    runtime: ext.runtimeConfig,
+  });
   zip.file('agent.yaml', yaml.dump(manifestClean, { indent: 2, lineWidth: 120 }));
 
   // ── SOUL.md ────────────────────────────────────────────────────────────────

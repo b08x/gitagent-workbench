@@ -21,6 +21,21 @@ interface ExtendedWorkspace extends AgentWorkspace {
   'must-never'?: string;
   'output-constraints'?: string;
   'interaction-boundaries'?: string;
+  modelConfig: {
+    preferred: string;
+    fallback: string[];
+    constraints: {
+      temperature: number;
+      max_tokens: number;
+      top_p?: number;
+      top_k?: number;
+      stop_sequences?: string[];
+    };
+  };
+  runtimeConfig: {
+    max_turns: number;
+    timeout: number;
+  };
 }
 
 const initialState: ExtendedWorkspace = {
@@ -32,6 +47,18 @@ const initialState: ExtendedWorkspace = {
     lastDownloadedAt: null,
   },
   manifest: {},
+  modelConfig: {
+    preferred: 'claude-sonnet-4-5-20250929',
+    fallback: [],
+    constraints: {
+      temperature: 0.3,
+      max_tokens: 4096,
+    }
+  },
+  runtimeConfig: {
+    max_turns: 30,
+    timeout: 120,
+  },
   soul: null,
   rules: null,
   prompt_md: null,
@@ -52,7 +79,12 @@ const initialState: ExtendedWorkspace = {
 function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspace {
   switch (action.type) {
     case 'SET_WORKSPACE':
-      return { ...action.payload, selectedTemplate: state.selectedTemplate };
+      return { 
+        ...action.payload, 
+        selectedTemplate: state.selectedTemplate,
+        modelConfig: (action.payload as any).modelConfig || initialState.modelConfig,
+        runtimeConfig: (action.payload as any).runtimeConfig || initialState.runtimeConfig,
+      };
     case 'UPDATE_META':
       const newState = { ...state, meta: { ...state.meta, ...action.payload } };
       if (action.payload.structureType && ['minimal', 'standard', 'full'].includes(action.payload.structureType)) {
