@@ -18,7 +18,24 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
     tools: Array.from(new Set([
       ...(workspace.manifest.tools || []),
       ...(ext.toolsList?.map((t: any) => t.name) || [])
-    ]))
+    ])),
+    delegation: ext.delegation?.mode !== 'none' ? {
+      mode: ext.delegation.mode,
+      agents: ext.subAgentsList?.map((a: any) => a.name) || []
+    } : undefined,
+    agents: ext.subAgentsList?.length > 0 ? ext.subAgentsList.reduce((acc: any, a: any) => {
+      acc[a.name] = {
+        path: `agents/${a.name}`,
+        role: a.role,
+        permissions: a.permissions
+      };
+      return acc;
+    }, {}) : undefined,
+    a2a: ext.a2aServers?.length > 0 ? {
+      url: ext.a2aServers[0].url,
+      capabilities: ext.a2aServers[0].capabilities,
+      authentication: ext.a2aServers[0].authentication
+    } : undefined
   });
   zip.file('agent.yaml', yaml.dump(manifestClean, { indent: 2, lineWidth: 120 }));
 
@@ -197,6 +214,21 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
   }
 
   // ── agents/ (sub-agents, one level deep) ───────────────────────────────────
+  // Handle subAgentsList from wizard
+  if (ext.subAgentsList && ext.subAgentsList.length > 0) {
+    for (const agent of ext.subAgentsList) {
+      const subManifest = {
+        name: agent.name,
+        version: '0.1.0',
+        description: agent.description,
+        spec_version: '0.1.0'
+      };
+      zip.file(`agents/${agent.name}/agent.yaml`, yaml.dump(subManifest, { indent: 2 }));
+      zip.file(`agents/${agent.name}/SOUL.md`, `# ${agent.name} Soul\n\nCore identity for ${agent.name}.`);
+      zip.file(`agents/${agent.name}/DUTIES.md`, `# ${agent.name} Duties\n\nRole: ${agent.role}\n\nPermissions:\n${agent.permissions.map((p: string) => `- ${p}`).join('\n')}`);
+    }
+  }
+
   for (const [subName, subAgent] of Object.entries(workspace.subAgents)) {
     const subManifestClean = stripNulls(subAgent.manifest);
     zip.file(`agents/${subName}/agent.yaml`, yaml.dump(subManifestClean, { indent: 2 }));

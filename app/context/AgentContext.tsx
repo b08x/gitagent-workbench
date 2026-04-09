@@ -22,6 +22,21 @@ export interface ToolEntry {
   description: string;
 }
 
+export interface SubAgentEntry {
+  name: string;
+  description: string;
+  role: string;
+  permissions: string[];
+}
+
+export interface A2AServerEntry {
+  url: string;
+  capabilities: string[];
+  authentication: {
+    type: 'bearer' | 'api_key' | 'none';
+  };
+}
+
 interface ExtendedWorkspace extends AgentWorkspace {
   selectedTemplate: 'minimal' | 'standard' | 'full';
   'core-identity'?: string;
@@ -50,6 +65,11 @@ interface ExtendedWorkspace extends AgentWorkspace {
   };
   skillsList: SkillEntry[];
   toolsList: ToolEntry[];
+  delegation: {
+    mode: 'auto' | 'manual' | 'none';
+  };
+  subAgentsList: SubAgentEntry[];
+  a2aServers: A2AServerEntry[];
 }
 
 const initialState: ExtendedWorkspace = {
@@ -75,6 +95,11 @@ const initialState: ExtendedWorkspace = {
   },
   skillsList: [],
   toolsList: [],
+  delegation: {
+    mode: 'none',
+  },
+  subAgentsList: [],
+  a2aServers: [],
   soul: null,
   rules: null,
   prompt_md: null,
@@ -102,6 +127,9 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         runtimeConfig: (action.payload as any).runtimeConfig || initialState.runtimeConfig,
         skillsList: (action.payload as any).skillsList || initialState.skillsList,
         toolsList: (action.payload as any).toolsList || initialState.toolsList,
+        delegation: (action.payload as any).delegation || initialState.delegation,
+        subAgentsList: (action.payload as any).subAgentsList || initialState.subAgentsList,
+        a2aServers: (action.payload as any).a2aServers || initialState.a2aServers,
       };
     case 'UPDATE_META':
       const newState = { ...state, meta: { ...state.meta, ...action.payload } };
