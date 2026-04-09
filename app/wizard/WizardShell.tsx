@@ -8,8 +8,11 @@ import { ModelStep } from './steps/ModelStep';
 import { ModelConfigStep } from './steps/ModelConfigStep';
 import { SkillsToolsStep } from './steps/SkillsToolsStep';
 import { DelegationStep } from './steps/DelegationStep';
+import { DutiesStep } from './steps/DutiesStep';
 import { CapabilitiesStep } from './steps/CapabilitiesStep';
 import { ComplianceStep } from './steps/ComplianceStep';
+import { HooksStep } from './steps/HooksStep';
+import { MemoryStep } from './steps/MemoryStep';
 import { ReviewStep } from './steps/ReviewStep';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
@@ -22,8 +25,11 @@ const steps = [
   { id: 'config', title: 'Config', component: ModelConfigStep },
   { id: 'skills', title: 'Skills', component: SkillsToolsStep },
   { id: 'delegation', title: 'Delegation', component: DelegationStep },
+  { id: 'duties', title: 'Duties', component: DutiesStep },
   { id: 'capabilities', title: 'Capabilities', component: CapabilitiesStep },
   { id: 'compliance', title: 'Compliance', component: ComplianceStep },
+  { id: 'hooks', title: 'Hooks', component: HooksStep },
+  { id: 'memory', title: 'Memory', component: MemoryStep },
   { id: 'review', title: 'Review', component: ReviewStep },
 ];
 
@@ -36,7 +42,10 @@ export function WizardShell() {
     if (s.id === 'config' && state.selectedTemplate === 'minimal') return false;
     if (s.id === 'skills' && state.selectedTemplate === 'minimal') return false;
     if (s.id === 'delegation' && state.selectedTemplate !== 'full') return false;
-    if (s.id === 'compliance' && state.selectedTemplate === 'minimal') return false;
+    if (s.id === 'duties' && state.selectedTemplate !== 'full') return false;
+    if (s.id === 'compliance' && state.selectedTemplate !== 'full') return false;
+    if (s.id === 'hooks' && state.selectedTemplate !== 'full') return false;
+    if (s.id === 'memory' && state.selectedTemplate !== 'full') return false;
     return true;
   });
 

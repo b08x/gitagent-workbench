@@ -35,7 +35,31 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
       url: ext.a2aServers[0].url,
       capabilities: ext.a2aServers[0].capabilities,
       authentication: ext.a2aServers[0].authentication
-    } : undefined
+    } : undefined,
+    compliance: {
+      ...(workspace.manifest.compliance || {}),
+      ...(ext.dutiesConfig?.roles?.length > 0 ? {
+        segregation_of_duties: {
+          roles: ext.dutiesConfig.roles.map((r: any) => ({
+            name: r.name,
+            permissions: r.permissions
+          })),
+          conflict_matrix: ext.dutiesConfig.conflictMatrix.map((c: any) => ({
+            roles: c.roles,
+            reason: c.reason
+          })),
+          enforcement_mode: 'strict'
+        }
+      } : {}),
+      ...(ext.complianceConfig ? {
+        risk_tier: ext.complianceConfig.risk_tier,
+        supervision: ext.complianceConfig.supervision,
+        recordkeeping: ext.complianceConfig.recordkeeping,
+        model_risk: ext.complianceConfig.model_risk,
+        data_governance: ext.complianceConfig.data_governance,
+        communications: ext.complianceConfig.communications
+      } : {})
+    }
   });
   zip.file('agent.yaml', yaml.dump(manifestClean, { indent: 2, lineWidth: 120 }));
 
@@ -49,7 +73,27 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
   if (workspace.prompt_md) zip.file('PROMPT.md', workspace.prompt_md);
 
   // ── DUTIES.md ──────────────────────────────────────────────────────────────
-  if (workspace.duties) zip.file('DUTIES.md', workspace.duties);
+  if (ext.dutiesConfig && ext.dutiesConfig.roles.length > 0) {
+    let dutiesMd = `## Purpose\n${ext.dutiesConfig.purpose || 'Segregation of duties policy.'}\n\n`;
+    
+    dutiesMd += `## Role Definitions\n| Role | Permissions | Restrictions |\n|---|---|---|\n`;
+    ext.dutiesConfig.roles.forEach((r: any) => {
+      dutiesMd += `| ${r.name} | ${r.permissions.join(', ')} | None |\n`;
+    });
+    dutiesMd += `\n`;
+
+    dutiesMd += `## Conflict Matrix\n| Role A | Role B | Conflict Reason |\n|---|---|---|\n`;
+    ext.dutiesConfig.conflictMatrix.forEach((c: any) => {
+      dutiesMd += `| ${c.roles[0]} | ${c.roles[1]} | ${c.reason} |\n`;
+    });
+    dutiesMd += `\n`;
+
+    dutiesMd += `## Handoff Procedures\n${ext.dutiesConfig.handoffProcedures || '1. Standard handoff.'}\n`;
+    
+    zip.file('DUTIES.md', dutiesMd);
+  } else if (workspace.duties) {
+    zip.file('DUTIES.md', workspace.duties);
+  }
 
   // ── AGENTS.md ──────────────────────────────────────────────────────────────
   if (workspace.agents_md) zip.file('AGENTS.md', workspace.agents_md);
@@ -192,7 +236,30 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
   }
 
   // ── memory/ ────────────────────────────────────────────────────────────────
-  if (workspace.memory) {
+  if (ext.memoryConfig) {
+    const memoryYaml = {
+      layers: [
+        {
+          name: 'working',
+          path: ext.memoryConfig.layers.working.path,
+          max_lines: ext.memoryConfig.layers.working.max_lines,
+          format: ext.memoryConfig.layers.working.format,
+          load: ext.memoryConfig.layers.working.load
+        },
+        {
+          name: 'archive',
+          path: ext.memoryConfig.layers.archive.path,
+          rotation: ext.memoryConfig.layers.archive.rotation
+        }
+      ],
+      update_triggers: ext.memoryConfig.updateTriggers
+    };
+    zip.file('memory/memory.yaml', yaml.dump(memoryYaml, { indent: 2 }));
+    
+    const initialMemoryMd = `# Session Memory\n<!-- Session memories will be written here by the agent runtime -->`;
+    zip.file('memory/MEMORY.md', initialMemoryMd);
+    zip.file('memory/archive/.gitkeep', '');
+  } else if (workspace.memory) {
     zip.file('memory/MEMORY.md', '');
     zip.file('memory/memory.yaml', yaml.dump(workspace.memory, { indent: 2 }));
   }
@@ -211,6 +278,31 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
   }
   if (workspace.config.production) {
     zip.file('config/production.yaml', yaml.dump(workspace.config.production, { indent: 2 }));
+  }
+
+  // ── hooks/ ─────────────────────────────────────────────────────────────────
+  if (ext.hooks && ext.hooks.length > 0) {
+    const hooksYaml = {
+      hooks: ext.hooks.map((h: any) => ({
+        event: h.event,
+        script: h.script,
+        fail_open: h.fail_open
+      }))
+    };
+    zip.file('hooks/hooks.yaml', yaml.dump(hooksYaml, { indent: 2 }));
+
+    const stubScript = `#!/bin/bash
+# Read stdin (hook payload)
+input=$(cat)
+# Emit allow action
+echo '{"action": "allow", "modifications": null}'`;
+
+    for (const hook of ext.hooks) {
+      if (hook.script.startsWith('scripts/')) {
+        const scriptName = hook.script.replace('scripts/', '');
+        zip.file(`hooks/scripts/${scriptName}`, stubScript);
+      }
+    }
   }
 
   // ── agents/ (sub-agents, one level deep) ───────────────────────────────────

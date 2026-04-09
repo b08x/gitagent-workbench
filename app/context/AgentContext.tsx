@@ -37,6 +37,52 @@ export interface A2AServerEntry {
   };
 }
 
+export interface DutyRole {
+  name: string;
+  permissions: string[];
+}
+
+export interface ConflictMatrixEntry {
+  roles: [string, string];
+  reason: string;
+}
+
+export interface DutiesConfig {
+  purpose: string;
+  roles: DutyRole[];
+  conflictMatrix: ConflictMatrixEntry[];
+  handoffProcedures: string;
+}
+
+export interface ComplianceConfig {
+  risk_tier: 'low' | 'standard' | 'high' | 'critical';
+  supervision: {
+    human_in_the_loop: 'always' | 'conditional' | 'never';
+    kill_switch: boolean;
+    override_capability: boolean;
+  };
+  recordkeeping: {
+    audit_logging: boolean;
+    retention_period: string;
+    log_format: 'structured_json';
+  };
+  model_risk: {
+    ongoing_monitoring: boolean;
+  };
+  data_governance: {
+    pii_handling: 'redact' | 'anonymize' | 'passthrough';
+  };
+  communications: {
+    fair_balanced: boolean;
+  };
+}
+
+export interface HookEntry {
+  event: 'on_session_start' | 'on_error' | 'on_session_end' | 'on_tool_call';
+  script: string;
+  fail_open: boolean;
+}
+
 interface ExtendedWorkspace extends AgentWorkspace {
   selectedTemplate: 'minimal' | 'standard' | 'full';
   'core-identity'?: string;
@@ -70,6 +116,24 @@ interface ExtendedWorkspace extends AgentWorkspace {
   };
   subAgentsList: SubAgentEntry[];
   a2aServers: A2AServerEntry[];
+  dutiesConfig: DutiesConfig;
+  complianceConfig: ComplianceConfig;
+  hooks: HookEntry[];
+  memoryConfig: {
+    layers: {
+      working: {
+        path: string;
+        max_lines: number;
+        format: 'markdown' | 'plaintext';
+        load: 'always' | 'on-demand';
+      };
+      archive: {
+        path: string;
+        rotation: 'monthly' | 'weekly' | 'daily';
+      };
+    };
+    updateTriggers: string[];
+  };
 }
 
 const initialState: ExtendedWorkspace = {
@@ -100,6 +164,53 @@ const initialState: ExtendedWorkspace = {
   },
   subAgentsList: [],
   a2aServers: [],
+  dutiesConfig: {
+    purpose: '',
+    roles: [],
+    conflictMatrix: [],
+    handoffProcedures: '',
+  },
+  complianceConfig: {
+    risk_tier: 'standard',
+    supervision: {
+      human_in_the_loop: 'conditional',
+      kill_switch: true,
+      override_capability: true,
+    },
+    recordkeeping: {
+      audit_logging: true,
+      retention_period: '6y',
+      log_format: 'structured_json',
+    },
+    model_risk: {
+      ongoing_monitoring: true,
+    },
+    data_governance: {
+      pii_handling: 'redact',
+    },
+    communications: {
+      fair_balanced: true,
+    },
+  },
+  hooks: [
+    { event: 'on_session_start', script: 'scripts/on-start.sh', fail_open: true },
+    { event: 'on_error', script: 'scripts/on-error.sh', fail_open: true },
+  ],
+  memoryConfig: {
+    layers: {
+      working: {
+        path: 'MEMORY.md',
+        max_lines: 200,
+        format: 'markdown',
+        load: 'always',
+      },
+      archive: {
+        path: 'archive/',
+        rotation: 'monthly',
+      },
+    },
+    updateTriggers: ['on_session_end', 'on_explicit_save'],
+  },
   soul: null,
   rules: null,
   prompt_md: null,
@@ -130,6 +241,10 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         delegation: (action.payload as any).delegation || initialState.delegation,
         subAgentsList: (action.payload as any).subAgentsList || initialState.subAgentsList,
         a2aServers: (action.payload as any).a2aServers || initialState.a2aServers,
+        dutiesConfig: (action.payload as any).dutiesConfig || initialState.dutiesConfig,
+        complianceConfig: (action.payload as any).complianceConfig || initialState.complianceConfig,
+        hooks: (action.payload as any).hooks || initialState.hooks,
+        memoryConfig: (action.payload as any).memoryConfig || initialState.memoryConfig,
       };
     case 'UPDATE_META':
       const newState = { ...state, meta: { ...state.meta, ...action.payload } };
