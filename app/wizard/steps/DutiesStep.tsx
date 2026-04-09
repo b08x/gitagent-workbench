@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAgentWorkspace, DutyRole, ConflictMatrixEntry } from '../../context/AgentContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, ShieldAlert, AlertCircle } from 'lucide-react';
+import { GenerateImproveButton } from '../components/GenerateImproveButton';
 
 const PERMISSIONS = ['create', 'submit', 'review', 'approve', 'audit'];
 
@@ -20,6 +21,11 @@ const toKebabCase = (str: string) => {
 
 export function DutiesStep() {
   const { state, dispatch } = useAgentWorkspace();
+  const [loadingFields, setLoadingFields] = useState<Record<string, boolean>>({});
+
+  const setFieldLoading = (field: string, loading: boolean) => {
+    setLoadingFields(prev => ({ ...prev, [field]: loading }));
+  };
 
   if (state.selectedTemplate !== 'full') {
     return (
@@ -92,11 +98,21 @@ export function DutiesStep() {
 
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="sod-purpose">Policy Purpose</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="sod-purpose">Policy Purpose</Label>
+              <GenerateImproveButton 
+                fieldValue={state.dutiesConfig.purpose}
+                fileType="duties-md"
+                workspace={state}
+                onLoadingChange={(loading) => setFieldLoading('purpose', loading)}
+                onResult={(val) => updateDuties({ purpose: val })}
+              />
+            </div>
             <Textarea 
               id="sod-purpose"
               placeholder="Define the SOD policy for financial transactions..."
               value={state.dutiesConfig.purpose}
+              disabled={loadingFields['purpose']}
               onChange={e => updateDuties({ purpose: e.target.value })}
               className="h-20"
             />
@@ -229,10 +245,20 @@ export function DutiesStep() {
       </section>
 
       <section className="space-y-4">
-        <h3 className="text-lg font-semibold">Handoff Procedures</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Handoff Procedures</h3>
+          <GenerateImproveButton 
+            fieldValue={state.dutiesConfig.handoffProcedures}
+            fileType="duties-md"
+            workspace={state}
+            onLoadingChange={(loading) => setFieldLoading('handoffProcedures', loading)}
+            onResult={(val) => updateDuties({ handoffProcedures: val })}
+          />
+        </div>
         <Textarea 
           placeholder="1. Submitter creates draft&#10;2. Submitter notifies Reviewer&#10;3. Reviewer approves or rejects..."
           value={state.dutiesConfig.handoffProcedures}
+          disabled={loadingFields['handoffProcedures']}
           onChange={e => updateDuties({ handoffProcedures: e.target.value })}
           className="min-h-[150px]"
         />

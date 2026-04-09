@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Textarea } from '@/components/ui/textarea';
+import { GenerateImproveButton } from '../components/GenerateImproveButton';
 
 const toKebabCase = (str: string) => {
   return str
@@ -23,6 +25,11 @@ export function SkillsToolsStep() {
   const { state, dispatch } = useAgentWorkspace();
   const [skillErrors, setSkillErrors] = useState<Record<number, string>>({});
   const [toolErrors, setToolErrors] = useState<Record<number, string>>({});
+  const [loadingSkills, setLoadingSkills] = useState<Record<number, boolean>>({});
+
+  const setSkillLoading = (index: number, loading: boolean) => {
+    setLoadingSkills(prev => ({ ...prev, [index]: loading }));
+  };
 
   if (state.selectedTemplate === 'minimal') {
     return (
@@ -41,7 +48,7 @@ export function SkillsToolsStep() {
   };
 
   const addSkill = () => {
-    updateSkills([...state.skillsList, { name: '', description: '', category: 'general' }]);
+    updateSkills([...state.skillsList, { name: '', description: '', instructions: '', category: 'general' }]);
   };
 
   const removeSkill = (index: number) => {
@@ -189,6 +196,27 @@ export function SkillsToolsStep() {
                     placeholder="web-search file-reader"
                     value={skill.allowedTools || ''}
                     onChange={e => handleSkillChange(index, 'allowedTools', e.target.value)}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor={`skill-instructions-${index}`}>Instructions</Label>
+                    <GenerateImproveButton 
+                      fieldValue={skill.instructions || ''}
+                      fileType="skill-md"
+                      workspace={state}
+                      onLoadingChange={(loading) => setSkillLoading(index, loading)}
+                      onResult={(val) => handleSkillChange(index, 'instructions', val)}
+                    />
+                  </div>
+                  <Textarea 
+                    id={`skill-instructions-${index}`}
+                    placeholder="1. Step one...&#10;2. Step two..."
+                    value={skill.instructions || ''}
+                    disabled={loadingSkills[index]}
+                    onChange={e => handleSkillChange(index, 'instructions', e.target.value)}
+                    className="min-h-[100px]"
                   />
                 </div>
               </CardContent>

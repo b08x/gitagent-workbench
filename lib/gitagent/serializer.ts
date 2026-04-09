@@ -118,7 +118,7 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
         frontmatterObj['allowed-tools'] = skill.allowedTools;
       }
       const frontmatterYaml = yaml.dump(frontmatterObj, { indent: 2 }).trimEnd();
-      const skillMdContent = `---\n${frontmatterYaml}\n---\n\n# ${skill.name}\n\nPlaceholder for skill instructions.`;
+      const skillMdContent = `---\n${frontmatterYaml}\n---\n\n# ${skill.name}\n\n${skill.instructions || 'Placeholder for skill instructions.'}`;
       zip.file(`skills/${skill.name}/SKILL.md`, skillMdContent);
     }
   }

@@ -13,6 +13,7 @@ type Action =
 export interface SkillEntry {
   name: string;
   description: string;
+  instructions: string;
   allowedTools?: string;
   category: 'general' | 'research' | 'code' | 'compliance' | 'communication';
 }
@@ -157,7 +158,14 @@ const initialState: ExtendedWorkspace = {
     max_turns: 30,
     timeout: 120,
   },
-  skillsList: [],
+  skillsList: [
+    { 
+      name: 'research-expert', 
+      description: 'Expert at searching and synthesizing information', 
+      instructions: '1. Search for the topic using available tools.\n2. Synthesize findings into a concise summary.\n3. Cite sources.',
+      category: 'research' 
+    }
+  ],
   toolsList: [],
   delegation: {
     mode: 'none',
