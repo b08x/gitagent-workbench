@@ -10,6 +10,18 @@ type Action =
   | { type: 'ADD_SKILL'; payload: ParsedSkill }
   | { type: 'SET_TEMPLATE'; payload: 'minimal' | 'standard' | 'full' };
 
+export interface SkillEntry {
+  name: string;
+  description: string;
+  allowedTools?: string;
+  category: 'general' | 'research' | 'code' | 'compliance' | 'communication';
+}
+
+export interface ToolEntry {
+  name: string;
+  description: string;
+}
+
 interface ExtendedWorkspace extends AgentWorkspace {
   selectedTemplate: 'minimal' | 'standard' | 'full';
   'core-identity'?: string;
@@ -36,6 +48,8 @@ interface ExtendedWorkspace extends AgentWorkspace {
     max_turns: number;
     timeout: number;
   };
+  skillsList: SkillEntry[];
+  toolsList: ToolEntry[];
 }
 
 const initialState: ExtendedWorkspace = {
@@ -59,6 +73,8 @@ const initialState: ExtendedWorkspace = {
     max_turns: 30,
     timeout: 120,
   },
+  skillsList: [],
+  toolsList: [],
   soul: null,
   rules: null,
   prompt_md: null,
@@ -84,6 +100,8 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         selectedTemplate: state.selectedTemplate,
         modelConfig: (action.payload as any).modelConfig || initialState.modelConfig,
         runtimeConfig: (action.payload as any).runtimeConfig || initialState.runtimeConfig,
+        skillsList: (action.payload as any).skillsList || initialState.skillsList,
+        toolsList: (action.payload as any).toolsList || initialState.toolsList,
       };
     case 'UPDATE_META':
       const newState = { ...state, meta: { ...state.meta, ...action.payload } };

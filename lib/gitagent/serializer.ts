@@ -11,6 +11,14 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
     ...workspace.manifest,
     model: ext.modelConfig,
     runtime: ext.runtimeConfig,
+    skills: Array.from(new Set([
+      ...(workspace.manifest.skills || []),
+      ...(ext.skillsList?.map((s: any) => s.name) || [])
+    ])),
+    tools: Array.from(new Set([
+      ...(workspace.manifest.tools || []),
+      ...(ext.toolsList?.map((t: any) => t.name) || [])
+    ]))
   });
   zip.file('agent.yaml', yaml.dump(manifestClean, { indent: 2, lineWidth: 120 }));
 
@@ -33,6 +41,27 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
   // CRITICAL: Every SKILL.md MUST start with YAML frontmatter between --- delimiters.
   // Without this, gitagent validate fails with "missing YAML frontmatter".
   // The serializer owns the frontmatter. The model generates only the body.
+  
+  // Handle skillsList from wizard
+  if (ext.skillsList && ext.skillsList.length > 0) {
+    for (const skill of ext.skillsList) {
+      const frontmatterObj: Record<string, unknown> = {
+        name: skill.name,
+        description: skill.description,
+        license: 'MIT',
+        metadata: {
+          category: skill.category
+        }
+      };
+      if (skill.allowedTools) {
+        frontmatterObj['allowed-tools'] = skill.allowedTools;
+      }
+      const frontmatterYaml = yaml.dump(frontmatterObj, { indent: 2 }).trimEnd();
+      const skillMdContent = `---\n${frontmatterYaml}\n---\n\n# ${skill.name}\n\nPlaceholder for skill instructions.`;
+      zip.file(`skills/${skill.name}/SKILL.md`, skillMdContent);
+    }
+  }
+
   if (Object.keys(workspace.skills).length > 0) {
     for (const [name, skill] of Object.entries(workspace.skills)) {
       const frontmatterObj: Record<string, unknown> = {
@@ -87,6 +116,24 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
   // CRITICAL: Every tool declared in agent.yaml tools[] MUST have a corresponding
   // tools/<n>.yaml file or gitagent validate fails with "Referenced tool not found".
   // Tools use MCP-compatible input_schema (NOT `parameters`).
+  
+  // Handle toolsList from wizard
+  if (ext.toolsList && ext.toolsList.length > 0) {
+    for (const tool of ext.toolsList) {
+      const toolObj = {
+        name: tool.name,
+        description: tool.description,
+        input_schema: {
+          type: "object",
+          properties: {
+            input: { type: "string" }
+          }
+        }
+      };
+      zip.file(`tools/${tool.name}.yaml`, yaml.dump(toolObj, { indent: 2 }));
+    }
+  }
+
   if (Object.keys(workspace.tools).length > 0) {
     for (const [name, tool] of Object.entries(workspace.tools)) {
       const toolObj: Record<string, unknown> = {
