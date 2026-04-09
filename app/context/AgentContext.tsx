@@ -6,12 +6,21 @@ type Action =
   | { type: 'UPDATE_META'; payload: Partial<AgentWorkspace['meta']> }
   | { type: 'UPDATE_MANIFEST'; payload: Partial<AgentWorkspace['manifest']> }
   | { type: 'SET_FILE'; payload: { path: string; content: string } }
-  | { type: 'UPDATE_WORKSPACE'; payload: Partial<AgentWorkspace> }
+  | { type: 'UPDATE_WORKSPACE'; payload: Partial<ExtendedWorkspace> }
   | { type: 'ADD_SKILL'; payload: ParsedSkill }
   | { type: 'SET_TEMPLATE'; payload: 'minimal' | 'standard' | 'full' };
 
 interface ExtendedWorkspace extends AgentWorkspace {
   selectedTemplate: 'minimal' | 'standard' | 'full';
+  'core-identity'?: string;
+  'communication-style'?: string;
+  'values-principles'?: string;
+  'domain-expertise'?: string;
+  'collaboration-style'?: string;
+  'must-always'?: string;
+  'must-never'?: string;
+  'output-constraints'?: string;
+  'interaction-boundaries'?: string;
 }
 
 const initialState: ExtendedWorkspace = {
