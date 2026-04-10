@@ -10,7 +10,6 @@ import { ModelConfigStep } from './steps/ModelConfigStep';
 import { SkillsToolsStep } from './steps/SkillsToolsStep';
 import { DelegationStep } from './steps/DelegationStep';
 import { DutiesStep } from './steps/DutiesStep';
-import { CapabilitiesStep } from './steps/CapabilitiesStep';
 import { ComplianceStep } from './steps/ComplianceStep';
 import { HooksStep } from './steps/HooksStep';
 import { MemoryStep } from './steps/MemoryStep';
@@ -28,7 +27,6 @@ const steps = [
   { id: 'skills', title: 'Skills', component: SkillsToolsStep },
   { id: 'delegation', title: 'Delegation', component: DelegationStep },
   { id: 'duties', title: 'Duties', component: DutiesStep },
-  { id: 'capabilities', title: 'Capabilities', component: CapabilitiesStep },
   { id: 'compliance', title: 'Compliance', component: ComplianceStep },
   { id: 'hooks', title: 'Hooks', component: HooksStep },
   { id: 'memory', title: 'Memory', component: MemoryStep },

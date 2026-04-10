@@ -41,10 +41,12 @@ export function SkillsToolsStep({ fieldErrors = {} }: { fieldErrors?: Record<str
 
   const updateSkills = (newSkills: SkillEntry[]) => {
     dispatch({ type: 'UPDATE_WORKSPACE', payload: { skillsList: newSkills } });
+    dispatch({ type: 'UPDATE_MANIFEST', payload: { skills: newSkills.map(s => s.name).filter(Boolean) } });
   };
 
   const updateTools = (newTools: ToolEntry[]) => {
     dispatch({ type: 'UPDATE_WORKSPACE', payload: { toolsList: newTools } });
+    dispatch({ type: 'UPDATE_MANIFEST', payload: { tools: newTools.map(t => t.name).filter(Boolean) } });
   };
 
   const addSkill = () => {
