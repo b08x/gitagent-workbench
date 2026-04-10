@@ -215,6 +215,7 @@ export function SkillsToolsStep({ fieldErrors = {} }: { fieldErrors?: Record<str
                     <GenerateImproveButton 
                       fieldValue={skill.instructions || ''}
                       fileType="skill-md"
+                      fieldName={`Skill: ${skill.name} Instructions`}
                       workspace={state}
                       onLoadingChange={(loading) => setSkillLoading(index, loading)}
                       onResult={(val) => handleSkillChange(index, 'instructions', val)}
