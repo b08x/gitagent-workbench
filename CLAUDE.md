@@ -9,16 +9,16 @@ GitAgent Workbench is a React application that helps users create AI agents thro
 ## Development Commands
 
 ```bash
-# Development server (runs on port 3000, accessible externally)
+# Development server (runs on port 3000 with external access enabled via --host=0.0.0.0)
 npm run dev
 
-# Production build
+# Production build (outputs to dist/ directory)
 npm run build
 
-# Preview production build
+# Preview production build locally
 npm run preview
 
-# Type checking (no test suite exists)
+# TypeScript type checking (no test suite exists)
 npm run lint
 
 # Clean build artifacts
@@ -28,16 +28,23 @@ npm run clean
 ## Architecture
 
 ### Core State Management
-The application uses React Context for state management with two primary contexts:
+The application uses React Context for state management with three primary contexts:
 - **AgentContext** (`app/context/AgentContext.tsx`) - Manages the `AgentWorkspace` state for agent configuration
 - **SettingsContext** (`app/context/SettingsContext.tsx`) - Handles app settings, API keys, and theme preferences
+- **SkillWorkbenchContext** (`app/context/SkillWorkbenchContext.tsx`) - Manages standalone skill development workspace
 
 ### Application Flow
-1. **Wizard Phase** (`/wizard`) - Multi-step configuration:
+1. **Wizard Phase** (`/wizard`) - Multi-step configuration with validation and preview:
    - Identity → Capabilities → Model → Compliance → Structure → Review
+   - Features consolidated skills/tools configuration and enhanced tooltips
 2. **Generation Phase** (`/generating`) - AI-powered content creation using the orchestrator
-3. **Editor Phase** (`/editor`) - Manual file editing and refinement
-4. **Export Phase** (`/export`) - Download agent configuration as ZIP
+3. **Workbench Phase** (`/workbench`) - Interactive development environments:
+   - **Skills Workbench** (`/workbench/skills`) - Create and edit agent skills with live preview
+   - **Workflow Workbench** (`/workbench/workflows`) - Design multi-step workflows
+   - **Chat Workbench** (`/workbench/chat`) - Test agent interactions
+   - **Knowledge Workbench** (`/workbench/knowledge`) - Manage knowledge bases
+4. **Editor Phase** (`/editor`) - Manual file editing and refinement
+5. **Export Phase** (`/export`) - Download complete agent package as ZIP archive
 
 ### AI Provider Integration
 The app supports multiple AI providers through a unified interface (`lib/providers/`):
@@ -71,6 +78,9 @@ The orchestrator (`lib/generation/orchestrator.ts`) runs a sequential generation
 
 ### UI Components
 - **Wizard Steps**: `app/wizard/steps/` - Each step of the configuration wizard
+- **Workbench Components**: `app/workbench/` - Interactive development environments
+  - `SkillWorkbench.tsx` - Standalone skill creation and editing
+  - `WorkflowWorkbench.tsx` - Multi-step workflow design interface
 - **Main Views**: `app/{generation,editor,export}/` - Primary application views
 - **UI Kit**: `components/ui/` - Reusable Radix UI components with Tailwind CSS
 
@@ -80,15 +90,17 @@ The orchestrator (`lib/generation/orchestrator.ts`) runs a sequential generation
 `lib/config/agent_instruction_config.json` contains extensive prompt templates and generation strategies with dimensional analysis for context gathering, drafting, and review phases.
 
 ### Environment Variables
-Create `.env.local` with:
+Create `.env.local` in the project root with AI provider credentials:
+```bash
+# Choose one or more providers - application validates available providers at runtime
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-proj-...
+GOOGLE_API_KEY=AIza...
+MISTRAL_API_KEY=...
+OPENROUTER_API_KEY=sk-or-...
 ```
-# At minimum, set one of these API keys:
-ANTHROPIC_API_KEY=your_key_here
-OPENAI_API_KEY=your_key_here
-GOOGLE_API_KEY=your_key_here
-MISTRAL_API_KEY=your_key_here
-OPENROUTER_API_KEY=your_key_here
-```
+
+Note: The application surfaces configuration options through the settings interface based on available API keys.
 
 ## Structure Types
 The application supports different agent complexity levels:
@@ -105,7 +117,7 @@ The `AgentWorkspace` interface is the central data structure containing:
 - **meta** - Status, structure type, current step
 - **manifest** - Agent configuration (name, version, dependencies, compliance)
 - **Content files** - soul, rules, prompt_md, duties, agents_md
-- **Capabilities** - skills, tools, workflows
+- **Capabilities** - skills, tools, workflows (including WorkflowSchema with workflow steps)
 - **Infrastructure** - knowledge index, memory config, examples
 - **Sub-agents** - Nested agent configurations
 
@@ -115,6 +127,11 @@ The `AgentWorkspace` interface is the central data structure containing:
 1. Create step component in `app/wizard/steps/`
 2. Update `WizardShell.tsx` routing
 3. Add step validation in agent reducer
+
+### Extending Workbench Functionality
+1. **Skills Workbench**: Edit `app/workbench/skills/` components for skill management
+2. **Workflows Workbench**: Modify `WorkflowWorkbench.tsx` for workflow step design
+3. **Context Integration**: Update respective contexts for persistent state management
 
 ### Extending AI Providers
 1. Implement provider interface in `lib/providers/`
@@ -127,10 +144,10 @@ The `AgentWorkspace` interface is the central data structure containing:
 3. Implement generation logic in orchestrator switch statement
 
 ## Tech Stack
-- **Frontend**: React 19, TypeScript, Vite
-- **Styling**: Tailwind CSS v4, Radix UI components
-- **AI Integration**: Vercel AI SDK with multiple providers
+- **Frontend**: React 19, TypeScript 5.8, Vite 6.2
+- **Styling**: Tailwind CSS v4, Radix UI components, Motion (Framer Motion 12)
+- **AI Integration**: Vercel AI SDK v6 with multiple providers (@ai-sdk/*)
 - **Routing**: React Router DOM v7
 - **State**: React Context + useReducer
 - **Validation**: Zod schemas
-- **Build**: Vite with React plugin
+- **Build**: Vite with React and Tailwind plugins
