@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { assembleSoul, assembleRules } from '@/lib/gitagent/assembleSystemPrompt';
 import { GenerateImproveButton } from '../components/GenerateImproveButton';
 
-export function IdentityStep() {
+export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
   const [loadingFields, setLoadingFields] = useState<Record<string, boolean>>({});
 
@@ -48,7 +48,11 @@ export function IdentityStep() {
               placeholder="my-awesome-agent" 
               value={state.manifest.name || ''}
               onChange={e => updateManifest('name', e.target.value)}
+              className={fieldErrors['manifest.name'] ? 'border-destructive' : ''}
             />
+            {fieldErrors['manifest.name'] && (
+              <p className="text-xs text-destructive mt-1">{fieldErrors['manifest.name']}</p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="version">Version</Label>
@@ -57,7 +61,11 @@ export function IdentityStep() {
               placeholder="1.0.0" 
               value={state.manifest.version || ''}
               onChange={e => updateManifest('version', e.target.value)}
+              className={fieldErrors['manifest.version'] ? 'border-destructive' : ''}
             />
+            {fieldErrors['manifest.version'] && (
+              <p className="text-xs text-destructive mt-1">{fieldErrors['manifest.version']}</p>
+            )}
           </div>
         </div>
 
@@ -86,7 +94,7 @@ export function IdentityStep() {
           <Textarea 
             id="core-identity" 
             placeholder="A senior software engineer focused on React performance..." 
-            className="min-h-[100px]"
+            className={`min-h-[100px] ${fieldErrors['core-identity'] ? 'border-destructive' : ''}`}
             value={state['core-identity'] || ''}
             disabled={loadingFields['core-identity']}
             onChange={e => {
@@ -103,6 +111,9 @@ export function IdentityStep() {
               });
             }}
           />
+          {fieldErrors['core-identity'] && (
+            <p className="text-xs text-destructive mt-1">{fieldErrors['core-identity']}</p>
+          )}
           <p className="text-[10px] text-muted-foreground italic">Maps to agent.yaml description and SOUL.md ## Core Identity</p>
         </div>
 

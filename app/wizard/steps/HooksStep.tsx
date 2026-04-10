@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Trash2, Terminal } from 'lucide-react';
 
-export function HooksStep() {
+export function HooksStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
   const hooks = state.hooks || [];
 

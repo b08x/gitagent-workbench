@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { X, Plus } from 'lucide-react';
 
-export function CapabilitiesStep() {
+export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
   const [newSkill, setNewSkill] = useState('');
   const [newTool, setNewTool] = useState('');

@@ -21,7 +21,7 @@ const isValidKebabCase = (str: string) => {
   return /^[a-z][a-z0-9-]*$/.test(str);
 };
 
-export function SkillsToolsStep() {
+export function SkillsToolsStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
   const [skillErrors, setSkillErrors] = useState<Record<number, string>>({});
   const [toolErrors, setToolErrors] = useState<Record<number, string>>({});
@@ -151,11 +151,13 @@ export function SkillsToolsStep() {
                       value={skill.name}
                       onChange={e => handleSkillChange(index, 'name', e.target.value)}
                       onBlur={() => handleSkillBlur(index)}
-                      className={cn(skillErrors[index] && "border-destructive focus-visible:ring-destructive")}
+                      className={cn(
+                        (skillErrors[index] || fieldErrors[`skillsList.${index}.name`]) && "border-destructive focus-visible:ring-destructive"
+                      )}
                     />
-                    {skillErrors[index] && (
+                    {(skillErrors[index] || fieldErrors[`skillsList.${index}.name`]) && (
                       <p className="text-[10px] text-destructive flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" /> {skillErrors[index]}
+                        <AlertCircle className="h-3 w-3" /> {skillErrors[index] || fieldErrors[`skillsList.${index}.name`]}
                       </p>
                     )}
                   </div>
@@ -186,7 +188,13 @@ export function SkillsToolsStep() {
                     placeholder="Expert at searching and synthesizing information..."
                     value={skill.description}
                     onChange={e => handleSkillChange(index, 'description', e.target.value)}
+                    className={cn(fieldErrors[`skillsList.${index}.description`] && "border-destructive")}
                   />
+                  {fieldErrors[`skillsList.${index}.description`] && (
+                    <p className="text-[10px] text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" /> {fieldErrors[`skillsList.${index}.description`]}
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid gap-2">

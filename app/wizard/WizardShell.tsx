@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAgentWorkspace } from '../context/AgentContext';
+import { validateWizardState, ValidationResult } from '../../lib/wizard/validate';
 import { TemplateSelectStep } from './steps/TemplateSelectStep';
 import { StructureStep } from './steps/StructureStep';
 import { IdentityStep } from './steps/IdentityStep';
@@ -37,6 +38,14 @@ const steps = [
 export function WizardShell() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const { state } = useAgentWorkspace();
+  const [validation, setValidation] = useState<ValidationResult>({ valid: true, errors: {} });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setValidation(validateWizardState(state));
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [state]);
 
   // Skip steps that are not applicable to the selected template
   const filteredSteps = steps.filter(s => {
@@ -89,7 +98,7 @@ export function WizardShell() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
               >
-                <CurrentStep />
+                <CurrentStep fieldErrors={validation.errors} />
               </motion.div>
             </AnimatePresence>
           </div>

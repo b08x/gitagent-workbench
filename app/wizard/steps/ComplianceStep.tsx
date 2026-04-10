@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { ShieldCheck, AlertTriangle } from 'lucide-react';
 
-export function ComplianceStep() {
+export function ComplianceStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
   const config = state.complianceConfig;
 
@@ -105,7 +105,7 @@ export function ComplianceStep() {
                   onValueChange={v => updateConfig({ supervision: { ...config.supervision, human_in_the_loop: v as any } })}
                   disabled={isHighRisk}
                 >
-                  <SelectTrigger id="hitl">
+                  <SelectTrigger id="hitl" className={fieldErrors['complianceConfig.supervision.human_in_the_loop'] ? 'border-destructive' : ''}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -114,6 +114,9 @@ export function ComplianceStep() {
                     <SelectItem value="never">Never</SelectItem>
                   </SelectContent>
                 </Select>
+                {fieldErrors['complianceConfig.supervision.human_in_the_loop'] && (
+                  <p className="text-xs text-destructive mt-1">{fieldErrors['complianceConfig.supervision.human_in_the_loop']}</p>
+                )}
               </div>
 
               <div className="flex items-center justify-between">
@@ -157,8 +160,12 @@ export function ComplianceStep() {
                   checked={config.recordkeeping.audit_logging} 
                   onCheckedChange={v => updateConfig({ recordkeeping: { ...config.recordkeeping, audit_logging: v } })}
                   disabled={isHighRisk}
+                  className={fieldErrors['complianceConfig.recordkeeping.audit_logging'] ? 'border-destructive' : ''}
                 />
               </div>
+              {fieldErrors['complianceConfig.recordkeeping.audit_logging'] && (
+                <p className="text-xs text-destructive mt-1">{fieldErrors['complianceConfig.recordkeeping.audit_logging']}</p>
+              )}
 
               <div className="grid gap-2">
                 <Label htmlFor="retention">Retention Period</Label>

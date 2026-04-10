@@ -19,7 +19,7 @@ const toKebabCase = (str: string) => {
     .replace(/^-+|-+$/g, '');
 };
 
-export function DutiesStep() {
+export function DutiesStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
   const [loadingFields, setLoadingFields] = useState<Record<string, boolean>>({});
 

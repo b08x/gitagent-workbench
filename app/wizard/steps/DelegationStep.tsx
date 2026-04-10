@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, Globe, Users } from 'lucide-react';
 import { SubAgentMiniWizard } from '../components/SubAgentMiniWizard';
 
-export function DelegationStep() {
+export function DelegationStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
   const [showAddAgent, setShowAddAgent] = useState(false);
 

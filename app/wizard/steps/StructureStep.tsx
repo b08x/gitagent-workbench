@@ -25,7 +25,7 @@ const structures: { type: StructureType; title: string; description: string; fil
   },
 ];
 
-export function StructureStep() {
+export function StructureStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
 
   return (

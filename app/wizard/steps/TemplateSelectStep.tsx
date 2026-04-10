@@ -30,7 +30,7 @@ const templates = [
   }
 ];
 
-export function TemplateSelectStep() {
+export function TemplateSelectStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
 
   return (
