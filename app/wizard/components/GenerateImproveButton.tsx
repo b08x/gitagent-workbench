@@ -11,6 +11,7 @@ type FileType = 'soul-md' | 'rules-md' | 'prompt-md' | 'duties-md' | 'skill-md';
 interface GenerateImproveButtonProps {
   fieldValue: string;
   fileType: FileType;
+  fieldName?: string;
   workspace: AgentWorkspace;
   onResult: (text: string) => void;
   onLoadingChange?: (loading: boolean) => void;
@@ -20,6 +21,7 @@ interface GenerateImproveButtonProps {
 export function GenerateImproveButton({ 
   fieldValue, 
   fileType, 
+  fieldName,
   workspace, 
   onResult,
   onLoadingChange,
@@ -46,7 +48,7 @@ export function GenerateImproveButton({
     setIsLoading(true);
     onLoadingChange?.(true);
     try {
-      const prompt = buildGenerationPrompt(fileType, phase, workspace);
+      const prompt = buildGenerationPrompt(fileType, phase, workspace, fieldName);
       let fullText = '';
       
       for await (const chunk of provider.stream(prompt, apiKey)) {

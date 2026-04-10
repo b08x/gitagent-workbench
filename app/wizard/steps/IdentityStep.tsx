@@ -75,6 +75,7 @@ export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string
             <GenerateImproveButton 
               fieldValue={state['core-identity'] || ''}
               fileType="soul-md"
+              fieldName="Core Identity"
               workspace={state}
               onLoadingChange={(loading) => setFieldLoading('core-identity', loading)}
               onResult={(val) => {
@@ -125,6 +126,7 @@ export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string
                 <GenerateImproveButton 
                   fieldValue={state['communication-style'] || ''}
                   fileType="soul-md"
+                  fieldName="Communication Style"
                   workspace={state}
                   onLoadingChange={(loading) => setFieldLoading('communication-style', loading)}
                   onResult={(val) => updateSoulField('communication-style', val)}
@@ -144,6 +146,7 @@ export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string
                 <GenerateImproveButton 
                   fieldValue={state['domain-expertise'] || ''}
                   fileType="soul-md"
+                  fieldName="Domain Expertise"
                   workspace={state}
                   onLoadingChange={(loading) => setFieldLoading('domain-expertise', loading)}
                   onResult={(val) => updateSoulField('domain-expertise', val)}
@@ -166,6 +169,7 @@ export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string
             <GenerateImproveButton 
               fieldValue={state['values-principles'] || ''}
               fileType="soul-md"
+              fieldName="Values & Principles"
               workspace={state}
               onLoadingChange={(loading) => setFieldLoading('values-principles', loading)}
               onResult={(val) => updateSoulField('values-principles', val)}
@@ -190,6 +194,7 @@ export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string
                   <GenerateImproveButton 
                     fieldValue={state['must-always'] || ''}
                     fileType="rules-md"
+                    fieldName="Must Always"
                     workspace={state}
                     onLoadingChange={(loading) => setFieldLoading('must-always', loading)}
                     onResult={(val) => updateRulesField('must-always', val)}
@@ -209,6 +214,7 @@ export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string
                   <GenerateImproveButton 
                     fieldValue={state['must-never'] || ''}
                     fileType="rules-md"
+                    fieldName="Must Never"
                     workspace={state}
                     onLoadingChange={(loading) => setFieldLoading('must-never', loading)}
                     onResult={(val) => updateRulesField('must-never', val)}

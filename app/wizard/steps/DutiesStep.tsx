@@ -103,6 +103,7 @@ export function DutiesStep({ fieldErrors = {} }: { fieldErrors?: Record<string, 
               <GenerateImproveButton 
                 fieldValue={state.dutiesConfig.purpose}
                 fileType="duties-md"
+                fieldName="Policy Purpose"
                 workspace={state}
                 onLoadingChange={(loading) => setFieldLoading('purpose', loading)}
                 onResult={(val) => updateDuties({ purpose: val })}
@@ -250,6 +251,7 @@ export function DutiesStep({ fieldErrors = {} }: { fieldErrors?: Record<string, 
           <GenerateImproveButton 
             fieldValue={state.dutiesConfig.handoffProcedures}
             fileType="duties-md"
+            fieldName="Handoff Procedures"
             workspace={state}
             onLoadingChange={(loading) => setFieldLoading('handoffProcedures', loading)}
             onResult={(val) => updateDuties({ handoffProcedures: val })}

@@ -16,12 +16,20 @@ const fileTypeToProfileKey: Record<FileType, string> = {
 export function buildGenerationPrompt(
   file: FileType,
   phase: Phase,
-  workspace: AgentWorkspace
+  workspace: AgentWorkspace,
+  fieldName?: string
 ): GenerationPrompt {
   const profileKey = fileTypeToProfileKey[file];
   const profile = (config as any).file_profiles?.[profileKey];
   
-  let systemPrompt = `You are generating a ${file} for a gitagent named "${workspace.manifest.name}".\n\n`;
+  let systemPrompt = `You are generating content for a gitagent named "${workspace.manifest.name}".\n`;
+  
+  if (fieldName) {
+    systemPrompt += `Specifically, you are generating the content for the field: "${fieldName}".\n`;
+    systemPrompt += `DO NOT generate a complete markdown file. ONLY generate the text content for this specific field.\n\n`;
+  } else {
+    systemPrompt += `You are generating a complete ${file}.\n\n`;
+  }
   
   if (profile) {
     systemPrompt += `Purpose: ${profile._purpose}\n`;
@@ -78,7 +86,8 @@ export function buildGenerationPrompt(
     });
   }
 
-  const userPrompt = `Agent Context:\n${JSON.stringify(workspace.manifest, null, 2)}\n\nGenerate the content for ${file}.`;
+  const fieldTarget = fieldName ? `the "${fieldName}" field` : file;
+  const userPrompt = `Agent Context:\n${JSON.stringify(workspace.manifest, null, 2)}\n\nGenerate the content for ${fieldTarget}.`;
 
   return {
     system: systemPrompt,
