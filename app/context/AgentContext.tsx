@@ -6,18 +6,219 @@ type Action =
   | { type: 'UPDATE_META'; payload: Partial<AgentWorkspace['meta']> }
   | { type: 'UPDATE_MANIFEST'; payload: Partial<AgentWorkspace['manifest']> }
   | { type: 'SET_FILE'; payload: { path: string; content: string } }
-  | { type: 'UPDATE_WORKSPACE'; payload: Partial<AgentWorkspace> }
-  | { type: 'ADD_SKILL'; payload: ParsedSkill };
+  | { type: 'UPDATE_WORKSPACE'; payload: Partial<ExtendedWorkspace> }
+  | { type: 'ADD_SKILL'; payload: ParsedSkill }
+  | { type: 'SET_TEMPLATE'; payload: 'minimal' | 'standard' | 'full' };
 
-const initialState: AgentWorkspace = {
-// ... (rest of the file)
+export interface SkillEntry {
+  name: string;
+  description: string;
+  instructions: string;
+  allowedTools?: string;
+  category: 'general' | 'research' | 'code' | 'compliance' | 'communication';
+}
+
+export interface ToolEntry {
+  name: string;
+  description: string;
+}
+
+export interface SubAgentEntry {
+  name: string;
+  description: string;
+  role: string;
+  permissions: string[];
+}
+
+export interface A2AServerEntry {
+  url: string;
+  capabilities: string[];
+  authentication: {
+    type: 'bearer' | 'api_key' | 'none';
+  };
+}
+
+export interface DutyRole {
+  name: string;
+  permissions: string[];
+}
+
+export interface ConflictMatrixEntry {
+  roles: [string, string];
+  reason: string;
+}
+
+export interface DutiesConfig {
+  purpose: string;
+  roles: DutyRole[];
+  conflictMatrix: ConflictMatrixEntry[];
+  handoffProcedures: string;
+}
+
+export interface ComplianceConfig {
+  risk_tier: 'low' | 'standard' | 'high' | 'critical';
+  supervision: {
+    human_in_the_loop: 'always' | 'conditional' | 'never';
+    kill_switch: boolean;
+    override_capability: boolean;
+  };
+  recordkeeping: {
+    audit_logging: boolean;
+    retention_period: string;
+    log_format: 'structured_json';
+  };
+  model_risk: {
+    ongoing_monitoring: boolean;
+  };
+  data_governance: {
+    pii_handling: 'redact' | 'anonymize' | 'passthrough';
+  };
+  communications: {
+    fair_balanced: boolean;
+  };
+}
+
+export interface HookEntry {
+  event: 'on_session_start' | 'on_error' | 'on_session_end' | 'on_tool_call';
+  script: string;
+  fail_open: boolean;
+}
+
+interface ExtendedWorkspace extends AgentWorkspace {
+  selectedTemplate: 'minimal' | 'standard' | 'full';
+  'core-identity'?: string;
+  'communication-style'?: string;
+  'values-principles'?: string;
+  'domain-expertise'?: string;
+  'collaboration-style'?: string;
+  'must-always'?: string;
+  'must-never'?: string;
+  'output-constraints'?: string;
+  'interaction-boundaries'?: string;
+  modelConfig: {
+    preferred: string;
+    fallback: string[];
+    constraints: {
+      temperature: number;
+      max_tokens: number;
+      top_p?: number;
+      top_k?: number;
+      stop_sequences?: string[];
+    };
+  };
+  runtimeConfig: {
+    max_turns: number;
+    timeout: number;
+  };
+  skillsList: SkillEntry[];
+  toolsList: ToolEntry[];
+  delegation: {
+    mode: 'auto' | 'manual' | 'none';
+  };
+  subAgentsList: SubAgentEntry[];
+  a2aServers: A2AServerEntry[];
+  dutiesConfig: DutiesConfig;
+  complianceConfig: ComplianceConfig;
+  hooks: HookEntry[];
+  memoryConfig: {
+    layers: {
+      working: {
+        path: string;
+        max_lines: number;
+        format: 'markdown' | 'plaintext';
+        load: 'always' | 'on-demand';
+      };
+      archive: {
+        path: string;
+        rotation: 'monthly' | 'weekly' | 'daily';
+      };
+    };
+    updateTriggers: string[];
+  };
+}
+
+const initialState: ExtendedWorkspace = {
+  selectedTemplate: 'standard',
   meta: {
-    structureType: 'minimal',
+    structureType: 'standard',
     status: 'intake',
     currentStep: null,
     lastDownloadedAt: null,
   },
   manifest: {},
+  modelConfig: {
+    preferred: 'claude-sonnet-4-5-20250929',
+    fallback: [],
+    constraints: {
+      temperature: 0.3,
+      max_tokens: 4096,
+    }
+  },
+  runtimeConfig: {
+    max_turns: 30,
+    timeout: 120,
+  },
+  skillsList: [
+    { 
+      name: 'research-expert', 
+      description: 'Expert at searching and synthesizing information', 
+      instructions: '1. Search for the topic using available tools.\n2. Synthesize findings into a concise summary.\n3. Cite sources.',
+      category: 'research' 
+    }
+  ],
+  toolsList: [],
+  delegation: {
+    mode: 'none',
+  },
+  subAgentsList: [],
+  a2aServers: [],
+  dutiesConfig: {
+    purpose: '',
+    roles: [],
+    conflictMatrix: [],
+    handoffProcedures: '',
+  },
+  complianceConfig: {
+    risk_tier: 'standard',
+    supervision: {
+      human_in_the_loop: 'conditional',
+      kill_switch: true,
+      override_capability: true,
+    },
+    recordkeeping: {
+      audit_logging: true,
+      retention_period: '6y',
+      log_format: 'structured_json',
+    },
+    model_risk: {
+      ongoing_monitoring: true,
+    },
+    data_governance: {
+      pii_handling: 'redact',
+    },
+    communications: {
+      fair_balanced: true,
+    },
+  },
+  hooks: [
+    { event: 'on_session_start', script: 'scripts/on-start.sh', fail_open: true },
+    { event: 'on_error', script: 'scripts/on-error.sh', fail_open: true },
+  ],
+  memoryConfig: {
+    layers: {
+      working: {
+        path: 'MEMORY.md',
+        max_lines: 200,
+        format: 'markdown',
+        load: 'always',
+      },
+      archive: {
+        path: 'archive/',
+        rotation: 'monthly',
+      },
+    },
+    updateTriggers: ['on_session_end', 'on_explicit_save'],
+  },
   soul: null,
   rules: null,
   prompt_md: null,
@@ -28,18 +229,37 @@ const initialState: AgentWorkspace = {
   workflows: {},
   knowledge: null,
   memory: null,
+  memory_md: null,
   examples: { goodOutputs: null, badOutputs: null },
   config: { default: null, production: null },
   subAgents: {},
   validationResult: null,
 };
 
-function agentReducer(state: AgentWorkspace, action: Action): AgentWorkspace {
+function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspace {
   switch (action.type) {
     case 'SET_WORKSPACE':
-      return action.payload;
+      return { 
+        ...action.payload, 
+        selectedTemplate: state.selectedTemplate,
+        modelConfig: (action.payload as any).modelConfig || initialState.modelConfig,
+        runtimeConfig: (action.payload as any).runtimeConfig || initialState.runtimeConfig,
+        skillsList: (action.payload as any).skillsList || initialState.skillsList,
+        toolsList: (action.payload as any).toolsList || initialState.toolsList,
+        delegation: (action.payload as any).delegation || initialState.delegation,
+        subAgentsList: (action.payload as any).subAgentsList || initialState.subAgentsList,
+        a2aServers: (action.payload as any).a2aServers || initialState.a2aServers,
+        dutiesConfig: (action.payload as any).dutiesConfig || initialState.dutiesConfig,
+        complianceConfig: (action.payload as any).complianceConfig || initialState.complianceConfig,
+        hooks: (action.payload as any).hooks || initialState.hooks,
+        memoryConfig: (action.payload as any).memoryConfig || initialState.memoryConfig,
+      };
     case 'UPDATE_META':
-      return { ...state, meta: { ...state.meta, ...action.payload } };
+      const newState = { ...state, meta: { ...state.meta, ...action.payload } };
+      if (action.payload.structureType && ['minimal', 'standard', 'full'].includes(action.payload.structureType)) {
+        newState.selectedTemplate = action.payload.structureType as 'minimal' | 'standard' | 'full';
+      }
+      return newState;
     case 'UPDATE_MANIFEST':
       return { ...state, manifest: { ...state.manifest, ...action.payload } };
     case 'UPDATE_WORKSPACE':
@@ -47,6 +267,8 @@ function agentReducer(state: AgentWorkspace, action: Action): AgentWorkspace {
     case 'SET_FILE':
       // Simplified file setter
       return { ...state, [action.payload.path]: action.payload.content };
+    case 'SET_TEMPLATE':
+      return { ...state, selectedTemplate: action.payload, meta: { ...state.meta, structureType: action.payload } };
     case 'ADD_SKILL':
       return {
         ...state,
@@ -65,7 +287,7 @@ function agentReducer(state: AgentWorkspace, action: Action): AgentWorkspace {
 }
 
 const AgentContext = createContext<{
-  state: AgentWorkspace;
+  state: ExtendedWorkspace;
   dispatch: React.Dispatch<Action>;
 } | undefined>(undefined);
 

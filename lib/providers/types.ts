@@ -13,6 +13,6 @@ export interface ModelProvider {
   id: string;
   name: string;
   supportsDirectBrowser: boolean;
-  generate(prompt: GenerationPrompt, apiKey: string): Promise<GenerationResult>;
-  stream(prompt: GenerationPrompt, apiKey: string): AsyncGenerator<string>;
+  generate(prompt: GenerationPrompt, apiKey: string, modelId?: string): Promise<GenerationResult>;
+  stream(prompt: GenerationPrompt, apiKey: string, modelId?: string): AsyncGenerator<string>;
 }

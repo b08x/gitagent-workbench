@@ -6,7 +6,7 @@ export const openrouterProvider: ModelProvider = {
   id: 'openrouter',
   name: 'OpenRouter',
   supportsDirectBrowser: true,
-  async generate(prompt, apiKey) {
+  async generate(prompt, apiKey, modelId) {
     const openrouter = createOpenRouter({ 
       apiKey,
       headers: {
@@ -15,14 +15,14 @@ export const openrouterProvider: ModelProvider = {
       }
     });
     const { text, experimental_output } = await generateText({
-      model: openrouter('anthropic/claude-3.5-sonnet'),
+      model: openrouter(modelId || 'anthropic/claude-3.5-sonnet'),
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
     });
     return { text, object: experimental_output };
   },
-  async *stream(prompt, apiKey) {
+  async *stream(prompt, apiKey, modelId) {
     const openrouter = createOpenRouter({ 
       apiKey,
       headers: {
@@ -31,7 +31,7 @@ export const openrouterProvider: ModelProvider = {
       }
     });
     const { textStream } = streamText({
-      model: openrouter('anthropic/claude-3.5-sonnet'),
+      model: openrouter(modelId || 'anthropic/claude-3.5-sonnet'),
       system: prompt.system,
       prompt: prompt.user,
     });

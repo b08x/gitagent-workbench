@@ -6,20 +6,20 @@ export const googleProvider: ModelProvider = {
   id: 'google',
   name: 'Google Gemini',
   supportsDirectBrowser: false,
-  async generate(prompt, apiKey) {
+  async generate(prompt, apiKey, modelId) {
     const google = createGoogleGenerativeAI({ apiKey });
     const { text, experimental_output } = await generateText({
-      model: google('gemini-1.5-pro'),
+      model: google(modelId || 'gemini-1.5-pro'),
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
     });
     return { text, object: experimental_output };
   },
-  async *stream(prompt, apiKey) {
+  async *stream(prompt, apiKey, modelId) {
     const google = createGoogleGenerativeAI({ apiKey });
     const { textStream } = streamText({
-      model: google('gemini-1.5-pro'),
+      model: google(modelId || 'gemini-1.5-pro'),
       system: prompt.system,
       prompt: prompt.user,
     });

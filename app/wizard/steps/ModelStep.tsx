@@ -22,7 +22,7 @@ const GEMINI_MODELS = [
 
 const ALL_MODELS = [...ANTHROPIC_MODELS, ...GEMINI_MODELS];
 
-export function ModelStep() {
+export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { settings, updateSettings, setApiKey } = useSettings();
   const { state, dispatch } = useAgentWorkspace();
 

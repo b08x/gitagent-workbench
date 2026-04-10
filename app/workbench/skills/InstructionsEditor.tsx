@@ -90,19 +90,6 @@ export function InstructionsEditor({ skill }: InstructionsEditorProps) {
           <Button variant="outline" size="sm" onClick={handleApplyTemplate}>
             Apply Template
           </Button>
-          <Button 
-            size="sm" 
-            onClick={handleGenerate} 
-            disabled={isGenerating || !skill.name}
-            className="bg-primary hover:bg-primary/90"
-          >
-            {isGenerating ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Wand2 className="h-4 w-4 mr-2" />
-            )}
-            Generate with AI
-          </Button>
         </div>
       </CardHeader>
       <CardContent className="p-0 flex-1 flex flex-col min-h-[500px]">

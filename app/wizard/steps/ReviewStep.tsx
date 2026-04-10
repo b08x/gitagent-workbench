@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Rocket } from 'lucide-react';
+import { ValidationSummary } from '../components/ValidationSummary';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-export function ReviewStep() {
+export function ReviewStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
   const { settings } = useSettings();
   const navigate = useNavigate();
@@ -83,9 +85,27 @@ export function ReviewStep() {
       </div>
 
       <div className="pt-4">
-        <Button className="w-full h-12 text-lg" onClick={handleGenerate} disabled={!settings.apiKeys[settings.providerId]}>
-          <Rocket className="mr-2 h-5 w-5" /> Generate Agent
-        </Button>
+        <ValidationSummary errors={fieldErrors} />
+        
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger render={<div className="w-full" />}>
+                <Button 
+                  className="w-full h-12 text-lg" 
+                  onClick={handleGenerate} 
+                  disabled={!settings.apiKeys[settings.providerId] || Object.keys(fieldErrors).length > 0}
+                >
+                  <Rocket className="mr-2 h-5 w-5" /> Generate Agent
+                </Button>
+            </TooltipTrigger>
+            {Object.keys(fieldErrors).length > 0 && (
+              <TooltipContent>
+                <p>Fix validation errors to continue</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+
         {!settings.apiKeys[settings.providerId] && (
           <p className="text-xs text-destructive mt-2 text-center">Please set an API key in the Model step to continue.</p>
         )}
