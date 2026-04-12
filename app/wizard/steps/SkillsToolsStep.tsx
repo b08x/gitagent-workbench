@@ -5,9 +5,11 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { GenerateImproveButton } from '../components/GenerateImproveButton';
 
 const toKebabCase = (str: string) => {
@@ -122,6 +124,25 @@ export function SkillsToolsStep({ fieldErrors = {} }: { fieldErrors?: Record<str
       }
     }
   };
+
+  const toggleDeploymentTarget = (target: any) => {
+    const current = state.deploymentTargets || ['cli'];
+    const next = current.includes(target)
+      ? current.filter(t => t !== target)
+      : [...current, target];
+    dispatch({ type: 'UPDATE_WORKSPACE', payload: { deploymentTargets: next } });
+    dispatch({ type: 'UPDATE_MANIFEST', payload: { deployment_targets: next } });
+  };
+
+  const DEPLOYMENT_OPTIONS = [
+    { id: 'cli', label: 'CLI', description: 'Terminal only, no gateway' },
+    { id: 'telegram', label: 'Telegram', description: 'Gateway.telegram stub included' },
+    { id: 'discord', label: 'Discord', description: 'Gateway.discord stub included' },
+    { id: 'slack', label: 'Slack', description: 'Gateway.slack stub included' },
+    { id: 'api', label: 'API/Embedded', description: 'Disables terminal toolset; sets skip_context_files hint', tooltip: 'Disables terminal toolset; sets skip_context_files hint' },
+    { id: 'background', label: 'Background/Scheduled', description: 'Enables cronjob toolset and delegation toolset', tooltip: 'Enables cronjob toolset and delegation toolset' },
+    { id: 'homeassistant', label: 'Home Assistant', description: 'Enables homeassistant toolset' },
+  ];
 
   return (
     <div className="space-y-10">
@@ -293,6 +314,49 @@ export function SkillsToolsStep({ fieldErrors = {} }: { fieldErrors?: Record<str
           <Button variant="outline" className="w-full border-dashed" onClick={addTool}>
             <Plus className="mr-2 h-4 w-4" /> Add Tool
           </Button>
+        </div>
+      </section>
+
+      <section className="space-y-6 pt-6 border-t">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Deployment Targets</h2>
+          <p className="text-muted-foreground">Select where your agent will be deployed to pre-configure the Hermes environment.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TooltipProvider>
+            {DEPLOYMENT_OPTIONS.map((opt) => (
+              <div key={opt.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors">
+                <Checkbox 
+                  id={`target-${opt.id}`} 
+                  checked={(state.deploymentTargets || ['cli']).includes(opt.id as any)}
+                  onCheckedChange={() => toggleDeploymentTarget(opt.id)}
+                  className="mt-1"
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor={`target-${opt.id}`}
+                      className="text-sm font-semibold leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {opt.label}
+                    </label>
+                    {opt.tooltip && (
+                      <Tooltip>
+                        <TooltipTrigger render={<Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />} />
+                        <TooltipContent>
+                          <p className="max-w-xs text-xs">{opt.tooltip}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {opt.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </TooltipProvider>
         </div>
       </section>
     </div>

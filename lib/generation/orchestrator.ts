@@ -1,5 +1,6 @@
 import { AgentWorkspace, ParsedSkill, ToolSchema } from '../gitagent/types';
 import { providers } from '../providers';
+import { generateHermesConfig } from '../gitagent/config-generator';
 import { buildGenerationPrompt } from './strategy';
 import { validateWorkspace } from './validator';
 import { soulPrompt } from './prompts/soul-md';
@@ -38,6 +39,7 @@ export async function* runGeneration(
     ...(!isMinimal && (workspace.manifest.compliance?.risk_tier !== 'low' || isFull)
       ? ['GEN_DUTIES']
       : []),
+    'GEN_CONFIG',
     'GEN_SKILLS',
     'GEN_TOOLS',
     ...(isFull ? ['GEN_WORKFLOWS'] : []),
@@ -114,6 +116,12 @@ export async function* runGeneration(
           content += chunk;
         }
         ws = { ...ws, duties: content };
+        yield { step, status: 'done', workspace: ws };
+      }
+
+      // ── GEN_CONFIG ─────────────────────────────────────────────────────────
+      else if (step === 'GEN_CONFIG') {
+        ws.hermesConfig = generateHermesConfig(ws);
         yield { step, status: 'done', workspace: ws };
       }
 

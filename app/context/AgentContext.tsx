@@ -233,6 +233,12 @@ const initialState: ExtendedWorkspace = {
   examples: { goodOutputs: null, badOutputs: null },
   config: { default: null, production: null },
   subAgents: {},
+  deploymentTargets: ['cli'],
+  hermesConfig: null,
+  generationConfig: {
+    providerId: 'openrouter',
+    modelId: 'anthropic/claude-3-5-sonnet',
+  },
   validationResult: null,
 };
 
@@ -253,6 +259,9 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         complianceConfig: (action.payload as any).complianceConfig || initialState.complianceConfig,
         hooks: (action.payload as any).hooks || initialState.hooks,
         memoryConfig: (action.payload as any).memoryConfig || initialState.memoryConfig,
+        deploymentTargets: action.payload.deploymentTargets || initialState.deploymentTargets,
+        hermesConfig: action.payload.hermesConfig || initialState.hermesConfig,
+        generationConfig: action.payload.generationConfig || initialState.generationConfig,
       };
     case 'UPDATE_META':
       const newState = { ...state, meta: { ...state.meta, ...action.payload } };

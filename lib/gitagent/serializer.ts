@@ -63,6 +63,9 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
   });
   zip.file('agent.yaml', yaml.dump(manifestClean, { indent: 2, lineWidth: 120 }));
 
+  // ── config.yaml ───────────────────────────────────────────────────────────
+  if (workspace.hermesConfig) zip.file('config.yaml', workspace.hermesConfig);
+
   // ── SOUL.md ────────────────────────────────────────────────────────────────
   if (workspace.soul) zip.file('SOUL.md', workspace.soul);
 

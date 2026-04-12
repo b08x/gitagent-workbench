@@ -72,6 +72,7 @@ export interface AgentManifest {
   runtime?: { max_turns?: number; temperature?: number; timeout?: number };
   a2a?: Record<string, unknown>;
   compliance?: AgentCompliance;
+  deployment_targets?: string[];
   tags?: string[];
   metadata?: Record<string, string | number | boolean>;
   registries?: Array<{ name: string; url?: string }>;
@@ -237,5 +238,11 @@ export interface AgentWorkspace {
   examples: { goodOutputs: string | null; badOutputs: string | null };
   config: { default: Record<string, unknown> | null; production: Record<string, unknown> | null };
   subAgents: Record<string, AgentWorkspace>;
+  deploymentTargets: Array<'cli' | 'telegram' | 'discord' | 'slack' | 'api' | 'background' | 'homeassistant'>;
+  hermesConfig: string | null;
+  generationConfig: {
+    providerId: string;
+    modelId: string;
+  };
   validationResult: ValidationResult | null;
 }

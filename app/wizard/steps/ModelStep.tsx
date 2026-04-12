@@ -63,6 +63,20 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
     });
   };
 
+  const updateSettingsAndWorkspace = (updates: any) => {
+    updateSettings(updates);
+    dispatch({
+      type: 'UPDATE_WORKSPACE',
+      payload: {
+        generationConfig: {
+          ...state.generationConfig,
+          providerId: updates.providerId || settings.providerId,
+          modelId: updates.modelId || settings.modelId,
+        }
+      }
+    });
+  };
+
   return (
     <div className="space-y-8">
       <section className="space-y-6">
@@ -72,21 +86,40 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
         </div>
 
         <div className="grid gap-6">
-          <div className="grid gap-2">
-            <Label>Provider</Label>
-            <Select 
-              value={settings.providerId} 
-              onValueChange={v => updateSettings({ providerId: v })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.values(providers).map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>Provider</Label>
+              <Select 
+                value={settings.providerId} 
+                onValueChange={v => updateSettingsAndWorkspace({ providerId: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.values(providers).map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Model</Label>
+              <Select 
+                value={settings.modelId} 
+                onValueChange={v => updateSettingsAndWorkspace({ modelId: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ALL_MODELS.map(m => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid gap-2">

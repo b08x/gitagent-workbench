@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 
 export interface AppConfig {
   providerId: string;
+  modelId: string;
   apiKeys: Record<string, string>;
   mcpServers: string[];
   theme: 'light' | 'dark';
@@ -20,6 +21,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const saved = sessionStorage.getItem('gitagent_settings');
     const defaults: AppConfig = {
       providerId: 'openrouter',
+      modelId: 'anthropic/claude-3-5-sonnet',
       apiKeys: {},
       mcpServers: [],
       theme: 'light'
