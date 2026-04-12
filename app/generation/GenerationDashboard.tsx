@@ -14,6 +14,7 @@ const STEP_LABELS: Record<string, string> = {
   GEN_RULES:     'RULES.md',
   GEN_PROMPT:    'PROMPT.md',
   GEN_DUTIES:    'DUTIES.md',
+  GEN_CONFIG:    'config.yaml',
   GEN_SKILLS:    'skills/',
   GEN_TOOLS:     'tools/',
   GEN_WORKFLOWS: 'workflows/',

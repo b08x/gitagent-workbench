@@ -7,6 +7,7 @@ import { WizardShell } from '../app/wizard/WizardShell';
 import { GenerationDashboard } from '../app/generation/GenerationDashboard';
 import { FileEditor } from '../app/editor/FileEditor';
 import { ExportView } from '../app/export/ExportView';
+import { ImportView } from '../app/import/ImportView';
 import { SkillWorkbench } from '../app/workbench/skills/SkillWorkbench';
 import { WorkflowWorkbench } from '../app/workbench/WorkflowWorkbench';
 import { KnowledgeWorkbench } from '../app/workbench/KnowledgeWorkbench';
@@ -72,6 +73,14 @@ function Header() {
                 size="sm" 
               >
                 Chat Test
+              </Button>
+            </Link>
+            <Link to="/import">
+              <Button 
+                variant={location.pathname === '/import' ? 'secondary' : 'ghost'} 
+                size="sm" 
+              >
+                Import
               </Button>
             </Link>
           </nav>
@@ -150,6 +159,7 @@ function AppContent() {
             <Route path="/generating" element={<GenerationDashboard />} />
             <Route path="/editor" element={<FileEditor />} />
             <Route path="/export" element={<ExportView />} />
+            <Route path="/import" element={<ImportView />} />
             <Route path="/workbench/skills" element={<SkillWorkbench />} />
             <Route path="/workbench/workflows" element={<WorkflowWorkbench />} />
             <Route path="/workbench/knowledge" element={<KnowledgeWorkbench />} />

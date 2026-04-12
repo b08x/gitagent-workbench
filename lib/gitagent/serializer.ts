@@ -63,6 +63,9 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
   });
   zip.file('agent.yaml', yaml.dump(manifestClean, { indent: 2, lineWidth: 120 }));
 
+  // ── config.yaml ───────────────────────────────────────────────────────────
+  if (workspace.hermesConfig) zip.file('config.yaml', workspace.hermesConfig);
+
   // ── SOUL.md ────────────────────────────────────────────────────────────────
   if (workspace.soul) zip.file('SOUL.md', workspace.soul);
 
@@ -125,49 +128,59 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
 
   if (Object.keys(workspace.skills).length > 0) {
     for (const [name, skill] of Object.entries(workspace.skills)) {
-      const frontmatterObj: Record<string, unknown> = {
-        name: skill.name || name,
-        description: skill.description || `${name} skill`,
-      };
-      if (skill.allowedTools && skill.allowedTools.length > 0) {
-        frontmatterObj['allowed-tools'] = skill.allowedTools.join(' ');
+      // ── SKILL.md ───────────────────────────────────────────────────────────
+      const generatedFM = (skill.metadata as any)?.frontmatter;
+      let skillMdContent = '';
+      
+      if (generatedFM) {
+        const fmYaml = yaml.dump(generatedFM, { indent: 2 }).trimEnd();
+        skillMdContent = `---\n${fmYaml}\n---\n\n${skill.instructions || ''}`;
+      } else {
+        const frontmatter: Record<string, any> = {
+          name: skill.name || name,
+          description: skill.description || `${name} skill`,
+          version: '1.0.0',
+          metadata: {
+            hermes: {
+              tags: [skill.category || 'general'],
+              category: skill.category || 'general'
+            },
+            'allowed-tools': (skill.allowedTools || []).join(' ')
+          }
+        };
+        if (skill.license) frontmatter.license = skill.license;
+        if (skill.compatibility) frontmatter.compatibility = skill.compatibility;
+        
+        const fmYaml = yaml.dump(frontmatter, { indent: 2 }).trimEnd();
+        skillMdContent = `---\n${fmYaml}\n---\n\n${skill.instructions || ''}`;
       }
-      if (skill.license) frontmatterObj['license'] = skill.license;
-      if (skill.compatibility) frontmatterObj['compatibility'] = skill.compatibility;
-      if (skill.metadata) frontmatterObj['metadata'] = skill.metadata;
-
-      const frontmatterYaml = yaml.dump(frontmatterObj, { indent: 2 }).trimEnd();
-
-      // Required format:
-      //   ---
-      //   name: skill-name
-      //   description: "..."
-      //   ---
-      //
-      //   # Skill Title
-      //   Instructions body...
-      const skillMdContent = `---\n${frontmatterYaml}\n---\n\n${skill.instructions || ''}`;
       zip.file(`skills/${name}/SKILL.md`, skillMdContent);
 
       // ── references/ ────────────────────────────────────────────────────────
       if (skill.references && skill.references.length > 0) {
+        let refReadme = `# References for ${skill.name}\n\n`;
+        refReadme += `This directory contains reference documents for the ${skill.name} skill.\n\n`;
+        refReadme += `| Filename | Description | Trigger |\n`;
+        refReadme += `| :--- | :--- | :--- |\n`;
         skill.references.forEach(ref => {
-          zip.file(`skills/${name}/references/${ref.name}`, ref.content);
+          refReadme += `| ${ref.filename} | ${ref.description} | ${ref.trigger} |\n`;
         });
+        zip.file(`skills/${name}/references/README.md`, refReadme);
+      } else {
+        zip.file(`skills/${name}/references/README.md`, `# References\n\nNo references defined for this skill.`);
       }
+
+      // ── templates/ ─────────────────────────────────────────────────────────
+      zip.file(`skills/${name}/templates/README.md`, `# Templates\n\nPlace template files here.\nThe agent can use these via:\nskill_view('${name}', 'templates/<filename>')`);
+
+      // ── scripts/ ───────────────────────────────────────────────────────────
+      zip.file(`skills/${name}/scripts/README.md`, `# Scripts\n\nPlace executable scripts here.\nThe agent can run these via the terminal tool.`);
 
       // ── examples/ ──────────────────────────────────────────────────────────
       if (skill.examples && skill.examples.length > 0) {
         skill.examples.forEach((ex, idx) => {
           const content = `Input:\n${ex.input}\n\nOutput:\n${ex.output}`;
           zip.file(`skills/${name}/examples/example-${idx + 1}.md`, content);
-        });
-      }
-
-      // ── scripts/ ───────────────────────────────────────────────────────────
-      if (skill.scripts && skill.scripts.length > 0) {
-        skill.scripts.forEach(script => {
-          zip.file(`skills/${name}/scripts/${script}`, '# Placeholder for script content');
         });
       }
     }
@@ -220,15 +233,33 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
   }
 
   // ── knowledge/ ─────────────────────────────────────────────────────────────
-  if (workspace.knowledge) {
-    // Write index.yaml (metadata only — no content)
+  const knowledgeDocs = workspace.knowledgeDocs || [];
+  const knowledgeIndex = workspace.knowledge || { documents: [] };
+  
+  const allDocs = [...knowledgeIndex.documents];
+  
+  // Add knowledgeDocs to index
+  knowledgeDocs.forEach(doc => {
+    if (!allDocs.find(d => d.path === `docs/${doc.path}`)) {
+      allDocs.push({
+        path: `docs/${doc.path}`,
+        description: doc.description,
+        always_load: doc.alwaysLoad
+      });
+    }
+    if (doc.content) {
+      zip.file(`knowledge/docs/${doc.path}`, doc.content);
+    }
+  });
+
+  if (allDocs.length > 0) {
     const indexForYaml = {
-      documents: workspace.knowledge.documents.map(({ content, ...entry }) => entry)
+      documents: allDocs.map(({ content, ...entry }) => entry)
     };
     zip.file('knowledge/index.yaml', yaml.dump(indexForYaml, { indent: 2 }));
 
-    // Write document files for entries that have content
-    for (const doc of workspace.knowledge.documents) {
+    // Write existing knowledge content if any
+    for (const doc of knowledgeIndex.documents) {
       if (doc.content) {
         zip.file(`knowledge/${doc.path}`, doc.content);
       }
@@ -256,11 +287,20 @@ export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blo
     };
     zip.file('memory/memory.yaml', yaml.dump(memoryYaml, { indent: 2 }));
     
-    const initialMemoryMd = `# Session Memory\n<!-- Session memories will be written here by the agent runtime -->`;
-    zip.file('memory/MEMORY.md', initialMemoryMd);
+    let memoryMd = `# Session Memory\n`;
+    if (workspace.memoryBootstrap) {
+      memoryMd += `\n## Session 0 — Bootstrap\n\n${workspace.memoryBootstrap}\n`;
+    } else {
+      memoryMd += `<!-- Session memories will be written here by the agent runtime -->`;
+    }
+    zip.file('memory/MEMORY.md', memoryMd);
     zip.file('memory/archive/.gitkeep', '');
   } else if (workspace.memory) {
-    zip.file('memory/MEMORY.md', '');
+    let memoryMd = '';
+    if (workspace.memoryBootstrap) {
+      memoryMd = `## Session 0 — Bootstrap\n\n${workspace.memoryBootstrap}\n`;
+    }
+    zip.file('memory/MEMORY.md', memoryMd);
     zip.file('memory/memory.yaml', yaml.dump(workspace.memory, { indent: 2 }));
   }
 
@@ -313,7 +353,8 @@ echo '{"action": "allow", "modifications": null}'`;
         name: agent.name,
         version: '0.1.0',
         description: agent.description,
-        spec_version: '0.1.0'
+        spec_version: '0.1.0',
+        tools: (agent as any).tools || []
       };
       zip.file(`agents/${agent.name}/agent.yaml`, yaml.dump(subManifest, { indent: 2 }));
       zip.file(`agents/${agent.name}/SOUL.md`, `# ${agent.name} Soul\n\nCore identity for ${agent.name}.`);

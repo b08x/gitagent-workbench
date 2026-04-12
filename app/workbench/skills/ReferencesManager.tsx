@@ -20,12 +20,12 @@ export function ReferencesManager({ skill }: ReferencesManagerProps) {
   const references = skill.references || [];
 
   const addReference = () => {
-    const newRef = { name: `reference-${references.length + 1}.md`, content: '' };
+    const newRef = { filename: `reference-${references.length + 1}.md`, description: '', trigger: '' };
     updateSkill(skill.id, { references: [...references, newRef] });
     setExpandedId(references.length);
   };
 
-  const updateReference = (index: number, updates: Partial<{ name: string; content: string }>) => {
+  const updateReference = (index: number, updates: Partial<{ filename: string; description: string; trigger: string }>) => {
     const newReferences = [...references];
     newReferences[index] = { ...newReferences[index], ...updates };
     updateSkill(skill.id, { references: newReferences });
@@ -63,7 +63,7 @@ export function ReferencesManager({ skill }: ReferencesManagerProps) {
             >
               <div className="flex items-center gap-3">
                 {expandedId === index ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                <span className="font-medium text-sm">{ref.name}</span>
+                <span className="font-medium text-sm">{ref.filename}</span>
               </div>
               <Button 
                 variant="ghost" 
@@ -83,18 +83,25 @@ export function ReferencesManager({ skill }: ReferencesManagerProps) {
                 <div className="grid gap-2">
                   <Label>Filename</Label>
                   <Input 
-                    value={ref.name}
-                    onChange={(e) => updateReference(index, { name: e.target.value })}
+                    value={ref.filename}
+                    onChange={(e) => updateReference(index, { filename: e.target.value })}
                     placeholder="e.g., technical-spec.md"
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Content (Markdown)</Label>
-                  <Textarea 
-                    value={ref.content}
-                    onChange={(e) => updateReference(index, { content: e.target.value })}
-                    placeholder="Paste reference content here..."
-                    className="h-48 font-mono text-xs"
+                  <Label>Description</Label>
+                  <Input 
+                    value={ref.description}
+                    onChange={(e) => updateReference(index, { description: e.target.value })}
+                    placeholder="One-line description of its contents"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Trigger Condition</Label>
+                  <Input 
+                    value={ref.trigger}
+                    onChange={(e) => updateReference(index, { trigger: e.target.value })}
+                    placeholder="When the agent should load it"
                   />
                 </div>
               </div>

@@ -72,6 +72,7 @@ export interface AgentManifest {
   runtime?: { max_turns?: number; temperature?: number; timeout?: number };
   a2a?: Record<string, unknown>;
   compliance?: AgentCompliance;
+  deployment_targets?: string[];
   tags?: string[];
   metadata?: Record<string, string | number | boolean>;
   registries?: Array<{ name: string; url?: string }>;
@@ -100,7 +101,7 @@ export interface SkillDefinition {
   allowedTools: string[];
   metadata: SkillMetadata;
   instructions: string;
-  references: Array<{ name: string; content: string }>;
+  references: Array<{ filename: string; description: string; trigger: string }>;
   examples: SkillExample[];
   scripts: string[]; // Just filenames
 }
@@ -108,12 +109,13 @@ export interface SkillDefinition {
 export interface ParsedSkill {
   name: string;
   description: string;
-  instructions: string;
-  allowedTools?: string[];
+  instructions: string | null;
+  allowedTools: string[];
+  category: string;
   license?: string;
   compatibility?: string;
   metadata?: Record<string, any>;
-  references?: Array<{ name: string; content: string }>;
+  references: Array<{ filename: string; description: string; trigger: string }>;
   examples?: Array<{ input: string; output: string }>;
   scripts?: string[];
 }
@@ -237,5 +239,21 @@ export interface AgentWorkspace {
   examples: { goodOutputs: string | null; badOutputs: string | null };
   config: { default: Record<string, unknown> | null; production: Record<string, unknown> | null };
   subAgents: Record<string, AgentWorkspace>;
+  deploymentTargets: Array<'cli' | 'telegram' | 'discord' | 'slack' | 'api' | 'background' | 'homeassistant'>;
+  hermesConfig: string | null;
+  knowledgeDocs: Array<{
+    path: string;
+    description: string;
+    alwaysLoad: boolean;
+    content: string | null;
+  }>;
+  memoryBootstrap: string | null;
+  toolPermissions: {
+    matrix: Record<string, Record<string, boolean>>;
+  };
+  generationConfig: {
+    providerId: string;
+    modelId: string;
+  };
   validationResult: ValidationResult | null;
 }

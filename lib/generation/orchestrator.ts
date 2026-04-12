@@ -1,10 +1,12 @@
 import { AgentWorkspace, ParsedSkill, ToolSchema } from '../gitagent/types';
 import { providers } from '../providers';
+import { generateHermesConfig } from '../gitagent/config-generator';
 import { buildGenerationPrompt } from './strategy';
 import { validateWorkspace } from './validator';
 import { soulPrompt } from './prompts/soul-md';
 import { agentYamlPrompt } from './prompts/agent-yaml';
 import { skillPrompt } from './prompts/skill-md';
+import { referencesReadmePrompt } from './prompts/references-readme';
 import { toolYamlPrompt } from './prompts/tool-yaml';
 
 export interface OrchestratorConfig {
@@ -14,7 +16,8 @@ export interface OrchestratorConfig {
 
 export interface OrchestratorEvent {
   step: string;
-  status: 'start' | 'progress' | 'done' | 'error';
+  substep?: string;
+  status: 'start' | 'progress' | 'done' | 'error' | 'skip';
   content?: string;
   workspace?: AgentWorkspace;
 }
@@ -29,6 +32,7 @@ export async function* runGeneration(
   const structureType = workspace.meta.structureType;
   const isMinimal = structureType === 'minimal';
   const isFull = structureType === 'full';
+  const ext = workspace as any;
 
   const steps = [
     'GEN_YAML',
@@ -38,8 +42,11 @@ export async function* runGeneration(
     ...(!isMinimal && (workspace.manifest.compliance?.risk_tier !== 'low' || isFull)
       ? ['GEN_DUTIES']
       : []),
+    'GEN_CONFIG',
     'GEN_SKILLS',
+    'GEN_KNOWLEDGE_DOCS',
     'GEN_TOOLS',
+    ...(Object.keys(workspace.subAgents).length > 0 || (ext.subAgentsList && ext.subAgentsList.length > 0) ? ['GEN_SUBAGENTS'] : []),
     ...(isFull ? ['GEN_WORKFLOWS'] : []),
     ...(isFull ? ['GEN_EXAMPLES'] : []),
     'VALIDATE_OUT',
@@ -117,37 +124,73 @@ export async function* runGeneration(
         yield { step, status: 'done', workspace: ws };
       }
 
+      // ── GEN_CONFIG ─────────────────────────────────────────────────────────
+      else if (step === 'GEN_CONFIG') {
+        ws.hermesConfig = generateHermesConfig(ws);
+        yield { step, status: 'done', workspace: ws };
+      }
+
       // ── GEN_SKILLS ─────────────────────────────────────────────────────────
       // Generates one SKILL.md per declared skill name.
-      // Model generates ONLY the instructions body — NO frontmatter.
-      // Serializer adds the --- frontmatter block when writing to ZIP.
+      // Now includes references/ scaffold and progressive disclosure.
       else if (step === 'GEN_SKILLS') {
         const skillNames = ws.manifest.skills || [];
         const updatedSkills = { ...ws.skills };
 
         for (const name of skillNames) {
-          yield { step: `GEN_SKILL:${name}`, status: 'start' };
-          const prompt = skillPrompt(ws, name);
-          let instructions = '';
-          for await (const chunk of provider.stream(prompt, config.apiKey)) {
-            instructions += chunk;
-          }
-          // Strip any accidental frontmatter the model may have included
-          const instructionsBody = instructions
-            .replace(/^---[\s\S]*?---\n?/, '')
-            .trim();
+          const skill = updatedSkills[name];
+          
+          // a. Generate references/README.md catalogue
+          yield { step, substep: `${name}/references`, status: 'start' };
+          const refPrompt = referencesReadmePrompt(
+            name,
+            skill.description,
+            skill.allowedTools,
+            skill.category
+          );
+          const refResult = await provider.generate(refPrompt, config.apiKey);
+          const refCatalogue = refResult.object?.references || [];
+          
+          updatedSkills[name] = {
+            ...skill,
+            references: refCatalogue
+          };
+          yield { step, substep: `${name}/references`, status: 'done' };
+
+          // b. Generate SKILL.md
+          yield { step, substep: `${name}/SKILL.md`, status: 'start' };
+          const prompt = skillPrompt(ws, name, refCatalogue);
+          const result = await provider.generate(prompt, config.apiKey);
+          const generated = result.object || {};
 
           updatedSkills[name] = {
-            name,
-            description: `${name} skill for ${ws.manifest.name}`,
-            instructions: instructionsBody,
-            allowedTools: [],
+            ...updatedSkills[name],
+            instructions: generated.instructions || '',
+            metadata: {
+              ...updatedSkills[name].metadata,
+              frontmatter: generated.frontmatter
+            }
           };
-          yield { step: `GEN_SKILL:${name}`, status: 'done' };
+          yield { step, substep: `${name}/SKILL.md`, status: 'done' };
         }
 
         ws = { ...ws, skills: updatedSkills };
         yield { step, status: 'done', workspace: ws };
+      }
+
+      // ── GEN_KNOWLEDGE_DOCS ─────────────────────────────────────────────────
+      else if (step === 'GEN_KNOWLEDGE_DOCS') {
+        yield { step, status: 'progress', content: 'Checking knowledge documents...' };
+        const docsToGen = (ws.knowledgeDocs || []).filter(d => !d.content);
+        if (docsToGen.length === 0) {
+          yield { step, status: 'done', content: 'All knowledge documents have content.' };
+        } else {
+          yield { 
+            step, 
+            status: 'skip', 
+            content: `Generation deferred for: ${docsToGen.map(d => d.path).join(', ')}` 
+          };
+        }
       }
 
       // ── GEN_TOOLS ──────────────────────────────────────────────────────────
@@ -179,6 +222,32 @@ export async function* runGeneration(
         }
 
         ws = { ...ws, tools: updatedTools };
+        yield { step, status: 'done', workspace: ws };
+      }
+
+      // ── GEN_SUBAGENTS ──────────────────────────────────────────────────────
+      else if (step === 'GEN_SUBAGENTS') {
+        const subAgentNames = Object.keys(ws.subAgents);
+        const matrix = ws.toolPermissions?.matrix || {};
+        const subAgentTools = Object.entries(matrix)
+          .filter(([_, cols]) => cols['sub-agent'] === true)
+          .map(([tool, _]) => tool);
+
+        for (const name of subAgentNames) {
+          ws.subAgents[name].manifest = {
+            ...ws.subAgents[name].manifest,
+            tools: subAgentTools
+          };
+        }
+        
+        // Also handle subAgentsList from wizard if applicable
+        if ((ws as any).subAgentsList) {
+          (ws as any).subAgentsList = (ws as any).subAgentsList.map((a: any) => ({
+            ...a,
+            tools: subAgentTools
+          }));
+        }
+
         yield { step, status: 'done', workspace: ws };
       }
 
