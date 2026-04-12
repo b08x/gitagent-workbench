@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Plus, X, Server, Moon, Sun } from 'lucide-react';
+import { Settings2, Plus, X, Server, Moon, Sun } from 'lucide-react';
+import { TaskModelSettings } from './TaskModelSettings';
 
 export function SettingsPanel() {
   const { settings, updateSettings, addMcpServer, removeMcpServer } = useSettings();
@@ -37,6 +38,8 @@ export function SettingsPanel() {
       </div>
 
       <ModelStep />
+
+      <TaskModelSettings />
       
       <div className="space-y-4 border-t pt-6">
         <div className="flex items-center gap-2">
