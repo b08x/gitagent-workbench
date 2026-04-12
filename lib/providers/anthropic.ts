@@ -9,7 +9,7 @@ export const anthropicProvider: ModelProvider = {
   async generate(prompt, apiKey, modelId) {
     const anthropic = createAnthropic({ apiKey });
     const { text, experimental_output } = await generateText({
-      model: anthropic(modelId || 'claude-3-5-sonnet-20240620'),
+      model: anthropic(modelId),
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -19,7 +19,7 @@ export const anthropicProvider: ModelProvider = {
   async *stream(prompt, apiKey, modelId) {
     const anthropic = createAnthropic({ apiKey });
     const { textStream } = streamText({
-      model: anthropic(modelId || 'claude-3-5-sonnet-20240620'),
+      model: anthropic(modelId),
       system: prompt.system,
       prompt: prompt.user,
     });

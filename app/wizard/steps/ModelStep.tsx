@@ -136,7 +136,7 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
               >
                 <SelectTrigger>
                   {loadingGen ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  <SelectValue />
+                  <SelectValue placeholder="Select a model..." />
                 </SelectTrigger>
                 <SelectContent>
                   {genModels.map(m => (

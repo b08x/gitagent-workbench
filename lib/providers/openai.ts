@@ -9,7 +9,7 @@ export const openaiProvider: ModelProvider = {
   async generate(prompt, apiKey, modelId) {
     const openai = createOpenAI({ apiKey });
     const { text, experimental_output } = await generateText({
-      model: openai(modelId || 'gpt-4o'),
+      model: openai(modelId),
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -19,7 +19,7 @@ export const openaiProvider: ModelProvider = {
   async *stream(prompt, apiKey, modelId) {
     const openai = createOpenAI({ apiKey });
     const { textStream } = streamText({
-      model: openai(modelId || 'gpt-4o'),
+      model: openai(modelId),
       system: prompt.system,
       prompt: prompt.user,
     });

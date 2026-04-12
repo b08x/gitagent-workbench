@@ -59,7 +59,8 @@ export function InstructionsEditor({ skill }: InstructionsEditorProps) {
     try {
       const generator = generateSkillInstructions(skill, agentState, {
         providerId: settings.providerId,
-        apiKey: settings.apiKeys[settings.providerId]
+        apiKey: settings.apiKeys[settings.providerId],
+        modelId: settings.modelId
       });
 
       for await (const event of generator) {
@@ -87,6 +88,16 @@ export function InstructionsEditor({ skill }: InstructionsEditorProps) {
           <CardDescription>Author the behavioral logic for this skill.</CardDescription>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="gap-2"
+          >
+            {isGenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+            Generate with AI
+          </Button>
           <Button variant="outline" size="sm" onClick={handleApplyTemplate}>
             Apply Template
           </Button>

@@ -9,7 +9,7 @@ export const ollamaProvider: ModelProvider = {
   async generate(prompt, _apiKey, modelId) {
     const ollama = createOllama();
     const { text, experimental_output } = await generateText({
-      model: ollama(modelId || 'llama3.2') as any,
+      model: ollama(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -19,7 +19,7 @@ export const ollamaProvider: ModelProvider = {
   async *stream(prompt, _apiKey, modelId) {
     const ollama = createOllama();
     const { textStream } = streamText({
-      model: ollama(modelId || 'llama3.2') as any,
+      model: ollama(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
     });
