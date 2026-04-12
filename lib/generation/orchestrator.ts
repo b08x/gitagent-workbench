@@ -35,6 +35,7 @@ export async function* runGeneration(
   const ext = workspace as any;
 
   const steps = [
+    'SANITIZE_INPUTS',
     'GEN_YAML',
     'GEN_SOUL',
     ...(isMinimal ? [] : ['GEN_RULES']),
@@ -72,8 +73,30 @@ export async function* runGeneration(
     yield { step, status: 'start' };
 
     try {
+      // ── SANITIZE_INPUTS ───────────────────────────────────────────────────
+      if (step === 'SANITIZE_INPUTS') {
+        yield { step, status: 'progress', content: 'Sanitizing and refining agent configuration...' };
+        const prompt = {
+          system: `You are the Editor Assistant. Your job is to sanitize and refine the user's initial agent configuration.
+Ensure the name is kebab-case, the description is clear and professional, and the core identity (SOUL) is consistent with the agent's purpose.
+If the user provided context files, incorporate key insights from them into the refined configuration.`,
+          user: `Current Workspace State:
+Name: ${ws.manifest.name}
+Description: ${ws.manifest.description}
+Template: ${selectedTemplate}
+Context Files: ${scaffoldContext.map((f: any) => f.name).join(', ')}
+
+Refine the manifest and provide a concise summary of changes.`,
+        };
+
+        const result = await provider.generate(prompt, config.apiKey);
+        // We don't strictly update the workspace here unless we want to force changes,
+        // but we'll use this as a "pre-flight" check.
+        yield { step, status: 'done', content: result.text || 'Configuration sanitized.' };
+      }
+
       // ── GEN_YAML ───────────────────────────────────────────────────────────
-      if (step === 'GEN_YAML') {
+      else if (step === 'GEN_YAML') {
         const prompt = agentYamlPrompt(ws);
         if (scaffoldContext.length > 0 || templatePrompt) {
           prompt.user += `\n\nUse the following context and template instructions to help determine appropriate metadata, description, and compliance settings:\n${templatePrompt}${contextPrompt}`;

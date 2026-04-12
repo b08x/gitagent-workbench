@@ -151,6 +151,7 @@ interface ExtendedWorkspace extends AgentWorkspace {
   history: {
     snapshots: { timestamp: number; label: string; workspace: ExtendedWorkspace }[];
   };
+  runtimeProviderId: string;
 }
 
 const initialState: ExtendedWorkspace = {
@@ -265,6 +266,7 @@ const initialState: ExtendedWorkspace = {
   history: {
     snapshots: [],
   },
+  runtimeProviderId: 'anthropic',
 };
 
 function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspace {
@@ -292,6 +294,7 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         generationConfig: action.payload.generationConfig || initialState.generationConfig,
         scaffoldContext: (action.payload as any).scaffoldContext || initialState.scaffoldContext,
         history: (action.payload as any).history || initialState.history,
+        runtimeProviderId: (action.payload as any).runtimeProviderId || initialState.runtimeProviderId,
       };
     case 'UPDATE_META':
       const newState = { ...state, meta: { ...state.meta, ...action.payload } };
