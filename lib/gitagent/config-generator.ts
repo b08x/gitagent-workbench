@@ -12,7 +12,7 @@ export function generateHermesConfig(workspace: AgentWorkspace): string {
 
   // 1. Model Block
   const modelProvider = workspace.generationConfig?.providerId || 'openrouter';
-  const modelName = workspace.generationConfig?.modelId || 'anthropic/claude-3-5-sonnet';
+  const modelName = workspace.generationConfig?.modelId || 'anthropic/claude-3-5-sonnet-20240620';
 
   const config: any = {
     model: {

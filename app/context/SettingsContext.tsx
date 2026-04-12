@@ -34,10 +34,10 @@ const SettingsContext = createContext<{
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppConfig>(() => {
     const saved = sessionStorage.getItem('gitagent_settings');
-    const defaultTask: TaskConfig = { providerId: 'openrouter', modelId: 'anthropic/claude-3-5-sonnet' };
+    const defaultTask: TaskConfig = { providerId: 'openrouter', modelId: 'anthropic/claude-3-5-sonnet-20240620' };
     const defaults: AppConfig = {
       providerId: 'openrouter',
-      modelId: 'anthropic/claude-3-5-sonnet',
+      modelId: 'anthropic/claude-3-5-sonnet-20240620',
       apiKeys: {},
       mcpServers: [],
       theme: 'light',

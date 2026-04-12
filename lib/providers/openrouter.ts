@@ -15,7 +15,7 @@ export const openrouterProvider: ModelProvider = {
       }
     });
     const { text, experimental_output } = await generateText({
-      model: openrouter(modelId || 'anthropic/claude-3.5-sonnet'),
+      model: openrouter(modelId || 'anthropic/claude-3-5-sonnet-20240620'),
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -31,7 +31,7 @@ export const openrouterProvider: ModelProvider = {
       }
     });
     const { textStream } = streamText({
-      model: openrouter(modelId || 'anthropic/claude-3.5-sonnet'),
+      model: openrouter(modelId || 'anthropic/claude-3-5-sonnet-20240620'),
       system: prompt.system,
       prompt: prompt.user,
     });

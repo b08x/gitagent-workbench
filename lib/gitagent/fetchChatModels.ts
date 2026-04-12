@@ -43,7 +43,7 @@ export const CURATED_MODELS: Record<string, ModelOption[]> = {
     { id: 'codellama', name: 'CodeLlama' },
   ],
   openrouter: [
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
+    { id: 'anthropic/claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet' },
     { id: 'openai/gpt-4o', name: 'GPT-4o' },
     { id: 'google/gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
   ],

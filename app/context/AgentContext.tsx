@@ -259,7 +259,7 @@ const initialState: ExtendedWorkspace = {
   },
   generationConfig: {
     providerId: 'openrouter',
-    modelId: 'anthropic/claude-3-5-sonnet',
+    modelId: 'anthropic/claude-3-5-sonnet-20240620',
   },
   validationResult: null,
   scaffoldContext: [],
