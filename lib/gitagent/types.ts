@@ -1,4 +1,4 @@
-export type StructureType = 'minimal' | 'standard' | 'full' | 'inheritance' | 'multi-repo' | 'monorepo';
+export type StructureType = 'minimal' | 'standard' | 'full' | 'data-analyst' | 'web-scraper' | 'researcher' | 'inheritance' | 'multi-repo' | 'monorepo';
 
 // ─── Compliance ─────────────────────────────────────────────────────────────
 

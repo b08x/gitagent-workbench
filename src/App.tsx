@@ -12,6 +12,9 @@ import { SkillWorkbench } from '../app/workbench/skills/SkillWorkbench';
 import { WorkflowWorkbench } from '../app/workbench/WorkflowWorkbench';
 import { KnowledgeWorkbench } from '../app/workbench/KnowledgeWorkbench';
 import { ChatWorkbench } from '../app/workbench/ChatWorkbench';
+import { AgentWorkbench } from '../app/workbench/AgentWorkbench';
+import { VersionControl } from '../app/workbench/VersionControl';
+import { GitIntegration } from '../app/workbench/GitIntegration';
 import { SettingsView } from '../app/settings/SettingsView';
 import { Button } from '../components/ui/button';
 import { Settings, Github, Package, X, Download, BookOpen, Workflow, Database, MessageSquare } from 'lucide-react';
@@ -35,6 +38,14 @@ function Header() {
           </Link>
 
           <nav className="hidden md:flex items-center gap-1">
+            <Link to="/workbench/agent">
+              <Button 
+                variant={location.pathname === '/workbench/agent' ? 'secondary' : 'ghost'} 
+                size="sm" 
+              >
+                Dashboard
+              </Button>
+            </Link>
             <Link to="/wizard">
               <Button 
                 variant={location.pathname.startsWith('/wizard') ? 'secondary' : 'ghost'} 
@@ -138,7 +149,8 @@ function AppContent() {
         <Header />
         <main>
           <Routes>
-            <Route path="/" element={<Navigate to="/wizard" replace />} />
+            <Route path="/" element={<Navigate to="/workbench/agent" replace />} />
+            <Route path="/workbench/agent" element={<AgentWorkbench />} />
             <Route path="/wizard" element={<WizardShell />} />
             <Route path="/generating" element={<GenerationDashboard />} />
             <Route path="/editor" element={<FileEditor />} />
@@ -148,6 +160,8 @@ function AppContent() {
             <Route path="/workbench/workflows" element={<WorkflowWorkbench />} />
             <Route path="/workbench/knowledge" element={<KnowledgeWorkbench />} />
             <Route path="/workbench/chat" element={<ChatWorkbench />} />
+            <Route path="/workbench/history" element={<VersionControl />} />
+            <Route path="/workbench/git" element={<GitIntegration />} />
             <Route path="/settings" element={<SettingsView />} />
           </Routes>
         </main>

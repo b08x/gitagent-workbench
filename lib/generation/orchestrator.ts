@@ -54,8 +54,18 @@ export async function* runGeneration(
 
   let ws = { ...workspace };
   const scaffoldContext = (workspace as any).scaffoldContext || [];
+  const selectedTemplate = (workspace as any).selectedTemplate;
+
   const contextPrompt = scaffoldContext.length > 0 
     ? `\n\nAdditional Context from Uploaded Files:\n${scaffoldContext.map((f: any) => `File: ${f.name}\nContent: ${f.content || '[Media File]'}`).join('\n---\n')}`
+    : '';
+
+  const templatePrompt = selectedTemplate === 'data-analyst' 
+    ? '\n\nTEMPLATE: Data Analyst. Focus on CSV/JSON processing, data cleaning, statistical analysis, and visualization. Ensure tools for data manipulation are prioritized.'
+    : selectedTemplate === 'web-scraper'
+    ? '\n\nTEMPLATE: Web Scraper. Focus on headless browsing, DOM extraction, rate limiting, and structured data output. Ensure tools for networking and parsing are prioritized.'
+    : selectedTemplate === 'researcher'
+    ? '\n\nTEMPLATE: Researcher. Focus on deep synthesis, multi-source verification, and citation-heavy markdown outputs. Ensure tools for search and knowledge retrieval are prioritized.'
     : '';
 
   for (const step of steps) {
@@ -65,8 +75,8 @@ export async function* runGeneration(
       // ── GEN_YAML ───────────────────────────────────────────────────────────
       if (step === 'GEN_YAML') {
         const prompt = agentYamlPrompt(ws);
-        if (scaffoldContext.length > 0) {
-          prompt.user += `\n\nUse the following context to help determine appropriate metadata, description, and compliance settings:\n${contextPrompt}`;
+        if (scaffoldContext.length > 0 || templatePrompt) {
+          prompt.user += `\n\nUse the following context and template instructions to help determine appropriate metadata, description, and compliance settings:\n${templatePrompt}${contextPrompt}`;
         }
         const result = await provider.generate(prompt, config.apiKey);
         const generated = result.object || {};
@@ -89,8 +99,8 @@ export async function* runGeneration(
       // ── GEN_SOUL ───────────────────────────────────────────────────────────
       else if (step === 'GEN_SOUL') {
         const prompt = soulPrompt(ws);
-        if (scaffoldContext.length > 0) {
-          prompt.user += `\n\nUse the following context to help define the agent's personality and core identity:\n${contextPrompt}`;
+        if (scaffoldContext.length > 0 || templatePrompt) {
+          prompt.user += `\n\nUse the following context and template instructions to help define the agent's personality and core identity:\n${templatePrompt}${contextPrompt}`;
         }
         let content = '';
         for await (const chunk of provider.stream(prompt, config.apiKey)) {
