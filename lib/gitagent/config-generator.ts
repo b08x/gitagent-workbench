@@ -30,43 +30,46 @@ export function generateHermesConfig(workspace: AgentWorkspace): string {
   };
 
   // 2. Toolset Selection Logic
+  const matrix = workspace.toolPermissions?.matrix || {};
+  const nonSubAgentTargets = deploymentTargets; // already excludes 'sub-agent' by type
+  
   const toolsets = new Set(['web', 'file', 'skills', 'memory']);
 
-  if (!deploymentTargets.includes('api')) {
-    toolsets.add('terminal');
-  }
+  // Map canonical tool names to Hermes toolset names
+  const toolToToolset: Record<string, string> = {
+    'web_search': 'web',
+    'web_extract': 'browser',
+    'read_file': 'file',
+    'memory': 'memory',
+    'session_search': 'memory',
+    'terminal': 'terminal',
+    'process': 'terminal',
+    'execute_code': 'code_execution',
+    'patch': 'terminal',
+    'browser_navigate': 'browser',
+    'browser_snapshot': 'browser',
+    'browser_vision': 'browser',
+    'vision_analyze': 'vision',
+    'image_generate': 'vision',
+    'text_to_speech': 'vision',
+    'todo': 'orchestration',
+    'clarify': 'orchestration',
+    'delegate_task': 'delegation',
+    'cronjob': 'cronjob',
+    'send_message': 'orchestration'
+  };
 
-  if (Object.keys(subAgents).length > 0 || deploymentTargets.includes('background')) {
-    toolsets.add('delegation');
-  }
-
-  if (deploymentTargets.includes('background') || Object.keys(workflows).length > 0) {
-    toolsets.add('cronjob');
-  }
+  // Derive toolsets from matrix
+  Object.entries(matrix).forEach(([tool, columns]) => {
+    const isEnabledInAnyTarget = nonSubAgentTargets.some(target => columns[target] === true);
+    if (isEnabledInAnyTarget && toolToToolset[tool]) {
+      toolsets.add(toolToToolset[tool]);
+    }
+  });
 
   if (deploymentTargets.includes('homeassistant')) {
     toolsets.add('homeassistant');
   }
-
-  // Scan skills for specific toolsets
-  Object.values(skills).forEach(skill => {
-    if (skill.allowedTools) {
-      if (skill.allowedTools.includes('browser') || skill.allowedTools.includes('web_extract')) {
-        toolsets.add('browser');
-      }
-      if (skill.allowedTools.includes('execute_code')) {
-        toolsets.add('code_execution');
-      }
-    }
-  });
-
-  // Scan tools for vision/media
-  Object.values(tools).forEach(tool => {
-    const desc = (tool.description || '').toLowerCase();
-    if (desc.includes('vision') || desc.includes('media') || desc.includes('image') || desc.includes('video')) {
-      toolsets.add('vision');
-    }
-  });
 
   config.toolsets = Array.from(toolsets).sort();
 

@@ -39,6 +39,7 @@ export function SkillWorkbench() {
         description: activeSkill.description,
         instructions: activeSkill.instructions,
         allowedTools: activeSkill.allowedTools,
+        category: activeSkill.metadata.category || 'general',
         license: activeSkill.license,
         compatibility: activeSkill.compatibility,
         metadata: activeSkill.metadata,
