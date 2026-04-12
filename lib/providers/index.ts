@@ -2,6 +2,8 @@ import { anthropicProvider } from './anthropic';
 import { openaiProvider } from './openai';
 import { googleProvider } from './google';
 import { mistralProvider } from './mistral';
+import { groqProvider } from './groq';
+import { ollamaProvider } from './ollama';
 import { openrouterProvider } from './openrouter';
 import { ModelProvider } from './types';
 
@@ -10,5 +12,7 @@ export const providers: Record<string, ModelProvider> = {
   openai: openaiProvider,
   google: googleProvider,
   mistral: mistralProvider,
+  groq: groqProvider,
+  ollama: ollamaProvider,
   openrouter: openrouterProvider,
 };

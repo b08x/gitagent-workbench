@@ -1,40 +1,36 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSettings } from '../../context/SettingsContext';
 import { useAgentWorkspace } from '../../context/AgentContext';
 import { providers } from '../../../lib/providers';
+import { fetchChatModels, ModelOption, CURATED_MODELS } from '../../../lib/gitagent/fetchChatModels';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { InfoIcon, Settings2 } from 'lucide-react';
-
-const ANTHROPIC_MODELS = [
-  { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
-  { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku' },
-  { id: 'claude-3-opus-latest', name: 'Claude 3 Opus' },
-];
-
-const GEMINI_MODELS = [
-  { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Exp)' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
-];
-
-const ALL_MODELS = [...ANTHROPIC_MODELS, ...GEMINI_MODELS];
+import { InfoIcon, Settings2, Loader2, CheckCircle2 } from 'lucide-react';
 
 export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { settings, updateSettings, setApiKey } = useSettings();
   const { state, dispatch } = useAgentWorkspace();
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const agentName = state.manifest.name || '';
-  const isClaudeCode = agentName === 'claude-code';
-  const isGeminiCli = agentName === 'gemini-cli';
-
-  const availableModels = isClaudeCode 
-    ? ANTHROPIC_MODELS 
-    : isGeminiCli 
-    ? GEMINI_MODELS 
-    : ALL_MODELS;
+  useEffect(() => {
+    const loadModels = async () => {
+      setLoading(true);
+      try {
+        const apiKey = settings.apiKeys[settings.providerId];
+        const fetched = await fetchChatModels(settings.providerId, apiKey);
+        setModels(fetched);
+      } catch (e) {
+        console.error('Failed to fetch models', e);
+        setModels(CURATED_MODELS[settings.providerId] || []);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadModels();
+  }, [settings.providerId, settings.apiKeys[settings.providerId]]);
 
   const updateModel = (field: string, value: any) => {
     dispatch({
@@ -77,6 +73,10 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
     });
   };
 
+  const agentName = state.manifest.name || '';
+  const isClaudeCode = agentName === 'claude-code';
+  const isGeminiCli = agentName === 'gemini-cli';
+
   return (
     <div className="space-y-8">
       <section className="space-y-6">
@@ -111,10 +111,11 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
                 onValueChange={v => updateSettingsAndWorkspace({ modelId: v })}
               >
                 <SelectTrigger>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ALL_MODELS.map(m => (
+                  {models.map(m => (
                     <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -123,18 +124,26 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
           </div>
 
           <div className="grid gap-2">
-            <Label>API Key</Label>
+            <Label className="flex items-center justify-between">
+              API Key
+              {settings.apiKeys[settings.providerId] && (
+                <span className="text-[10px] text-green-500 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> Key Set
+                </span>
+              )}
+            </Label>
             <Input 
               type="password" 
-              placeholder="sk-..." 
+              placeholder={settings.providerId === 'ollama' ? 'Not required for local Ollama' : 'sk-...'} 
               value={settings.apiKeys[settings.providerId] || ''}
               onChange={e => setApiKey(settings.providerId, e.target.value)}
+              disabled={settings.providerId === 'ollama'}
             />
             <p className="text-xs text-muted-foreground">Stored in sessionStorage only. Never persisted.</p>
           </div>
 
           {!providers[settings.providerId].supportsDirectBrowser && (
-            <Alert>
+            <Alert className="bg-amber-500/10 border-amber-500/20 text-amber-500">
               <InfoIcon className="h-4 w-4" />
               <AlertDescription>
                 {settings.providerId} may require a CORS proxy for direct browser calls. OpenRouter is recommended for browser-native use.
@@ -166,7 +175,7 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
                 <SelectValue placeholder="Select a model..." />
               </SelectTrigger>
               <SelectContent>
-                {availableModels.map(m => (
+                {models.map(m => (
                   <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                 ))}
               </SelectContent>
