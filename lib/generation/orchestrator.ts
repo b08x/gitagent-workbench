@@ -53,6 +53,10 @@ export async function* runGeneration(
   ];
 
   let ws = { ...workspace };
+  const scaffoldContext = (workspace as any).scaffoldContext || [];
+  const contextPrompt = scaffoldContext.length > 0 
+    ? `\n\nAdditional Context from Uploaded Files:\n${scaffoldContext.map((f: any) => `File: ${f.name}\nContent: ${f.content || '[Media File]'}`).join('\n---\n')}`
+    : '';
 
   for (const step of steps) {
     yield { step, status: 'start' };
@@ -61,6 +65,9 @@ export async function* runGeneration(
       // ── GEN_YAML ───────────────────────────────────────────────────────────
       if (step === 'GEN_YAML') {
         const prompt = agentYamlPrompt(ws);
+        if (scaffoldContext.length > 0) {
+          prompt.user += `\n\nUse the following context to help determine appropriate metadata, description, and compliance settings:\n${contextPrompt}`;
+        }
         const result = await provider.generate(prompt, config.apiKey);
         const generated = result.object || {};
         ws = {
@@ -82,6 +89,9 @@ export async function* runGeneration(
       // ── GEN_SOUL ───────────────────────────────────────────────────────────
       else if (step === 'GEN_SOUL') {
         const prompt = soulPrompt(ws);
+        if (scaffoldContext.length > 0) {
+          prompt.user += `\n\nUse the following context to help define the agent's personality and core identity:\n${contextPrompt}`;
+        }
         let content = '';
         for await (const chunk of provider.stream(prompt, config.apiKey)) {
           content += chunk;

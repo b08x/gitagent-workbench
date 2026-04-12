@@ -8,7 +8,16 @@ type Action =
   | { type: 'SET_FILE'; payload: { path: string; content: string } }
   | { type: 'UPDATE_WORKSPACE'; payload: Partial<ExtendedWorkspace> }
   | { type: 'ADD_SKILL'; payload: ParsedSkill }
-  | { type: 'SET_TEMPLATE'; payload: 'minimal' | 'standard' | 'full' };
+  | { type: 'SET_TEMPLATE'; payload: 'minimal' | 'standard' | 'full' }
+  | { type: 'ADD_SCAFFOLD_CONTEXT'; payload: ScaffoldContextFile }
+  | { type: 'REMOVE_SCAFFOLD_CONTEXT'; payload: string };
+
+export interface ScaffoldContextFile {
+  name: string;
+  type: string;
+  content?: string;
+  dataUrl?: string;
+}
 
 export interface SkillEntry {
   name: string;
@@ -135,6 +144,7 @@ interface ExtendedWorkspace extends AgentWorkspace {
     };
     updateTriggers: string[];
   };
+  scaffoldContext: ScaffoldContextFile[];
 }
 
 const initialState: ExtendedWorkspace = {
@@ -245,6 +255,7 @@ const initialState: ExtendedWorkspace = {
     modelId: 'anthropic/claude-3-5-sonnet',
   },
   validationResult: null,
+  scaffoldContext: [],
 };
 
 function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspace {
@@ -270,6 +281,7 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         memoryBootstrap: action.payload.memoryBootstrap || initialState.memoryBootstrap,
         toolPermissions: action.payload.toolPermissions || initialState.toolPermissions,
         generationConfig: action.payload.generationConfig || initialState.generationConfig,
+        scaffoldContext: (action.payload as any).scaffoldContext || initialState.scaffoldContext,
       };
     case 'UPDATE_META':
       const newState = { ...state, meta: { ...state.meta, ...action.payload } };
@@ -298,6 +310,10 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
           [action.payload.name]: action.payload
         }
       };
+    case 'ADD_SCAFFOLD_CONTEXT':
+      return { ...state, scaffoldContext: [...state.scaffoldContext, action.payload] };
+    case 'REMOVE_SCAFFOLD_CONTEXT':
+      return { ...state, scaffoldContext: state.scaffoldContext.filter(f => f.name !== action.payload) };
     default:
       return state;
   }
