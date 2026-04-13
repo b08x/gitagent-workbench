@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, Sparkles } from 'lucide-react';
 import { buildGenerationPrompt } from '@/lib/generation/strategy';
+import { streamWithRetryAndFallback } from '@/lib/generation/orchestrator';
 import { AgentWorkspace } from '@/lib/gitagent/types';
 import { useSettings } from '@/app/context/SettingsContext';
 import { providers } from '@/lib/providers';
@@ -51,7 +52,15 @@ export function GenerateImproveButton({
       const prompt = buildGenerationPrompt(fileType, phase, workspace, fieldName);
       let fullText = '';
       
-      for await (const chunk of provider.stream(prompt, apiKey, settings.modelId)) {
+      const config = {
+        providerId: settings.providerId,
+        apiKey,
+        modelId: settings.modelId,
+        fallbackModelIds: workspace.generationConfig?.fallbackModelIds,
+        apiKeys: settings.apiKeys
+      };
+
+      for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
         fullText += chunk;
         onResult(fullText);
       }

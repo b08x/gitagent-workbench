@@ -60,7 +60,9 @@ export function InstructionsEditor({ skill }: InstructionsEditorProps) {
       const generator = generateSkillInstructions(skill, agentState, {
         providerId: settings.providerId,
         apiKey: settings.apiKeys[settings.providerId],
-        modelId: settings.modelId
+        modelId: settings.modelId,
+        fallbackModelIds: agentState.generationConfig.fallbackModelIds,
+        apiKeys: settings.apiKeys
       });
 
       for await (const event of generator) {

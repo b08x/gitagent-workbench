@@ -1,21 +1,14 @@
 import { AgentWorkspace, SkillDefinition } from '../gitagent/types';
-import { providers } from '../providers';
+import { OrchestratorConfig, streamWithRetryAndFallback } from './orchestrator';
 import { buildGenerationPrompt } from './strategy';
 
-export interface SkillGenerationConfig {
-  providerId: string;
-  apiKey: string;
-  modelId: string;
-}
+export type SkillGenerationConfig = OrchestratorConfig;
 
 export async function* generateSkillInstructions(
   skill: SkillDefinition,
   workspace: AgentWorkspace,
   config: SkillGenerationConfig
 ): AsyncGenerator<{ status: 'start' | 'progress' | 'done' | 'error'; content?: string }> {
-  const provider = providers[config.providerId];
-  if (!provider) throw new Error(`Provider ${config.providerId} not found`);
-
   yield { status: 'start' };
 
   try {
@@ -31,7 +24,7 @@ export async function* generateSkillInstructions(
     });
 
     let instructions = '';
-    for await (const chunk of provider.stream(prompt, config.apiKey, config.modelId)) {
+    for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
       instructions += chunk;
       yield { status: 'progress', content: instructions };
     }

@@ -56,7 +56,9 @@ export function GenerationDashboard() {
         const gen = runGeneration(state, { 
           providerId: settings.providerId, 
           apiKey,
-          modelId: settings.modelId
+          modelId: settings.modelId,
+          fallbackModelIds: state.generationConfig.fallbackModelIds,
+          apiKeys: settings.apiKeys
         });
         for await (const event of gen) {
           setEvents(prev => { const n = new Map(prev); n.set(event.step, event); return n; });
