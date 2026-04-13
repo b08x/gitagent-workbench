@@ -8,11 +8,14 @@ import { agentYamlPrompt } from './prompts/agent-yaml';
 import { skillPrompt } from './prompts/skill-md';
 import { referencesReadmePrompt } from './prompts/references-readme';
 import { toolYamlPrompt } from './prompts/tool-yaml';
+import { retryWithBackoff } from '../utils/retry';
 
 export interface OrchestratorConfig {
   providerId: string;
   apiKey: string;
   modelId: string;
+  fallbackModelIds?: string[];
+  apiKeys?: Record<string, string>;
 }
 
 export interface OrchestratorEvent {
@@ -21,6 +24,70 @@ export interface OrchestratorEvent {
   status: 'start' | 'progress' | 'done' | 'error' | 'skip';
   content?: string;
   workspace?: AgentWorkspace;
+}
+
+export async function generateWithRetryAndFallback(
+  prompt: any,
+  config: OrchestratorConfig
+): Promise<any> {
+  const models = [config.modelId, ...(config.fallbackModelIds || [])];
+  let lastError: any;
+
+  for (const modelSpec of models) {
+    let providerId = config.providerId;
+    let modelId = modelSpec;
+    if (modelSpec.includes('/') && providers[modelSpec.split('/')[0]]) {
+      const parts = modelSpec.split('/');
+      providerId = parts[0];
+      modelId = parts.slice(1).join('/');
+    }
+    const provider = providers[providerId];
+    const apiKey = config.apiKeys?.[providerId] || config.apiKey;
+
+    if (!provider || !apiKey) continue;
+
+    try {
+      return await retryWithBackoff(() => provider.generate(prompt, apiKey, modelId));
+    } catch (error: any) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+export async function* streamWithRetryAndFallback(
+  prompt: any,
+  config: OrchestratorConfig
+): AsyncGenerator<string> {
+  const models = [config.modelId, ...(config.fallbackModelIds || [])];
+  let lastError: any;
+
+  for (const modelSpec of models) {
+    let providerId = config.providerId;
+    let modelId = modelSpec;
+    if (modelSpec.includes('/') && providers[modelSpec.split('/')[0]]) {
+      const parts = modelSpec.split('/');
+      providerId = parts[0];
+      modelId = parts.slice(1).join('/');
+    }
+    const provider = providers[providerId];
+    const apiKey = config.apiKeys?.[providerId] || config.apiKey;
+
+    if (!provider || !apiKey) continue;
+
+    try {
+      // We retry the stream creation and the first chunk if possible
+      // In many cases, 429 happens on the first chunk or connection
+      const stream = provider.stream(prompt, apiKey, modelId);
+      for await (const chunk of stream) {
+        yield chunk;
+      }
+      return;
+    } catch (error: any) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 export async function* runGeneration(
@@ -90,7 +157,7 @@ Context Files: ${scaffoldContext.map((f: any) => f.name).join(', ')}
 Refine the manifest and provide a concise summary of changes.`,
         };
 
-        const result = await provider.generate(prompt, config.apiKey, config.modelId);
+        const result = await generateWithRetryAndFallback(prompt, config);
         // We don't strictly update the workspace here unless we want to force changes,
         // but we'll use this as a "pre-flight" check.
         yield { step, status: 'done', content: result.text || 'Configuration sanitized.' };
@@ -102,7 +169,7 @@ Refine the manifest and provide a concise summary of changes.`,
         if (scaffoldContext.length > 0 || templatePrompt) {
           prompt.user += `\n\nUse the following context and template instructions to help determine appropriate metadata, description, and compliance settings:\n${templatePrompt}${contextPrompt}`;
         }
-        const result = await provider.generate(prompt, config.apiKey, config.modelId);
+        const result = await generateWithRetryAndFallback(prompt, config);
         const generated = result.object || {};
         ws = {
           ...ws,
@@ -127,7 +194,7 @@ Refine the manifest and provide a concise summary of changes.`,
           prompt.user += `\n\nUse the following context and template instructions to help define the agent's personality and core identity:\n${templatePrompt}${contextPrompt}`;
         }
         let content = '';
-        for await (const chunk of provider.stream(prompt, config.apiKey, config.modelId)) {
+        for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
           content += chunk;
           yield { step, status: 'progress', content };
         }
@@ -139,7 +206,7 @@ Refine the manifest and provide a concise summary of changes.`,
       else if (step === 'GEN_RULES') {
         const prompt = buildGenerationPrompt('rules-md', 'drafting', ws);
         let content = '';
-        for await (const chunk of provider.stream(prompt, config.apiKey, config.modelId)) {
+        for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
           content += chunk;
         }
         ws = { ...ws, rules: content };
@@ -150,7 +217,7 @@ Refine the manifest and provide a concise summary of changes.`,
       else if (step === 'GEN_PROMPT') {
         const prompt = buildGenerationPrompt('prompt-md', 'drafting', ws);
         let content = '';
-        for await (const chunk of provider.stream(prompt, config.apiKey, config.modelId)) {
+        for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
           content += chunk;
         }
         ws = { ...ws, prompt_md: content };
@@ -161,7 +228,7 @@ Refine the manifest and provide a concise summary of changes.`,
       else if (step === 'GEN_DUTIES') {
         const prompt = buildGenerationPrompt('duties-md', 'drafting', ws);
         let content = '';
-        for await (const chunk of provider.stream(prompt, config.apiKey, config.modelId)) {
+        for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
           content += chunk;
         }
         ws = { ...ws, duties: content };
@@ -192,7 +259,7 @@ Refine the manifest and provide a concise summary of changes.`,
             skill.allowedTools,
             skill.category
           );
-          const refResult = await provider.generate(refPrompt, config.apiKey, config.modelId);
+          const refResult = await generateWithRetryAndFallback(refPrompt, config);
           const refCatalogue = refResult.object?.references || [];
           
           updatedSkills[name] = {
@@ -204,7 +271,7 @@ Refine the manifest and provide a concise summary of changes.`,
           // b. Generate SKILL.md
           yield { step, substep: `${name}/SKILL.md`, status: 'start' };
           const prompt = skillPrompt(ws, name, refCatalogue);
-          const result = await provider.generate(prompt, config.apiKey, config.modelId);
+          const result = await generateWithRetryAndFallback(prompt, config);
           const generated = result.object || {};
 
           updatedSkills[name] = {
@@ -248,7 +315,7 @@ Refine the manifest and provide a concise summary of changes.`,
         for (const name of toolNames) {
           yield { step: `GEN_TOOL:${name}`, status: 'start' };
           const prompt = toolYamlPrompt(ws, name);
-          const result = await provider.generate(prompt, config.apiKey, config.modelId);
+          const result = await generateWithRetryAndFallback(prompt, config);
 
           const toolObj = result.object ?? null;
           updatedTools[name] = {
@@ -306,13 +373,13 @@ Refine the manifest and provide a concise summary of changes.`,
         goodPrompt.system = `Generate 3-5 examples of GOOD outputs for a gitagent named "${ws.manifest.name}". Format as markdown with ## Example N headers.`;
         goodPrompt.user = `Agent: ${ws.manifest.name}\nDomain: ${ws.manifest.description}\n\nGenerate good-outputs.md.`;
         let good = '';
-        for await (const chunk of provider.stream(goodPrompt, config.apiKey, config.modelId)) {
+        for await (const chunk of streamWithRetryAndFallback(goodPrompt, config)) {
           good += chunk;
         }
         const badPrompt = { ...goodPrompt };
         badPrompt.system = badPrompt.system.replace('GOOD', 'BAD (outputs to avoid)');
         let bad = '';
-        for await (const chunk of provider.stream(badPrompt, config.apiKey, config.modelId)) {
+        for await (const chunk of streamWithRetryAndFallback(badPrompt, config)) {
           bad += chunk;
         }
         ws = { ...ws, examples: { goodOutputs: good, badOutputs: bad } };

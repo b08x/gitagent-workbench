@@ -254,6 +254,7 @@ export interface AgentWorkspace {
   generationConfig: {
     providerId: string;
     modelId: string;
+    fallbackModelIds?: string[];
   };
   validationResult: ValidationResult | null;
 }

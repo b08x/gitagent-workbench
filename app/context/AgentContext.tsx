@@ -260,6 +260,7 @@ const initialState: ExtendedWorkspace = {
   generationConfig: {
     providerId: 'openrouter',
     modelId: '',
+    fallbackModelIds: [],
   },
   validationResult: null,
   scaffoldContext: [],

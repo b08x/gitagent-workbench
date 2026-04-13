@@ -148,6 +148,28 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
           </div>
 
           <div className="grid gap-2">
+            <Label htmlFor="fallback-models">Fallback Models (Optional)</Label>
+            <Input 
+              id="fallback-models"
+              placeholder="anthropic/claude-3-haiku, openai/gpt-4o-mini"
+              value={(state.generationConfig.fallbackModelIds || []).join(', ')}
+              onChange={e => {
+                const fallbacks = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                dispatch({
+                  type: 'UPDATE_WORKSPACE',
+                  payload: {
+                    generationConfig: {
+                      ...state.generationConfig,
+                      fallbackModelIds: fallbacks
+                    }
+                  }
+                });
+              }}
+            />
+            <p className="text-[10px] text-muted-foreground">Comma-separated list of fallback models (e.g., provider/model-id).</p>
+          </div>
+
+          <div className="grid gap-2">
             <Label className="flex items-center justify-between">
               API Key
               {settings.apiKeys[settings.providerId] && (
