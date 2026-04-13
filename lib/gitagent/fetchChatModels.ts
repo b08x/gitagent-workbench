@@ -57,82 +57,88 @@ export async function fetchChatModels(
   providerId: string,
   apiKey?: string
 ): Promise<ModelOption[]> {
-  if (providerId === 'openrouter') {
-    const res = await fetch('https://openrouter.ai/api/v1/models');
-    if (!res.ok) throw new Error(`OpenRouter models fetch failed: ${res.status}`);
-    const json = await res.json();
-    
-    // Filter for models that likely support tools and structured output
-    // OpenRouter doesn't always have explicit capability flags in the list endpoint,
-    // but we can filter by popular high-capability models or just return all and let user choose.
-    return (json.data ?? [])
-      .map((m: any) => ({
-        id: m.id,
-        name: m.name,
-        raw: m.id,
-      }));
-  }
+  // Deduplicate by ID before returning
+  const results = await (async () => {
+    if (providerId === 'openrouter') {
+      const res = await fetch('https://openrouter.ai/api/v1/models');
+      if (!res.ok) throw new Error(`OpenRouter models fetch failed: ${res.status}`);
+      const json = await res.json();
+      return (json.data ?? [])
+        .map((m: any) => ({
+          id: m.id,
+          name: m.name,
+          raw: m.id,
+        }));
+    }
 
-  if (providerId === 'ollama') {
+    if (providerId === 'ollama') {
+      try {
+        const res = await fetch('http://localhost:11434/api/tags');
+        if (!res.ok) throw new Error('Ollama not running or unreachable');
+        const json = await res.json();
+        return (json.models ?? []).map((m: any) => ({
+          id: m.name,
+          name: m.name,
+          raw: m.name
+        }));
+      } catch (e) {
+        return CURATED_MODELS.ollama;
+      }
+    }
+
+    if (providerId === 'groq' && apiKey) {
+      const res = await fetch('https://api.groq.com/openai/v1/models', {
+        headers: { Authorization: `Bearer ${apiKey}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return (json.data ?? []).map((m: any) => ({
+          id: m.id,
+          name: m.id,
+          raw: m.id
+        }));
+      }
+    }
+
+    if (providerId === 'mistral' && apiKey) {
+      const res = await fetch('https://api.mistral.ai/v1/models', {
+        headers: { Authorization: `Bearer ${apiKey}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return (json.data ?? []).map((m: any) => ({
+          id: m.id,
+          name: m.id,
+          raw: m.id
+        }));
+      }
+    }
+
+    // Vercel AI Gateway — no auth needed, CORS-open
     try {
-      const res = await fetch('http://localhost:11434/api/tags');
-      if (!res.ok) throw new Error('Ollama not running or unreachable');
+      const res = await fetch('https://ai-gateway.vercel.sh/v1/models');
+      if (!res.ok) throw new Error(`Vercel AI Gateway fetch failed: ${res.status}`);
       const json = await res.json();
-      return (json.models ?? []).map((m: any) => ({
-        id: m.name,
-        name: m.name,
-        raw: m.name
-      }));
+
+      const prefix = PROVIDER_PREFIXES[providerId];
+      if (!prefix) return CURATED_MODELS[providerId] || [];
+
+      return (json.data ?? [])
+        .filter((m: { id: string; name: string }) => m.id.startsWith(prefix))
+        .map((m: { id: string; name: string }) => ({
+          id: m.id.slice(prefix.length),  // strip prefix for provider calls
+          name: m.name,
+          raw: m.id,
+        }));
     } catch (e) {
-      return CURATED_MODELS.ollama;
+      return CURATED_MODELS[providerId] || [];
     }
-  }
+  })();
 
-  if (providerId === 'groq' && apiKey) {
-    const res = await fetch('https://api.groq.com/openai/v1/models', {
-      headers: { Authorization: `Bearer ${apiKey}` }
-    });
-    if (res.ok) {
-      const json = await res.json();
-      return (json.data ?? []).map((m: any) => ({
-        id: m.id,
-        name: m.id,
-        raw: m.id
-      }));
-    }
-  }
-
-  if (providerId === 'mistral' && apiKey) {
-    const res = await fetch('https://api.mistral.ai/v1/models', {
-      headers: { Authorization: `Bearer ${apiKey}` }
-    });
-    if (res.ok) {
-      const json = await res.json();
-      return (json.data ?? []).map((m: any) => ({
-        id: m.id,
-        name: m.id,
-        raw: m.id
-      }));
-    }
-  }
-
-  // Vercel AI Gateway — no auth needed, CORS-open
-  try {
-    const res = await fetch('https://ai-gateway.vercel.sh/v1/models');
-    if (!res.ok) throw new Error(`Vercel AI Gateway fetch failed: ${res.status}`);
-    const json = await res.json();
-
-    const prefix = PROVIDER_PREFIXES[providerId];
-    if (!prefix) return CURATED_MODELS[providerId] || [];
-
-    return (json.data ?? [])
-      .filter((m: { id: string; name: string }) => m.id.startsWith(prefix))
-      .map((m: { id: string; name: string }) => ({
-        id: m.id.slice(prefix.length),  // strip prefix for provider calls
-        name: m.name,
-        raw: m.id,
-      }));
-  } catch (e) {
-    return CURATED_MODELS[providerId] || [];
-  }
+  const seen = new Set<string>();
+  return results.filter(m => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
 }
