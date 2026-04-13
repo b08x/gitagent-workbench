@@ -53,7 +53,11 @@ export function GenerationDashboard() {
 
     const startGen = async () => {
       try {
-        const gen = runGeneration(state, { providerId: settings.providerId, apiKey });
+        const gen = runGeneration(state, { 
+          providerId: settings.providerId, 
+          apiKey,
+          modelId: settings.modelId
+        });
         for await (const event of gen) {
           setEvents(prev => { const n = new Map(prev); n.set(event.step, event); return n; });
           setStepOrder(prev => prev.includes(event.step) ? prev : [...prev, event.step]);

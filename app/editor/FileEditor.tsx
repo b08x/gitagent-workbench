@@ -4,13 +4,15 @@ import { useAgentWorkspace } from '../context/AgentContext';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { FileText, Folder, ChevronRight, ChevronDown, AlertTriangle, AlertCircle, ArrowRight } from 'lucide-react';
+import { FileText, Folder, ChevronRight, ChevronDown, AlertTriangle, AlertCircle, ArrowRight, MessageSquare, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ChatEditorSidebar } from './ChatEditorSidebar';
 
 export function FileEditor() {
   const { state, dispatch } = useAgentWorkspace();
   const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<string | null>('agent.yaml');
+  const [showChat, setShowChat] = useState(false);
 
   const getFileContent = (path: string) => {
     if (path === 'agent.yaml') return JSON.stringify(state.manifest, null, 2);
@@ -67,6 +69,15 @@ export function FileEditor() {
               <Badge variant="destructive" className="h-6">Error</Badge>
             )}
             <Button 
+              variant="ghost"
+              size="sm"
+              className={cn("h-7 px-2 text-xs", showChat && "bg-accent")}
+              onClick={() => setShowChat(!showChat)}
+            >
+              <MessageSquare className="mr-1 h-3 w-3" />
+              {showChat ? 'Hide Assistant' : 'AI Assistant'}
+            </Button>
+            <Button 
               size="sm" 
               className="h-7 px-2 text-xs" 
               onClick={() => navigate('/export')}
@@ -85,6 +96,9 @@ export function FileEditor() {
         {/* Validation Panel */}
         <ValidationPanel />
       </div>
+
+      {/* AI Chat Sidebar */}
+      {showChat && <ChatEditorSidebar />}
     </div>
   );
 }

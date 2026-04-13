@@ -51,7 +51,7 @@ export function GenerateImproveButton({
       const prompt = buildGenerationPrompt(fileType, phase, workspace, fieldName);
       let fullText = '';
       
-      for await (const chunk of provider.stream(prompt, apiKey)) {
+      for await (const chunk of provider.stream(prompt, apiKey, settings.modelId)) {
         fullText += chunk;
         onResult(fullText);
       }

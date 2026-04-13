@@ -11,8 +11,12 @@ export function generateHermesConfig(workspace: AgentWorkspace): string {
   const { deploymentTargets = ['cli'], manifest, skills = {}, tools = {}, workflows = {}, subAgents = {} } = workspace;
 
   // 1. Model Block
-  const modelProvider = workspace.generationConfig?.providerId || 'openrouter';
-  const modelName = workspace.generationConfig?.modelId || 'anthropic/claude-3-5-sonnet';
+  const modelProvider = workspace.generationConfig?.providerId;
+  const modelName = workspace.generationConfig?.modelId;
+
+  if (!modelProvider || !modelName) {
+    throw new Error('Generation provider or model ID is missing in workspace configuration.');
+  }
 
   const config: any = {
     model: {

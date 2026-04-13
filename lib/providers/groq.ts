@@ -9,7 +9,7 @@ export const groqProvider: ModelProvider = {
   async generate(prompt, apiKey, modelId) {
     const groq = createGroq({ apiKey });
     const { text, experimental_output } = await generateText({
-      model: groq(modelId || 'llama-3.3-70b-versatile'),
+      model: groq(modelId),
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -19,7 +19,7 @@ export const groqProvider: ModelProvider = {
   async *stream(prompt, apiKey, modelId) {
     const groq = createGroq({ apiKey });
     const { textStream } = streamText({
-      model: groq(modelId || 'llama-3.3-70b-versatile'),
+      model: groq(modelId),
       system: prompt.system,
       prompt: prompt.user,
     });

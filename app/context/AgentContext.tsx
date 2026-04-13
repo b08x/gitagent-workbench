@@ -8,7 +8,19 @@ type Action =
   | { type: 'SET_FILE'; payload: { path: string; content: string } }
   | { type: 'UPDATE_WORKSPACE'; payload: Partial<ExtendedWorkspace> }
   | { type: 'ADD_SKILL'; payload: ParsedSkill }
-  | { type: 'SET_TEMPLATE'; payload: 'minimal' | 'standard' | 'full' };
+  | { type: 'SET_TEMPLATE'; payload: 'minimal' | 'standard' | 'full' | 'data-analyst' | 'web-scraper' | 'researcher' }
+  | { type: 'ADD_SCAFFOLD_CONTEXT'; payload: ScaffoldContextFile }
+  | { type: 'REMOVE_SCAFFOLD_CONTEXT'; payload: string }
+  | { type: 'SAVE_SNAPSHOT'; payload: string }
+  | { type: 'RESTORE_SNAPSHOT'; payload: number }
+  | { type: 'DELETE_SNAPSHOT'; payload: number };
+
+export interface ScaffoldContextFile {
+  name: string;
+  type: string;
+  content?: string;
+  dataUrl?: string;
+}
 
 export interface SkillEntry {
   name: string;
@@ -85,7 +97,7 @@ export interface HookEntry {
 }
 
 interface ExtendedWorkspace extends AgentWorkspace {
-  selectedTemplate: 'minimal' | 'standard' | 'full';
+  selectedTemplate: 'minimal' | 'standard' | 'full' | 'data-analyst' | 'web-scraper' | 'researcher';
   'core-identity'?: string;
   'communication-style'?: string;
   'values-principles'?: string;
@@ -135,6 +147,11 @@ interface ExtendedWorkspace extends AgentWorkspace {
     };
     updateTriggers: string[];
   };
+  scaffoldContext: ScaffoldContextFile[];
+  history: {
+    snapshots: { timestamp: number; label: string; workspace: ExtendedWorkspace }[];
+  };
+  runtimeProviderId: string;
 }
 
 const initialState: ExtendedWorkspace = {
@@ -242,9 +259,14 @@ const initialState: ExtendedWorkspace = {
   },
   generationConfig: {
     providerId: 'openrouter',
-    modelId: 'anthropic/claude-3-5-sonnet',
+    modelId: '',
   },
   validationResult: null,
+  scaffoldContext: [],
+  history: {
+    snapshots: [],
+  },
+  runtimeProviderId: 'anthropic',
 };
 
 function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspace {
@@ -270,11 +292,14 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         memoryBootstrap: action.payload.memoryBootstrap || initialState.memoryBootstrap,
         toolPermissions: action.payload.toolPermissions || initialState.toolPermissions,
         generationConfig: action.payload.generationConfig || initialState.generationConfig,
+        scaffoldContext: (action.payload as any).scaffoldContext || initialState.scaffoldContext,
+        history: (action.payload as any).history || initialState.history,
+        runtimeProviderId: (action.payload as any).runtimeProviderId || initialState.runtimeProviderId,
       };
     case 'UPDATE_META':
       const newState = { ...state, meta: { ...state.meta, ...action.payload } };
-      if (action.payload.structureType && ['minimal', 'standard', 'full'].includes(action.payload.structureType)) {
-        newState.selectedTemplate = action.payload.structureType as 'minimal' | 'standard' | 'full';
+      if (action.payload.structureType && ['minimal', 'standard', 'full', 'data-analyst', 'web-scraper', 'researcher'].includes(action.payload.structureType)) {
+        newState.selectedTemplate = action.payload.structureType as any;
       }
       return newState;
     case 'UPDATE_MANIFEST':
@@ -296,6 +321,33 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         skills: {
           ...state.skills,
           [action.payload.name]: action.payload
+        }
+      };
+    case 'ADD_SCAFFOLD_CONTEXT':
+      return { ...state, scaffoldContext: [...state.scaffoldContext, action.payload] };
+    case 'REMOVE_SCAFFOLD_CONTEXT':
+      return { ...state, scaffoldContext: state.scaffoldContext.filter(f => f.name !== action.payload) };
+    case 'SAVE_SNAPSHOT':
+      return {
+        ...state,
+        history: {
+          ...state.history,
+          snapshots: [
+            { timestamp: Date.now(), label: action.payload, workspace: { ...state } },
+            ...state.history.snapshots
+          ].slice(0, 20) // Keep last 20
+        }
+      };
+    case 'RESTORE_SNAPSHOT':
+      const snapshot = state.history.snapshots.find(s => s.timestamp === action.payload);
+      if (!snapshot) return state;
+      return { ...snapshot.workspace, history: state.history };
+    case 'DELETE_SNAPSHOT':
+      return {
+        ...state,
+        history: {
+          ...state.history,
+          snapshots: state.history.snapshots.filter(s => s.timestamp !== action.payload)
         }
       };
     default:

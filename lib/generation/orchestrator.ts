@@ -12,6 +12,7 @@ import { toolYamlPrompt } from './prompts/tool-yaml';
 export interface OrchestratorConfig {
   providerId: string;
   apiKey: string;
+  modelId: string;
 }
 
 export interface OrchestratorEvent {
@@ -35,6 +36,7 @@ export async function* runGeneration(
   const ext = workspace as any;
 
   const steps = [
+    'SANITIZE_INPUTS',
     'GEN_YAML',
     'GEN_SOUL',
     ...(isMinimal ? [] : ['GEN_RULES']),
@@ -53,15 +55,54 @@ export async function* runGeneration(
   ];
 
   let ws = { ...workspace };
+  const scaffoldContext = (workspace as any).scaffoldContext || [];
+  const selectedTemplate = (workspace as any).selectedTemplate;
+
+  const contextPrompt = scaffoldContext.length > 0 
+    ? `\n\nAdditional Context from Uploaded Files:\n${scaffoldContext.map((f: any) => `File: ${f.name}\nContent: ${f.content || '[Media File]'}`).join('\n---\n')}`
+    : '';
+
+  const templatePrompt = selectedTemplate === 'data-analyst' 
+    ? '\n\nTEMPLATE: Data Analyst. Focus on CSV/JSON processing, data cleaning, statistical analysis, and visualization. Ensure tools for data manipulation are prioritized.'
+    : selectedTemplate === 'web-scraper'
+    ? '\n\nTEMPLATE: Web Scraper. Focus on headless browsing, DOM extraction, rate limiting, and structured data output. Ensure tools for networking and parsing are prioritized.'
+    : selectedTemplate === 'researcher'
+    ? '\n\nTEMPLATE: Researcher. Focus on deep synthesis, multi-source verification, and citation-heavy markdown outputs. Ensure tools for search and knowledge retrieval are prioritized.'
+    : '';
 
   for (const step of steps) {
     yield { step, status: 'start' };
 
     try {
+      // ── SANITIZE_INPUTS ───────────────────────────────────────────────────
+      if (step === 'SANITIZE_INPUTS') {
+        yield { step, status: 'progress', content: 'Sanitizing and refining agent configuration...' };
+        const prompt = {
+          system: `You are the Editor Assistant. Your job is to sanitize and refine the user's initial agent configuration.
+Ensure the name is kebab-case, the description is clear and professional, and the core identity (SOUL) is consistent with the agent's purpose.
+If the user provided context files, incorporate key insights from them into the refined configuration.`,
+          user: `Current Workspace State:
+Name: ${ws.manifest.name}
+Description: ${ws.manifest.description}
+Template: ${selectedTemplate}
+Context Files: ${scaffoldContext.map((f: any) => f.name).join(', ')}
+
+Refine the manifest and provide a concise summary of changes.`,
+        };
+
+        const result = await provider.generate(prompt, config.apiKey, config.modelId);
+        // We don't strictly update the workspace here unless we want to force changes,
+        // but we'll use this as a "pre-flight" check.
+        yield { step, status: 'done', content: result.text || 'Configuration sanitized.' };
+      }
+
       // ── GEN_YAML ───────────────────────────────────────────────────────────
-      if (step === 'GEN_YAML') {
+      else if (step === 'GEN_YAML') {
         const prompt = agentYamlPrompt(ws);
-        const result = await provider.generate(prompt, config.apiKey);
+        if (scaffoldContext.length > 0 || templatePrompt) {
+          prompt.user += `\n\nUse the following context and template instructions to help determine appropriate metadata, description, and compliance settings:\n${templatePrompt}${contextPrompt}`;
+        }
+        const result = await provider.generate(prompt, config.apiKey, config.modelId);
         const generated = result.object || {};
         ws = {
           ...ws,
@@ -82,8 +123,11 @@ export async function* runGeneration(
       // ── GEN_SOUL ───────────────────────────────────────────────────────────
       else if (step === 'GEN_SOUL') {
         const prompt = soulPrompt(ws);
+        if (scaffoldContext.length > 0 || templatePrompt) {
+          prompt.user += `\n\nUse the following context and template instructions to help define the agent's personality and core identity:\n${templatePrompt}${contextPrompt}`;
+        }
         let content = '';
-        for await (const chunk of provider.stream(prompt, config.apiKey)) {
+        for await (const chunk of provider.stream(prompt, config.apiKey, config.modelId)) {
           content += chunk;
           yield { step, status: 'progress', content };
         }
@@ -95,7 +139,7 @@ export async function* runGeneration(
       else if (step === 'GEN_RULES') {
         const prompt = buildGenerationPrompt('rules-md', 'drafting', ws);
         let content = '';
-        for await (const chunk of provider.stream(prompt, config.apiKey)) {
+        for await (const chunk of provider.stream(prompt, config.apiKey, config.modelId)) {
           content += chunk;
         }
         ws = { ...ws, rules: content };
@@ -106,7 +150,7 @@ export async function* runGeneration(
       else if (step === 'GEN_PROMPT') {
         const prompt = buildGenerationPrompt('prompt-md', 'drafting', ws);
         let content = '';
-        for await (const chunk of provider.stream(prompt, config.apiKey)) {
+        for await (const chunk of provider.stream(prompt, config.apiKey, config.modelId)) {
           content += chunk;
         }
         ws = { ...ws, prompt_md: content };
@@ -117,7 +161,7 @@ export async function* runGeneration(
       else if (step === 'GEN_DUTIES') {
         const prompt = buildGenerationPrompt('duties-md', 'drafting', ws);
         let content = '';
-        for await (const chunk of provider.stream(prompt, config.apiKey)) {
+        for await (const chunk of provider.stream(prompt, config.apiKey, config.modelId)) {
           content += chunk;
         }
         ws = { ...ws, duties: content };
@@ -148,7 +192,7 @@ export async function* runGeneration(
             skill.allowedTools,
             skill.category
           );
-          const refResult = await provider.generate(refPrompt, config.apiKey);
+          const refResult = await provider.generate(refPrompt, config.apiKey, config.modelId);
           const refCatalogue = refResult.object?.references || [];
           
           updatedSkills[name] = {
@@ -160,7 +204,7 @@ export async function* runGeneration(
           // b. Generate SKILL.md
           yield { step, substep: `${name}/SKILL.md`, status: 'start' };
           const prompt = skillPrompt(ws, name, refCatalogue);
-          const result = await provider.generate(prompt, config.apiKey);
+          const result = await provider.generate(prompt, config.apiKey, config.modelId);
           const generated = result.object || {};
 
           updatedSkills[name] = {
@@ -204,7 +248,7 @@ export async function* runGeneration(
         for (const name of toolNames) {
           yield { step: `GEN_TOOL:${name}`, status: 'start' };
           const prompt = toolYamlPrompt(ws, name);
-          const result = await provider.generate(prompt, config.apiKey);
+          const result = await provider.generate(prompt, config.apiKey, config.modelId);
 
           const toolObj = result.object ?? null;
           updatedTools[name] = {
@@ -262,13 +306,13 @@ export async function* runGeneration(
         goodPrompt.system = `Generate 3-5 examples of GOOD outputs for a gitagent named "${ws.manifest.name}". Format as markdown with ## Example N headers.`;
         goodPrompt.user = `Agent: ${ws.manifest.name}\nDomain: ${ws.manifest.description}\n\nGenerate good-outputs.md.`;
         let good = '';
-        for await (const chunk of provider.stream(goodPrompt, config.apiKey)) {
+        for await (const chunk of provider.stream(goodPrompt, config.apiKey, config.modelId)) {
           good += chunk;
         }
         const badPrompt = { ...goodPrompt };
         badPrompt.system = badPrompt.system.replace('GOOD', 'BAD (outputs to avoid)');
         let bad = '';
-        for await (const chunk of provider.stream(badPrompt, config.apiKey)) {
+        for await (const chunk of provider.stream(badPrompt, config.apiKey, config.modelId)) {
           bad += chunk;
         }
         ws = { ...ws, examples: { goodOutputs: good, badOutputs: bad } };

@@ -9,7 +9,7 @@ export const mistralProvider: ModelProvider = {
   async generate(prompt, apiKey, modelId) {
     const mistral = createMistral({ apiKey });
     const { text, experimental_output } = await generateText({
-      model: mistral(modelId || 'mistral-large-latest'),
+      model: mistral(modelId),
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -19,7 +19,7 @@ export const mistralProvider: ModelProvider = {
   async *stream(prompt, apiKey, modelId) {
     const mistral = createMistral({ apiKey });
     const { textStream } = streamText({
-      model: mistral(modelId || 'mistral-large-latest'),
+      model: mistral(modelId),
       system: prompt.system,
       prompt: prompt.user,
     });

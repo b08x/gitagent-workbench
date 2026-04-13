@@ -93,7 +93,7 @@ export function ReviewStep({ fieldErrors = {} }: { fieldErrors?: Record<string, 
                 <Button 
                   className="w-full h-12 text-lg" 
                   onClick={handleGenerate} 
-                  disabled={!settings.apiKeys[settings.providerId] || Object.keys(fieldErrors).length > 0}
+                  disabled={!settings.apiKeys[settings.providerId] || !settings.modelId || Object.keys(fieldErrors).length > 0}
                 >
                   <Rocket className="mr-2 h-5 w-5" /> Generate Agent
                 </Button>
@@ -108,6 +108,9 @@ export function ReviewStep({ fieldErrors = {} }: { fieldErrors?: Record<string, 
 
         {!settings.apiKeys[settings.providerId] && (
           <p className="text-xs text-destructive mt-2 text-center">Please set an API key in the Model step to continue.</p>
+        )}
+        {!settings.modelId && settings.apiKeys[settings.providerId] && (
+          <p className="text-xs text-destructive mt-2 text-center">Please select a model in the Model step to continue.</p>
         )}
       </div>
     </div>

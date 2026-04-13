@@ -5,6 +5,7 @@ import { buildGenerationPrompt } from './strategy';
 export interface SkillGenerationConfig {
   providerId: string;
   apiKey: string;
+  modelId: string;
 }
 
 export async function* generateSkillInstructions(
@@ -30,7 +31,7 @@ export async function* generateSkillInstructions(
     });
 
     let instructions = '';
-    for await (const chunk of provider.stream(prompt, config.apiKey)) {
+    for await (const chunk of provider.stream(prompt, config.apiKey, config.modelId)) {
       instructions += chunk;
       yield { status: 'progress', content: instructions };
     }

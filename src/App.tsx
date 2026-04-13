@@ -12,13 +12,16 @@ import { SkillWorkbench } from '../app/workbench/skills/SkillWorkbench';
 import { WorkflowWorkbench } from '../app/workbench/WorkflowWorkbench';
 import { KnowledgeWorkbench } from '../app/workbench/KnowledgeWorkbench';
 import { ChatWorkbench } from '../app/workbench/ChatWorkbench';
+import { AgentWorkbench } from '../app/workbench/AgentWorkbench';
+import { VersionControl } from '../app/workbench/VersionControl';
+import { GitIntegration } from '../app/workbench/GitIntegration';
+import { SettingsView } from '../app/settings/SettingsView';
 import { Button } from '../components/ui/button';
 import { Settings, Github, Package, X, Download, BookOpen, Workflow, Database, MessageSquare } from 'lucide-react';
 import { SettingsPanel } from '../app/components/SettingsPanel';
 import { cn } from '../lib/utils';
 
 function Header() {
-  const [showSettings, setShowSettings] = useState(false);
   const { state } = useAgentWorkspace();
   const location = useLocation();
   const navigate = useNavigate();
@@ -35,6 +38,14 @@ function Header() {
           </Link>
 
           <nav className="hidden md:flex items-center gap-1">
+            <Link to="/workbench/agent">
+              <Button 
+                variant={location.pathname === '/workbench/agent' ? 'secondary' : 'ghost'} 
+                size="sm" 
+              >
+                Dashboard
+              </Button>
+            </Link>
             <Link to="/wizard">
               <Button 
                 variant={location.pathname.startsWith('/wizard') ? 'secondary' : 'ghost'} 
@@ -97,29 +108,13 @@ function Header() {
               <Github className="h-5 w-5" />
             </Button>
           </a>
-          <Button variant="outline" size="sm" onClick={() => setShowSettings(!showSettings)}>
-            <Settings className="mr-2 h-4 w-4" /> Settings
-          </Button>
+          <Link to="/settings">
+            <Button variant={location.pathname === '/settings' ? 'secondary' : 'outline'} size="sm">
+              <Settings className="mr-2 h-4 w-4" /> Settings
+            </Button>
+          </Link>
         </div>
       </div>
-
-      {showSettings && (
-        <>
-          <div 
-            className="fixed inset-0 bg-background/40 backdrop-blur-sm z-40" 
-            onClick={() => setShowSettings(false)} 
-          />
-          <div className="absolute top-16 right-4 w-80 bg-card border rounded-xl shadow-2xl p-6 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-bold">Settings</h2>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSettings(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <SettingsPanel />
-          </div>
-        </>
-      )}
     </header>
   );
 }
@@ -154,7 +149,8 @@ function AppContent() {
         <Header />
         <main>
           <Routes>
-            <Route path="/" element={<Navigate to="/wizard" replace />} />
+            <Route path="/" element={<Navigate to="/workbench/agent" replace />} />
+            <Route path="/workbench/agent" element={<AgentWorkbench />} />
             <Route path="/wizard" element={<WizardShell />} />
             <Route path="/generating" element={<GenerationDashboard />} />
             <Route path="/editor" element={<FileEditor />} />
@@ -164,6 +160,9 @@ function AppContent() {
             <Route path="/workbench/workflows" element={<WorkflowWorkbench />} />
             <Route path="/workbench/knowledge" element={<KnowledgeWorkbench />} />
             <Route path="/workbench/chat" element={<ChatWorkbench />} />
+            <Route path="/workbench/history" element={<VersionControl />} />
+            <Route path="/workbench/git" element={<GitIntegration />} />
+            <Route path="/settings" element={<SettingsView />} />
           </Routes>
         </main>
       </div>

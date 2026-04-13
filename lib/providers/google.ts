@@ -9,7 +9,7 @@ export const googleProvider: ModelProvider = {
   async generate(prompt, apiKey, modelId) {
     const google = createGoogleGenerativeAI({ apiKey });
     const { text, experimental_output } = await generateText({
-      model: google(modelId || 'gemini-1.5-pro'),
+      model: google(modelId),
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -19,7 +19,7 @@ export const googleProvider: ModelProvider = {
   async *stream(prompt, apiKey, modelId) {
     const google = createGoogleGenerativeAI({ apiKey });
     const { textStream } = streamText({
-      model: google(modelId || 'gemini-1.5-pro'),
+      model: google(modelId),
       system: prompt.system,
       prompt: prompt.user,
     });

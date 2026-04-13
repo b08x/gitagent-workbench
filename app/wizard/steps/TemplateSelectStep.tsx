@@ -27,6 +27,27 @@ const templates = [
     description: 'Complete suite including memory and compliance',
     fileCount: 12,
     details: 'Enterprise-grade architecture for complex, multi-agent systems.'
+  },
+  {
+    id: 'data-analyst' as const,
+    name: 'Data Analyst',
+    description: 'Specialized for CSV/JSON and visualization',
+    fileCount: 8,
+    details: 'Pre-configured with data processing skills and analysis rules.'
+  },
+  {
+    id: 'web-scraper' as const,
+    name: 'Web Scraper',
+    description: 'Optimized for extraction and parsing',
+    fileCount: 7,
+    details: 'Includes headless browsing patterns and structured output schemas.'
+  },
+  {
+    id: 'researcher' as const,
+    name: 'Researcher',
+    description: 'Deep synthesis and citation focus',
+    fileCount: 9,
+    details: 'Configured for multi-source verification and long-form reporting.'
   }
 ];
 

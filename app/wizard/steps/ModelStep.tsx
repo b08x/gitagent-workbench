@@ -12,25 +12,42 @@ import { InfoIcon, Settings2, Loader2, CheckCircle2 } from 'lucide-react';
 export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { settings, updateSettings, setApiKey } = useSettings();
   const { state, dispatch } = useAgentWorkspace();
-  const [models, setModels] = useState<ModelOption[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [genModels, setGenModels] = useState<ModelOption[]>([]);
+  const [runtimeModels, setRuntimeModels] = useState<ModelOption[]>([]);
+  const [loadingGen, setLoadingGen] = useState(false);
+  const [loadingRuntime, setLoadingRuntime] = useState(false);
 
   useEffect(() => {
-    const loadModels = async () => {
-      setLoading(true);
+    const loadGenModels = async () => {
+      setLoadingGen(true);
       try {
         const apiKey = settings.apiKeys[settings.providerId];
         const fetched = await fetchChatModels(settings.providerId, apiKey);
-        setModels(fetched);
+        setGenModels(fetched);
       } catch (e) {
-        console.error('Failed to fetch models', e);
-        setModels(CURATED_MODELS[settings.providerId] || []);
+        setGenModels(CURATED_MODELS[settings.providerId] || []);
       } finally {
-        setLoading(false);
+        setLoadingGen(false);
       }
     };
-    loadModels();
+    loadGenModels();
   }, [settings.providerId, settings.apiKeys[settings.providerId]]);
+
+  useEffect(() => {
+    const loadRuntimeModels = async () => {
+      setLoadingRuntime(true);
+      try {
+        const apiKey = settings.apiKeys[state.runtimeProviderId];
+        const fetched = await fetchChatModels(state.runtimeProviderId, apiKey);
+        setRuntimeModels(fetched);
+      } catch (e) {
+        setRuntimeModels(CURATED_MODELS[state.runtimeProviderId] || []);
+      } finally {
+        setLoadingRuntime(false);
+      }
+    };
+    loadRuntimeModels();
+  }, [state.runtimeProviderId, settings.apiKeys[state.runtimeProviderId]]);
 
   const updateModel = (field: string, value: any) => {
     dispatch({
@@ -73,6 +90,13 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
     });
   };
 
+  const updateRuntimeProvider = (providerId: string) => {
+    dispatch({
+      type: 'UPDATE_WORKSPACE',
+      payload: { runtimeProviderId: providerId }
+    });
+  };
+
   const agentName = state.manifest.name || '';
   const isClaudeCode = agentName === 'claude-code';
   const isGeminiCli = agentName === 'gemini-cli';
@@ -111,11 +135,11 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
                 onValueChange={v => updateSettingsAndWorkspace({ modelId: v })}
               >
                 <SelectTrigger>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  <SelectValue />
+                  {loadingGen ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  <SelectValue placeholder="Select a model..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {models.map(m => (
+                  {genModels.map(m => (
                     <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -165,27 +189,48 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
         </div>
 
         <div className="grid gap-6">
-          <div className="grid gap-2">
-            <Label>Preferred Model</Label>
-            <Select 
-              value={state.manifest.model?.preferred || ''} 
-              onValueChange={v => updateModel('preferred', v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a model..." />
-              </SelectTrigger>
-              <SelectContent>
-                {models.map(m => (
-                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {(isClaudeCode || isGeminiCli) && (
-              <p className="text-xs text-amber-600 font-medium">
-                Restricted to {isClaudeCode ? 'Anthropic' : 'Gemini'} models for {agentName}.
-              </p>
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>Provider</Label>
+              <Select 
+                value={state.runtimeProviderId} 
+                onValueChange={updateRuntimeProvider}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.values(providers).map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Preferred Model</Label>
+              <Select 
+                value={state.manifest.model?.preferred || ''} 
+                onValueChange={v => updateModel('preferred', v)}
+              >
+                <SelectTrigger>
+                  {loadingRuntime ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  <SelectValue placeholder="Select a model..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {runtimeModels.map(m => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
+          {(isClaudeCode || isGeminiCli) && (
+            <p className="text-xs text-amber-600 font-medium">
+              Restricted to {isClaudeCode ? 'Anthropic' : 'Gemini'} models for {agentName}.
+            </p>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
