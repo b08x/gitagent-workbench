@@ -12,6 +12,10 @@ import { retryWithBackoff } from '../utils/retry';
 import { getTemplateInstructions } from './templates';
 import { getApplicableSteps, StepId } from './steps';
 import { z } from 'zod';
+import { sanitizePromptContent } from './sanitizer';
+import { validateContextLength } from './token-counter';
+import { saveWorkspaceSnapshot } from './persistence';
+import { GenerationPrompt, GenerationResult } from '../providers/types';
 
 export interface OrchestratorConfig {
   providerId: string;
@@ -30,10 +34,10 @@ export interface OrchestratorEvent {
   workspace?: AgentWorkspace;
 }
 
-export async function generateWithRetryAndFallback(
-  prompt: any,
+export async function generateWithRetryAndFallback<T extends z.ZodTypeAny = any>(
+  prompt: GenerationPrompt<T>,
   config: OrchestratorConfig
-): Promise<any> {
+): Promise<GenerationResult<z.infer<T>>> {
   const models = [config.modelId, ...(config.fallbackModelIds || [])];
   let lastError: any;
 
@@ -60,7 +64,7 @@ export async function generateWithRetryAndFallback(
 }
 
 export async function* streamWithRetryAndFallback(
-  prompt: any,
+  prompt: GenerationPrompt,
   config: OrchestratorConfig
 ): AsyncGenerator<string> {
   const models = [config.modelId, ...(config.fallbackModelIds || [])];
@@ -107,8 +111,10 @@ export async function* runGeneration(
   const selectedTemplate = (workspace as any).selectedTemplate;
 
   const contextPrompt = scaffoldContext.length > 0 
-    ? `\n\nAdditional Context from Uploaded Files:\n${scaffoldContext.map((f: any) => `File: ${f.name}\nContent: ${f.content || '[Media File]'}`).join('\n---\n')}`
+    ? `\n\nAdditional Context from Uploaded Files:\n${scaffoldContext.map((f: any) => `File: ${f.name}\nContent: ${sanitizePromptContent(f.content || '[Media File]')}`).join('\n---\n')}`
     : '';
+
+  validateContextLength(contextPrompt);
 
   const templatePrompt = getTemplateInstructions(selectedTemplate);
   let skip = config.resumeFromStep ? true : false;
@@ -157,7 +163,7 @@ Refine the manifest and provide a concise summary of changes.`,
           prompt.user += `\n\nUse the following context and template instructions to help determine appropriate metadata, description, and compliance settings:\n${templatePrompt}${contextPrompt}`;
         }
         const result = await generateWithRetryAndFallback(prompt, config);
-        const generated = result.object || {};
+        const generated = (result.object as any) || {};
         ws = {
           ...ws,
           manifest: {
@@ -192,7 +198,13 @@ Refine the manifest and provide a concise summary of changes.`,
       // ── GEN_INSTRUCTIONS ──────────────────────────────────────────────────
       else if (step === 'GEN_INSTRUCTIONS') {
         yield { step, status: 'progress', content: 'Generating Rules, Prompt, and Duties...' };
-        const prompt = {
+        const instructionSchema = z.object({
+          rules: z.string().describe('Markdown content for RULES.md'),
+          prompt: z.string().describe('Markdown content for PROMPT.md'),
+          duties: z.string().describe('Markdown content for DUTIES.md'),
+        });
+
+        const prompt: GenerationPrompt<typeof instructionSchema> = {
           system: `You are the Instruction Architect. Generate the core behavior instructions for the agent.
 You must return a structured JSON object containing:
 - rules: A comprehensive RULES.md content.
@@ -211,21 +223,18 @@ Soul: ${ws.soul}
 ${templatePrompt}${contextPrompt}
 
 Generate the instruction set.`,
-          schema: z.object({
-            rules: z.string().describe('Markdown content for RULES.md'),
-            prompt: z.string().describe('Markdown content for PROMPT.md'),
-            duties: z.string().describe('Markdown content for DUTIES.md'),
-          })
+          schema: instructionSchema
         };
 
         const result = await generateWithRetryAndFallback(prompt, config);
-        const obj = result.object || {};
-        ws = {
-          ...ws,
-          rules: obj.rules || '',
-          prompt_md: obj.prompt || '',
-          duties: obj.duties || ''
-        };
+        if (result.object) {
+          ws = {
+            ...ws,
+            rules: result.object.rules,
+            prompt_md: result.object.prompt,
+            duties: result.object.duties
+          };
+        }
         yield { step, status: 'done', workspace: ws };
       }
 
@@ -254,7 +263,7 @@ Generate the instruction set.`,
             skill.category
           );
           const refResult = await generateWithRetryAndFallback(refPrompt, config);
-          const refCatalogue = refResult.object?.references || [];
+          const refCatalogue = (refResult.object as any)?.references || [];
           
           updatedSkills[name] = {
             ...skill,
@@ -266,7 +275,7 @@ Generate the instruction set.`,
           yield { step, substep: `${name}/SKILL.md`, status: 'start' };
           const prompt = skillPrompt(ws, name, refCatalogue);
           const result = await generateWithRetryAndFallback(prompt, config);
-          const generated = result.object || {};
+          const generated = (result.object as any) || {};
 
           updatedSkills[name] = {
             ...updatedSkills[name],
@@ -311,7 +320,7 @@ Generate the instruction set.`,
           const prompt = toolYamlPrompt(ws, name);
           const result = await generateWithRetryAndFallback(prompt, config);
 
-          const toolObj = result.object ?? null;
+          const toolObj = (result.object as any) ?? null;
           const input_schema = toolObj?.input_schema ?? toolObj?.parameters ?? {
             type: 'object',
             properties: {
@@ -385,6 +394,7 @@ Generate the instruction set.`,
       // ── VALIDATE_OUT ───────────────────────────────────────────────────────
       else if (step === 'VALIDATE_OUT') {
         ws = { ...ws, validationResult: validateWorkspace(ws) };
+        saveWorkspaceSnapshot(ws);
         yield { step, status: 'done', workspace: ws };
       }
 
@@ -395,6 +405,9 @@ Generate the instruction set.`,
         throw new Error(`Critical step "${stepConfig.label}" failed: ${error.message}`);
       }
       // Continue to next step for non-critical failures
+    } finally {
+      // Snapshot state after each step attempt (even if non-critical error)
+      saveWorkspaceSnapshot(ws);
     }
   }
 

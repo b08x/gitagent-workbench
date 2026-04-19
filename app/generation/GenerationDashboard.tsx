@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAgentWorkspace } from '../context/AgentContext';
 import { useSettings } from '../context/SettingsContext';
 import { runGeneration, OrchestratorEvent } from '../../lib/generation/orchestrator';
+import { loadWorkspaceSnapshot, clearWorkspaceSnapshot } from '../../lib/generation/persistence';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, CheckCircle2, XCircle, ArrowRight, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, ArrowRight, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 
 const STEP_LABELS: Record<string, string> = {
   SANITIZE_INPUTS:  'Sanitization',
@@ -40,6 +41,34 @@ export function GenerationDashboard() {
   const [stepOrder, setStepOrder] = useState<string[]>([]);
   const [showSubSteps, setShowSubSteps] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resumePrompt, setResumePrompt] = useState<string | null>(null);
+
+  useEffect(() => {
+    const snapshot = loadWorkspaceSnapshot();
+    if (snapshot && snapshot.meta.status !== 'complete' && state.meta.status !== 'generating') {
+      // Find the last completed step
+      const completedSteps = Object.entries(snapshot)
+        .filter(([_, v]) => v !== null && v !== undefined)
+        .map(([k, _]) => k);
+      
+      // Rough heuristic: if they have a soul, they finished GEN_SOUL
+      if (snapshot.soul && !snapshot.rules) {
+        setResumePrompt('GEN_INSTRUCTIONS');
+      } else if (snapshot.rules && !Object.keys(snapshot.tools).length) {
+        setResumePrompt('GEN_TOOLS');
+      }
+    }
+  }, []);
+
+  const handleResume = (step: string) => {
+    const snapshot = loadWorkspaceSnapshot();
+    if (snapshot) {
+      dispatch({ type: 'SET_WORKSPACE', payload: snapshot });
+      dispatch({ type: 'UPDATE_META', payload: { status: 'generating' } });
+      // We pass resumeFromStep in the next effect run
+    }
+    setResumePrompt(null);
+  };
 
   useEffect(() => {
     if (state.meta.status !== 'generating') return;
@@ -52,12 +81,14 @@ export function GenerationDashboard() {
 
     const startGen = async () => {
       try {
+        const resumeStep = resumePrompt; // Use local state if just triggered
         const gen = runGeneration(state, { 
           providerId: settings.providerId, 
           apiKey,
           modelId: settings.modelId,
           fallbackModelIds: state.generationConfig.fallbackModelIds,
-          apiKeys: settings.apiKeys
+          apiKeys: settings.apiKeys,
+          resumeFromStep: resumePrompt || undefined
         });
         for await (const event of gen) {
           setEvents(prev => { const n = new Map(prev); n.set(event.step, event); return n; });
@@ -100,6 +131,24 @@ export function GenerationDashboard() {
 
       {error && (
         <div className="mb-6 p-4 border border-destructive rounded-lg text-destructive text-sm">{error}</div>
+      )}
+
+      {resumePrompt && (
+        <Card className="mb-6 border-primary/50 bg-primary/5">
+          <CardContent className="pt-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <RotateCcw className="h-5 w-5 text-primary" />
+              <div>
+                <p className="text-sm font-medium">Partial Generation Found</p>
+                <p className="text-xs text-muted-foreground">Would you like to resume from "{STEP_LABELS[resumePrompt]}"?</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => { clearWorkspaceSnapshot(); setResumePrompt(null); }}>Discard</Button>
+              <Button size="sm" onClick={() => handleResume(resumePrompt)}>Resume</Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {stepOrder.some(isSubStep) && (
