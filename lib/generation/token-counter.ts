@@ -17,12 +17,28 @@ export function countTokens(text: string): number {
 }
 
 /**
+ * Slices text to stay within a token limit.
+ */
+export function truncateToLimit(text: string, limit: number): string {
+  if (!text) return '';
+  try {
+    const tokens = enc.encode(text);
+    if (tokens.length <= limit) return text;
+    const truncated = tokens.slice(0, limit);
+    return enc.decode(truncated);
+  } catch (err) {
+    console.error('Truncation failed:', err);
+    return text.slice(0, limit * 3); // Very rough fallback
+  }
+}
+
+/**
  * Checks if a prompt exceeds a conservative limit and throws if it does.
  */
-export function validateContextLength(text: string, limit = 100000) {
+export function validateContextLength(text: string, limit = 100000): { tokens: number; exceeds: boolean } {
   const tokens = countTokens(text);
-  if (tokens > limit) {
-    throw new Error(`Context length exceeded: ${tokens} tokens (limit: ${limit}). Please reduce the size of your context files.`);
-  }
-  return tokens;
+  return {
+    tokens,
+    exceeds: tokens > limit
+  };
 }
