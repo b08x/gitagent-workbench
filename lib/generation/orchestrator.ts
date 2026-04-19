@@ -9,6 +9,9 @@ import { skillPrompt } from './prompts/skill-md';
 import { referencesReadmePrompt } from './prompts/references-readme';
 import { toolYamlPrompt } from './prompts/tool-yaml';
 import { retryWithBackoff } from '../utils/retry';
+import { getTemplateInstructions } from './templates';
+import { getApplicableSteps, StepId } from './steps';
+import { z } from 'zod';
 
 export interface OrchestratorConfig {
   providerId: string;
@@ -16,6 +19,7 @@ export interface OrchestratorConfig {
   modelId: string;
   fallbackModelIds?: string[];
   apiKeys?: Record<string, string>;
+  resumeFromStep?: string;
 }
 
 export interface OrchestratorEvent {
@@ -97,30 +101,7 @@ export async function* runGeneration(
   const provider = providers[config.providerId];
   if (!provider) throw new Error(`Provider ${config.providerId} not found`);
 
-  const structureType = workspace.meta.structureType;
-  const isMinimal = structureType === 'minimal';
-  const isFull = structureType === 'full';
-  const ext = workspace as any;
-
-  const steps = [
-    'SANITIZE_INPUTS',
-    'GEN_YAML',
-    'GEN_SOUL',
-    ...(isMinimal ? [] : ['GEN_RULES']),
-    ...(isMinimal ? [] : ['GEN_PROMPT']),
-    ...(!isMinimal && (workspace.manifest.compliance?.risk_tier !== 'low' || isFull)
-      ? ['GEN_DUTIES']
-      : []),
-    'GEN_CONFIG',
-    'GEN_SKILLS',
-    'GEN_KNOWLEDGE_DOCS',
-    'GEN_TOOLS',
-    ...(Object.keys(workspace.subAgents).length > 0 || (ext.subAgentsList && ext.subAgentsList.length > 0) ? ['GEN_SUBAGENTS'] : []),
-    ...(isFull ? ['GEN_WORKFLOWS'] : []),
-    ...(isFull ? ['GEN_EXAMPLES'] : []),
-    'VALIDATE_OUT',
-  ];
-
+  const applicableSteps = getApplicableSteps(workspace);
   let ws = { ...workspace };
   const scaffoldContext = (workspace as any).scaffoldContext || [];
   const selectedTemplate = (workspace as any).selectedTemplate;
@@ -129,15 +110,21 @@ export async function* runGeneration(
     ? `\n\nAdditional Context from Uploaded Files:\n${scaffoldContext.map((f: any) => `File: ${f.name}\nContent: ${f.content || '[Media File]'}`).join('\n---\n')}`
     : '';
 
-  const templatePrompt = selectedTemplate === 'data-analyst' 
-    ? '\n\nTEMPLATE: Data Analyst. Focus on CSV/JSON processing, data cleaning, statistical analysis, and visualization. Ensure tools for data manipulation are prioritized.'
-    : selectedTemplate === 'web-scraper'
-    ? '\n\nTEMPLATE: Web Scraper. Focus on headless browsing, DOM extraction, rate limiting, and structured data output. Ensure tools for networking and parsing are prioritized.'
-    : selectedTemplate === 'researcher'
-    ? '\n\nTEMPLATE: Researcher. Focus on deep synthesis, multi-source verification, and citation-heavy markdown outputs. Ensure tools for search and knowledge retrieval are prioritized.'
-    : '';
+  const templatePrompt = getTemplateInstructions(selectedTemplate);
+  let skip = config.resumeFromStep ? true : false;
 
-  for (const step of steps) {
+  for (const stepConfig of applicableSteps) {
+    const step = stepConfig.id;
+
+    if (skip) {
+      if (step === config.resumeFromStep) {
+        skip = false;
+      } else {
+        yield { step, status: 'done', content: 'Already completed (skipped)' };
+        continue;
+      }
+    }
+
     yield { step, status: 'start' };
 
     try {
@@ -202,36 +189,43 @@ Refine the manifest and provide a concise summary of changes.`,
         yield { step, status: 'done', workspace: ws };
       }
 
-      // ── GEN_RULES ──────────────────────────────────────────────────────────
-      else if (step === 'GEN_RULES') {
-        const prompt = buildGenerationPrompt('rules-md', 'drafting', ws);
-        let content = '';
-        for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
-          content += chunk;
-        }
-        ws = { ...ws, rules: content };
-        yield { step, status: 'done', workspace: ws };
-      }
+      // ── GEN_INSTRUCTIONS ──────────────────────────────────────────────────
+      else if (step === 'GEN_INSTRUCTIONS') {
+        yield { step, status: 'progress', content: 'Generating Rules, Prompt, and Duties...' };
+        const prompt = {
+          system: `You are the Instruction Architect. Generate the core behavior instructions for the agent.
+You must return a structured JSON object containing:
+- rules: A comprehensive RULES.md content.
+- prompt: A concise PROMPT.md content.
+- duties: A DUTIES.md content clarifying responsibilities.
 
-      // ── GEN_PROMPT ─────────────────────────────────────────────────────────
-      else if (step === 'GEN_PROMPT') {
-        const prompt = buildGenerationPrompt('prompt-md', 'drafting', ws);
-        let content = '';
-        for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
-          content += chunk;
-        }
-        ws = { ...ws, prompt_md: content };
-        yield { step, status: 'done', workspace: ws };
-      }
+Follow these quality guidelines:
+1. Rules should prioritize safety, identity, and tool constraints.
+2. The prompt should be optimized for LLM readability.
+3. Duties should define clear success metrics.`,
+          user: `Agent Identity:
+Name: ${ws.manifest.name}
+Description: ${ws.manifest.description}
+Manifest: ${JSON.stringify(ws.manifest, null, 2)}
+Soul: ${ws.soul}
+${templatePrompt}${contextPrompt}
 
-      // ── GEN_DUTIES ─────────────────────────────────────────────────────────
-      else if (step === 'GEN_DUTIES') {
-        const prompt = buildGenerationPrompt('duties-md', 'drafting', ws);
-        let content = '';
-        for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
-          content += chunk;
-        }
-        ws = { ...ws, duties: content };
+Generate the instruction set.`,
+          schema: z.object({
+            rules: z.string().describe('Markdown content for RULES.md'),
+            prompt: z.string().describe('Markdown content for PROMPT.md'),
+            duties: z.string().describe('Markdown content for DUTIES.md'),
+          })
+        };
+
+        const result = await generateWithRetryAndFallback(prompt, config);
+        const obj = result.object || {};
+        ws = {
+          ...ws,
+          rules: obj.rules || '',
+          prompt_md: obj.prompt || '',
+          duties: obj.duties || ''
+        };
         yield { step, status: 'done', workspace: ws };
       }
 
@@ -318,16 +312,18 @@ Refine the manifest and provide a concise summary of changes.`,
           const result = await generateWithRetryAndFallback(prompt, config);
 
           const toolObj = result.object ?? null;
+          const input_schema = toolObj?.input_schema ?? toolObj?.parameters ?? {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Input query or parameters' },
+            },
+            required: ['query'],
+          };
+
           updatedTools[name] = {
             name: toolObj?.name ?? name,
             description: toolObj?.description ?? `Tool: ${name}`,
-            input_schema: toolObj?.input_schema ?? {
-              type: 'object',
-              properties: {
-                query: { type: 'string', description: 'Input query or parameters' },
-              },
-              required: ['query'],
-            },
+            input_schema,
           };
           yield { step: `GEN_TOOL:${name}`, status: 'done' };
         }
@@ -394,7 +390,11 @@ Refine the manifest and provide a concise summary of changes.`,
 
     } catch (error: any) {
       yield { step, status: 'error', content: error.message };
-      // Continue to next step — partial output is still useful
+      
+      if (stepConfig.isCritical) {
+        throw new Error(`Critical step "${stepConfig.label}" failed: ${error.message}`);
+      }
+      // Continue to next step for non-critical failures
     }
   }
 

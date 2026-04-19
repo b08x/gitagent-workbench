@@ -9,18 +9,17 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, CheckCircle2, XCircle, ArrowRight, ChevronDown, ChevronRight } from 'lucide-react';
 
 const STEP_LABELS: Record<string, string> = {
-  GEN_YAML:      'agent.yaml',
-  GEN_SOUL:      'SOUL.md',
-  GEN_RULES:     'RULES.md',
-  GEN_PROMPT:    'PROMPT.md',
-  GEN_DUTIES:    'DUTIES.md',
-  GEN_CONFIG:    'config.yaml',
-  GEN_SKILLS:    'skills/',
-  GEN_TOOLS:     'tools/',
-  GEN_WORKFLOWS: 'workflows/',
-  GEN_EXAMPLES:  'examples/',
-  VALIDATE_OUT:  'Validation',
-  COMPLETE:      'Complete',
+  SANITIZE_INPUTS:  'Sanitization',
+  GEN_YAML:         'agent.yaml',
+  GEN_SOUL:         'SOUL.md',
+  GEN_INSTRUCTIONS: 'Core Instructions (RULES/PROMPT/DUTIES)',
+  GEN_CONFIG:       'config.yaml',
+  GEN_SKILLS:       'skills/',
+  GEN_TOOLS:        'tools/',
+  GEN_WORKFLOWS:    'workflows/',
+  GEN_EXAMPLES:     'examples/',
+  VALIDATE_OUT:     'Validation',
+  COMPLETE:         'Complete',
 };
 
 function stepLabel(step: string): string {
