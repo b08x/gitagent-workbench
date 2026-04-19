@@ -6,8 +6,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - GEMINI_API_KEY=${GEMINI_API_KEY}
     ports:
-      - "8080:80"
+      - "8080:8080"
     env_file:
       - .env.local
     restart: unless-stopped

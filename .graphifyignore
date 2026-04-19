@@ -1,0 +1,10 @@
+**/node_modules/*
+.git/
+.gitignore
+package-lock.json
+**/dist/
+.dockerignore
+.env
+.env.example
+tea_debug.log
+docker-compose.yml

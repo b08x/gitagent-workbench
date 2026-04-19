@@ -4,6 +4,8 @@
 
 A visual development environment for creating production-ready AI agents through guided configuration and automated code generation.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/b08x/gitagent-workbench)
+
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![React](https://img.shields.io/badge/react-19-blue.svg)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/typescript-5.8-blue.svg)](https://typescriptlang.org/)
