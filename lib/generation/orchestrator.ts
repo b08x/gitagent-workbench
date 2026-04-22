@@ -3,7 +3,7 @@ import { providers } from '../providers';
 import { getTemplateInstructions } from './templates';
 import { getApplicableSteps } from './steps';
 import { sanitizePromptContent } from './sanitizer';
-import { validateContextLength, truncateToLimit } from './token-counter';
+import { countTokens } from './token-counter';
 import { saveWorkspaceSnapshot } from './persistence';
 import { OrchestratorConfig, OrchestratorEvent } from './types';
 import { ALL_HANDLERS } from './handlers/core-handlers';
@@ -23,24 +23,36 @@ export async function* runGeneration(
   const scaffoldContext = (workspace as any).scaffoldContext || [];
   const selectedTemplate = (workspace as any).selectedTemplate;
 
-  const rawContext = scaffoldContext.length > 0 
-    ? `\n\nAdditional Context from Uploaded Files:\n${scaffoldContext.map((f: any) => `File: ${f.name}\nContent: ${sanitizePromptContent(f.content || '[Media File]')}`).join('\n---\n')}`
-    : '';
-
-  // ENG-104: Active Context Window Truncation
-  const defaultLimit = 100000; // Default conservative limit
+  // ENG-104: Semantic Context Window Truncation
+  const defaultLimit = 100000;
   const hardLimit = config.contextLimit || defaultLimit;
   const truncationLimit = Math.floor(hardLimit * 0.8);
   
-  const { tokens, exceeds } = validateContextLength(rawContext, truncationLimit);
-  let contextPrompt = rawContext;
+  const header = "\n\nAdditional Context from Uploaded Files:\n";
+  let contextPrompt = "";
+  let totalTokens = countTokens(header);
+  let truncatedFilesCount = 0;
 
-  if (exceeds) {
-    contextPrompt = truncateToLimit(rawContext, truncationLimit);
+  if (scaffoldContext.length > 0) {
+    contextPrompt = header;
+    for (const file of scaffoldContext) {
+      const fileContent = `File: ${file.name}\nContent: ${sanitizePromptContent(file.content || '[Media File]')}\n---\n`;
+      const fileTokens = countTokens(fileContent);
+
+      if (totalTokens + fileTokens <= truncationLimit) {
+        contextPrompt += fileContent;
+        totalTokens += fileTokens;
+      } else {
+        truncatedFilesCount++;
+      }
+    }
+  }
+
+  if (truncatedFilesCount > 0) {
     yield { 
       step: 'SANITIZE_INPUTS', 
       status: 'progress', 
-      content: `Warning: Context size (${tokens} tokens) exceeds 80% of limit (${truncationLimit}). Truncating to stay within safe bounds.` 
+      content: `Warning: Context size exceeds 80% of limit (${truncationLimit}). Dropped ${truncatedFilesCount} files to avoid malformed output.` 
     };
   }
 

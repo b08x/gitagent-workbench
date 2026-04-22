@@ -3,7 +3,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { generateText, streamText, Output } from "ai";
+import { generateText, streamText, Output, APICallError, InvalidArgumentError, TypeValidationError } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -36,6 +36,35 @@ async function startServer() {
   };
 
   const serverKeys: Record<string, string> = {};
+
+  // ENG-105: Explicit Allowed Models List to prevent Arbitrary Model Invocation
+  const ALLOWED_MODELS = new Set([
+    // Anthropic
+    "claude-3-5-sonnet-20240620", "claude-3-5-haiku-20241022", "claude-3-opus-20240229",
+    // OpenAI
+    "gpt-4o", "gpt-4o-mini", "o3-mini",
+    // Google
+    "gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash",
+    // Mistral
+    "mistral-large-latest", "mistral-small-latest", "codestral-latest",
+    // Groq
+    "llama-3.3-70b-versatile", "mixtral-8x7b-32768",
+    // Ollama (Allow standard ones)
+    "llama3.2", "mistral", "codellama",
+    // OpenRouter (Includes provider prefixes)
+    "anthropic/claude-3-5-sonnet-20240620", "openai/gpt-4o", "google/gemini-2.0-flash-exp"
+  ]);
+
+  function mapErrorToStatus(error: any): number {
+    if (error instanceof InvalidArgumentError || error instanceof TypeValidationError) return 400;
+    if (error instanceof APICallError) {
+      if (error.statusCode === 429) return 429;
+      if (error.statusCode === 401) return 401;
+      if (error.statusCode === 403) return 403;
+      return 502; // Bad Gateway for downstream LLM errors
+    }
+    return 500;
+  }
   
   // Initialize from env
   Object.entries(PROVIDER_MAP).forEach(([pid, envName]) => {
@@ -65,6 +94,12 @@ async function startServer() {
   app.post("/api/generate", async (req, res) => {
     try {
       const { prompt, modelId, providerId, options } = req.body;
+      
+      // ENG-105: Validate modelId against allowlist
+      if (!ALLOWED_MODELS.has(modelId)) {
+        return res.status(403).json({ error: `Model ${modelId} is not on the allowed list.` });
+      }
+
       const apiKey = serverKeys[providerId];
       
       if (!apiKey) {
@@ -85,13 +120,20 @@ async function startServer() {
       res.json({ text: result.text, object: result.experimental_output });
     } catch (error: any) {
       console.error("Proxy Generate Error:", error);
-      res.status(500).json({ error: error.message });
+      const status = mapErrorToStatus(error);
+      res.status(status).json({ error: error.message });
     }
   });
 
   app.post("/api/stream", async (req, res) => {
     try {
       const { prompt, modelId, providerId, options } = req.body;
+
+      // ENG-105: Validate modelId against allowlist
+      if (!ALLOWED_MODELS.has(modelId)) {
+        return res.status(403).json({ error: `Model ${modelId} is not on the allowed list.` });
+      }
+
       const apiKey = serverKeys[providerId];
 
       if (!apiKey) {
@@ -120,7 +162,8 @@ async function startServer() {
     } catch (error: any) {
       console.error("Proxy Stream Error:", error);
       if (!res.headersSent) {
-        res.status(500).json({ error: error.message });
+        const status = mapErrorToStatus(error);
+        res.status(status).json({ error: error.message });
       } else {
         res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
         res.end();
