@@ -180,12 +180,30 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
             </Label>
             <Input 
               type="password" 
-              placeholder={settings.providerId === 'ollama' ? 'Not required for local Ollama' : 'sk-...'} 
-              value={settings.apiKeys[settings.providerId] || ''}
+              placeholder={
+                settings.providerId === 'ollama' 
+                  ? 'Not required for local Ollama' 
+                  : settings.apiKeys[settings.providerId] === '********'
+                    ? 'Key provided via environment'
+                    : 'sk-...'
+              } 
+              value={settings.apiKeys[settings.providerId] === '********' ? '' : (settings.apiKeys[settings.providerId] || '')}
               onChange={e => setApiKey(settings.providerId, e.target.value)}
               disabled={settings.providerId === 'ollama'}
             />
-            <p className="text-xs text-muted-foreground">Stored in sessionStorage only. Never persisted.</p>
+            <p className="text-xs text-muted-foreground">
+              {settings.apiKeys[settings.providerId] === '********' 
+                ? 'Managed securely on server via environment variables.'
+                : 'Sensitive keys are proxied through a secure local backend.'}
+            </p>
+          </div>
+
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex gap-2">
+            <InfoIcon className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-700">
+              Settings (except API keys) are now persisted across sessions using localStorage. 
+              Multiple tabs will stay synchronized automatically.
+            </p>
           </div>
 
           {!providers[settings.providerId].supportsDirectBrowser && (
