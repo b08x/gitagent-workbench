@@ -3,7 +3,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { generateText, streamText, Output, APICallError, InvalidArgumentError, TypeValidationError } from "ai";
+import { generateText, streamText, Output, APICallError, InvalidArgumentError, TypeValidationError, jsonSchema } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -118,7 +118,7 @@ async function startServer() {
         model,
         system: prompt.system,
         prompt: prompt.user,
-        experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
+        experimental_output: prompt.schema ? Output.object({ schema: jsonSchema(prompt.schema) }) : undefined,
         ...options
       });
 
