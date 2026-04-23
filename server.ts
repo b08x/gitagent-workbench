@@ -184,6 +184,20 @@ async function startServer() {
     }
   }
 
+  // ENG-106: Global Error Handler to avoid returning HTML on uncaught errors
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("Global Server Error:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: "Internal Server Error", 
+        message: err.message,
+        stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined 
+      });
+    } else {
+      next(err);
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

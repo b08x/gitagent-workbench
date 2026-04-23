@@ -13,7 +13,8 @@ export async function generateWithRetryAndFallback<T extends z.ZodTypeAny = any>
     let providerId = config.providerId;
     let modelId = modelSpec;
     
-    if (modelSpec.includes('/')) {
+    // Only split if NOT openrouter, as openrouter IDs naturally contain slashes
+    if (providerId !== 'openrouter' && modelSpec.includes('/')) {
       const parts = modelSpec.split('/');
       providerId = parts[0];
       modelId = parts.slice(1).join('/');
@@ -35,8 +36,29 @@ export async function generateWithRetryAndFallback<T extends z.ZodTypeAny = any>
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errData = await response.json();
+            errorMessage = errData.error || errorMessage;
+          } else {
+            const text = await response.text();
+            if (text.includes('<title>')) {
+              const titleMatch = text.match(/<title>(.*?)<\/title>/);
+              if (titleMatch) errorMessage = `Server Error: ${titleMatch[1]}`;
+            } else if (text.length > 0) {
+              errorMessage = `Server Error (${response.status}): ${text.slice(0, 100)}`;
+            }
+          }
+        } catch (e) { /* ignore */ }
+        throw new Error(errorMessage);
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Expected JSON response but received ${contentType || 'unknown'}. Body starts with: ${text.slice(0, 50)}`);
       }
 
       const result = await response.json();
@@ -60,7 +82,8 @@ export async function* streamWithRetryAndFallback(
     let providerId = config.providerId;
     let modelId = modelSpec;
     
-    if (modelSpec.includes('/')) {
+    // Only split if NOT openrouter
+    if (providerId !== 'openrouter' && modelSpec.includes('/')) {
       const parts = modelSpec.split('/');
       providerId = parts[0];
       modelId = parts.slice(1).join('/');
@@ -82,8 +105,23 @@ export async function* streamWithRetryAndFallback(
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errData = await response.json();
+            errorMessage = errData.error || errorMessage;
+          } else {
+            const text = await response.text();
+            if (text.includes('<title>')) {
+              const titleMatch = text.match(/<title>(.*?)<\/title>/);
+              if (titleMatch) errorMessage = `Server Error: ${titleMatch[1]}`;
+            } else if (text.length > 0) {
+              errorMessage = `Server Error (${response.status}): ${text.slice(0, 100)}`;
+            }
+          }
+        } catch (e) { /* ignore */ }
+        throw new Error(errorMessage);
       }
 
       const reader = response.body?.getReader();
