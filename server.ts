@@ -40,19 +40,19 @@ async function startServer() {
   // ENG-105: Explicit Allowed Models List to prevent Arbitrary Model Invocation
   const ALLOWED_MODELS = new Set([
     // Anthropic
-    "claude-3-5-sonnet-20240620", "claude-3-5-haiku-20241022", "claude-3-opus-20240229",
+    "claude-3-5-sonnet-20240620", "claude-3-5-sonnet-20241022", "claude-3-5-sonnet-latest", "claude-3-5-haiku-20241022", "claude-3-5-haiku-latest", "claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307",
     // OpenAI
-    "gpt-4o", "gpt-4o-mini", "o3-mini",
+    "gpt-4o", "gpt-4o-2024-08-06", "gpt-4o-2024-05-13", "gpt-4o-2024-11-20", "gpt-4o-mini", "gpt-4o-mini-2024-07-18", "o1-preview", "o1-mini", "o1", "o3-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo",
     // Google
-    "gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash",
+    "gemini-2.0-flash-exp", "gemini-2.0-flash-exp:free", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-pro-002", "gemini-1.5-pro-latest", "gemini-1.5-flash", "gemini-1.5-flash-002", "gemini-1.5-flash-latest", "gemini-1.5-flash-8b", "gemini-1.5-flash-8b-latest",
     // Mistral
-    "mistral-large-latest", "mistral-small-latest", "codestral-latest",
+    "mistral-large-latest", "mistral-large-2407", "mistral-large-2411", "mistral-medium-latest", "mistral-small-latest", "mistral-small-2409", "codestral-latest", "mistral-embed",
     // Groq
-    "llama-3.3-70b-versatile", "mixtral-8x7b-32768",
+    "llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant", "llama-3.2-1b-preview", "llama-3.2-3b-preview", "mixtral-8x7b-32768", "gemma2-9b-it",
     // Ollama (Allow standard ones)
-    "llama3.2", "mistral", "codellama",
-    // OpenRouter (Includes provider prefixes)
-    "anthropic/claude-3-5-sonnet-20240620", "openai/gpt-4o", "google/gemini-2.0-flash-exp"
+    "llama3.2", "llama3.1", "mistral", "phi3", "codellama", "qwen2.5-coder",
+    // OpenRouter (Frequently used models with prefixes)
+    "anthropic/claude-3.5-sonnet", "anthropic/claude-3.5-sonnet:beta", "anthropic/claude-3.5-haiku", "anthropic/claude-3-opus", "openai/gpt-4o", "openai/gpt-4o-mini", "openai/o1-preview", "openai/o1-mini", "google/gemini-flash-1.5", "google/gemini-pro-1.5", "google/gemini-2.0-flash-exp:free", "google/gemini-2.0-flash-exp", "meta-llama/llama-3.1-405b-instruct", "meta-llama/llama-3.1-70b-instruct", "meta-llama/llama-3.1-8b-instruct", "meta-llama/llama-3.3-70b-instruct", "meta-llama/llama-3.2-3b-instruct", "deepseek/deepseek-chat", "deepseek/deepseek-coder", "mistralai/mistral-7b-instruct", "mistralai/mixtral-8x7b-instruct", "mistralai/mistral-large", "microsoft/phi-3-medium-128k-instruct", "cohere/command-r-plus", "qwen/qwen-2.5-72b-instruct", "qwen/qwen-2.5-coder-32b-instruct", "google/gemini-pro-1.5-exp", "google/gemini-flash-1.5-8b", "google/gemini-flash-1.5-exp", "liquid/lfm-40b"
   ]);
 
   function mapErrorToStatus(error: any): number {
@@ -95,8 +95,13 @@ async function startServer() {
     try {
       const { prompt, modelId, providerId, options } = req.body;
       
+      if (!modelId) {
+        return res.status(400).json({ error: "Missing modelId in request." });
+      }
+
       // ENG-105: Validate modelId against allowlist
       if (!ALLOWED_MODELS.has(modelId)) {
+        console.warn(`Blocked unauthorized model access attempt: ${modelId}`);
         return res.status(403).json({ error: `Model ${modelId} is not on the allowed list.` });
       }
 
@@ -129,8 +134,13 @@ async function startServer() {
     try {
       const { prompt, modelId, providerId, options } = req.body;
 
+      if (!modelId) {
+        return res.status(400).json({ error: "Missing modelId in request." });
+      }
+
       // ENG-105: Validate modelId against allowlist
       if (!ALLOWED_MODELS.has(modelId)) {
+        console.warn(`Blocked unauthorized model access attempt: ${modelId}`);
         return res.status(403).json({ error: `Model ${modelId} is not on the allowed list.` });
       }
 

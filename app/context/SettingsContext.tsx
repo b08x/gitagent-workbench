@@ -105,9 +105,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           const newKeys = { ...prev.apiKeys };
           Object.entries(status).forEach(([pid, hasKey]) => {
             // If server has key and we don't have a placeholder, add one to indicate "present"
-            // We can use a special value like '********' to show it's set on server
             if (hasKey && !newKeys[pid]) {
               newKeys[pid] = '********'; 
+            } else if (!hasKey && newKeys[pid] && newKeys[pid] !== '********') {
+              // If we have a key in state but server doesn't (e.g. server restarted), sync it
+              fetch('/api/keys', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ providerId: pid, key: newKeys[pid] })
+              }).catch(err => console.error(`Failed to re-sync key for ${pid}:`, err));
             }
           });
           return { ...prev, apiKeys: newKeys };
