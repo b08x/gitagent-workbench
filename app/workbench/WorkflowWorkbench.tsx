@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -63,6 +63,8 @@ const TOOLTIP_CONTENT = {
   inputsMapping: "Map results from previous steps to the parameters for this executor.",
   conditions: "Expressions that must be true for the step to run (e.g., ${{ steps.s1.status == 'ok' }}).",
   compliance: "Controls for security: 'Audit' logs detail, 'Approval' pauses for human review.",
+  auditLevel: "The granularity of logs collected. 'Detailed' includes full execution payloads.",
+  requiresApproval: "Pauses execution until a person manually verifies and approves this step.",
 };
 
 function InfoTip({ content }: { content: string }) {
@@ -79,6 +81,35 @@ function InfoTip({ content }: { content: string }) {
     </TooltipProvider>
   );
 }
+
+const DEFAULT_TOOLS = [
+  // File Operations
+  { name: 'read_file', category: 'File', permission: 'read', description: 'Read file content' },
+  { name: 'write_file', category: 'File', permission: 'write', description: 'Create/overwrite file' },
+  { name: 'edit_file', category: 'File', permission: 'write', description: 'Surgical code edits' },
+  { name: 'list_files', category: 'File', permission: 'read', description: 'List directory contents' },
+  { name: 'grep_search', category: 'File', permission: 'read', description: 'Pattern search in files' },
+  { name: 'delete_file', category: 'File', permission: 'restricted', description: 'Remove files (Danger)' },
+  
+  // System & Execution
+  { name: 'bash', category: 'System', permission: 'restricted', description: 'Execute shell commands' },
+  { name: 'python_exec', category: 'System', permission: 'restricted', description: 'Run python scripts' },
+  { name: 'terminal', category: 'System', permission: 'restricted', description: 'Interactive terminal' },
+  
+  // Web & Information
+  { name: 'web_search', category: 'Web', permission: 'read', description: 'Global web search' },
+  { name: 'web_fetch', category: 'Web', permission: 'read', description: 'Read URL content' },
+  { name: 'browser_action', category: 'Web', permission: 'restricted', description: 'Puppeteer/Browser control' },
+  
+  // Git
+  { name: 'git_status', category: 'Version Control', permission: 'read', description: 'Check repo status' },
+  { name: 'git_commit', category: 'Version Control', permission: 'write', description: 'Commit changes' },
+  { name: 'git_diff', category: 'Version Control', permission: 'read', description: 'View file diffs' },
+  
+  // Communication
+  { name: 'ask_user', category: 'Communication', permission: 'low', description: 'Request user input' },
+  { name: 'notify', category: 'Communication', permission: 'low', description: 'Send alert/message' },
+];
 
 const INPUT_TYPES = ['file', 'string', 'number', 'boolean', 'object'];
 const ERROR_STRATEGIES = ['escalate', 'retry', 'skip', 'fail'];
@@ -900,8 +931,44 @@ function StepCard({
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Select a tool..." />
                   </SelectTrigger>
-                  <SelectContent>
-                    {availableTools.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  <SelectContent className="max-h-[300px]">
+                    {availableTools.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px] uppercase text-muted-foreground px-2 pt-2">Custom Tools</SelectLabel>
+                        {availableTools.map(t => (
+                          <SelectItem key={t} value={t} className="font-mono text-xs">
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {Array.from(new Set(DEFAULT_TOOLS.map(t => t.category))).map(category => (
+                      <SelectGroup key={category}>
+                        <SelectLabel className="text-[10px] uppercase text-muted-foreground px-2 pt-2">{category}</SelectLabel>
+                        {DEFAULT_TOOLS.filter(t => t.category === category).map(tool => (
+                          <SelectItem key={tool.name} value={tool.name}>
+                            <div className="flex flex-col items-start gap-1">
+                              <div className="flex items-center gap-2 w-full justify-between">
+                                <span className="font-mono text-[11px] leading-none">{tool.name}</span>
+                                <Badge 
+                                  variant="outline" 
+                                  className={cn(
+                                    "text-[8px] h-3.5 px-1 leading-none uppercase",
+                                    tool.permission === 'read' && "bg-green-500/10 text-green-600 border-green-500/20",
+                                    tool.permission === 'write' && "bg-blue-500/10 text-blue-600 border-blue-500/20",
+                                    tool.permission === 'restricted' && "bg-red-500/10 text-red-600 border-red-500/20",
+                                    tool.permission === 'low' && "bg-slate-500/10 text-slate-600 border-slate-500/20"
+                                  )}
+                                >
+                                  {tool.permission}
+                                </Badge>
+                              </div>
+                              <span className="text-[9px] text-muted-foreground font-normal leading-tight">{tool.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
                   </SelectContent>
                 </Select>
               )}
@@ -1100,7 +1167,10 @@ function StepCard({
               {showCompliance && (
                 <div className="p-3 rounded-md border bg-muted/20 space-y-3 animate-in slide-in-from-top-2">
                   <div className="space-y-2">
-                    <Label className="text-[10px]">Audit Level</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-[10px]">Audit Level</Label>
+                      <InfoTip content={TOOLTIP_CONTENT.auditLevel} />
+                    </div>
                     <Select 
                       value={step.compliance?.audit_level as string} 
                       onValueChange={val => onUpdate({ compliance: { ...step.compliance, audit_level: val } })}
@@ -1116,7 +1186,10 @@ function StepCard({
                     </Select>
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label className="text-[10px]">Requires Approval</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-[10px]">Requires Approval</Label>
+                      <InfoTip content={TOOLTIP_CONTENT.requiresApproval} />
+                    </div>
                     <Switch 
                       checked={step.compliance?.requires_approval as boolean}
                       onCheckedChange={val => onUpdate({ compliance: { ...step.compliance, requires_approval: val } })}
