@@ -31,12 +31,54 @@ import {
   ListTree,
   ShieldCheck,
   AlertCircle,
-  Code2
+  Code2,
+  Info,
+  X as LucideX
 } from 'lucide-react';
 import yaml from 'js-yaml';
 import { cn } from '@/lib/utils';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 // ─── Constants & Helpers ─────────────────────────────────────────────────────
+
+const TOOLTIP_CONTENT = {
+  workflowName: "A unique identifier for the workflow. Must be kebab-case (e.g., 'data-processing').",
+  version: "Semantic versioning (e.g., 1.0.0) to track changes to the workflow.",
+  description: "A summary of the workflow's purpose and expected outcomes.",
+  inputs: "Parameters required to initiate the workflow. Passed in at start.",
+  outputs: "The final results produced by the workflow once completed.",
+  onStepFailure: "Default strategy if a step fails: 'fail' (stop), 'retry', 'skip', or 'escalate'.",
+  escalationTarget: "The role or user ID to notify when a step failure is escalated.",
+  onFailureGlobal: "A global action to trigger if the workflow fails permanently.",
+  notificationChannel: "Where failure alerts or status updates are sent (e.g., #channel).",
+  actionDescription: "Natural language goal of this step. Used by agents to plan execution.",
+  executor: "The worker for the action: Skills (logic), Agents (AI), or Tools (external).",
+  dependsOn: "Prerequisite steps that must succeed before this step can execute.",
+  stepOutputs: "Variables produced by this step that can be used later in the workflow.",
+  inputsMapping: "Map results from previous steps to the parameters for this executor.",
+  conditions: "Expressions that must be true for the step to run (e.g., ${{ steps.s1.status == 'ok' }}).",
+  compliance: "Controls for security: 'Audit' logs detail, 'Approval' pauses for human review.",
+};
+
+function InfoTip({ content }: { content: string }) {
+  return (
+    <TooltipProvider delay={200}>
+      <Tooltip>
+        <TooltipTrigger>
+          <Info className="h-3.5 w-3.5 text-muted-foreground/60 hover:text-primary cursor-help transition-colors shrink-0" />
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[200px] text-[10px] leading-relaxed p-2">
+          {content}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 const INPUT_TYPES = ['file', 'string', 'number', 'boolean', 'object'];
 const ERROR_STRATEGIES = ['escalate', 'retry', 'skip', 'fail'];
@@ -326,7 +368,10 @@ export function WorkflowWorkbench() {
                   </div>
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="wf-name">Workflow Name</Label>
+                      <div className="flex items-center gap-1.5">
+                        <Label htmlFor="wf-name">Workflow Name</Label>
+                        <InfoTip content={TOOLTIP_CONTENT.workflowName} />
+                      </div>
                       <Input 
                         id="wf-name"
                         value={editingWorkflow.name}
@@ -339,7 +384,10 @@ export function WorkflowWorkbench() {
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="wf-version">Version</Label>
+                      <div className="flex items-center gap-1.5">
+                        <Label htmlFor="wf-version">Version</Label>
+                        <InfoTip content={TOOLTIP_CONTENT.version} />
+                      </div>
                       <Input 
                         id="wf-version"
                         value={editingWorkflow.version}
@@ -350,7 +398,10 @@ export function WorkflowWorkbench() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="wf-desc">Description</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor="wf-desc">Description</Label>
+                      <InfoTip content={TOOLTIP_CONTENT.description} />
+                    </div>
                     <Textarea 
                       id="wf-desc"
                       value={editingWorkflow.description}
@@ -374,7 +425,10 @@ export function WorkflowWorkbench() {
                     {/* Inputs */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Inputs</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Inputs</Label>
+                          <InfoTip content={TOOLTIP_CONTENT.inputs} />
+                        </div>
                         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => {
                           const inputs = [...(editingWorkflow.inputs || []), { name: '', type: 'string', required: true, default: null }];
                           updateWorkflow({ inputs });
@@ -458,7 +512,10 @@ export function WorkflowWorkbench() {
                     {/* Outputs */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Outputs</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Outputs</Label>
+                          <InfoTip content={TOOLTIP_CONTENT.outputs} />
+                        </div>
                         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => {
                           const outputs = [...(editingWorkflow.outputs || []), { name: '', type: 'string' }];
                           updateWorkflow({ outputs });
@@ -560,7 +617,10 @@ export function WorkflowWorkbench() {
                   <div className="grid grid-cols-2 gap-8">
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label>On Step Failure</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Label>On Step Failure</Label>
+                          <InfoTip content={TOOLTIP_CONTENT.onStepFailure} />
+                        </div>
                         <Select 
                           value={editingWorkflow.error_handling?.on_step_failure} 
                           onValueChange={val => updateWorkflow({ 
@@ -576,7 +636,10 @@ export function WorkflowWorkbench() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Escalation Target</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Label>Escalation Target</Label>
+                          <InfoTip content={TOOLTIP_CONTENT.escalationTarget} />
+                        </div>
                         <Input 
                           placeholder="e.g., admin-role"
                           value={editingWorkflow.error_handling?.escalation_target || ''}
@@ -588,7 +651,10 @@ export function WorkflowWorkbench() {
                     </div>
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label>On Failure (Global)</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Label>On Failure (Global)</Label>
+                          <InfoTip content={TOOLTIP_CONTENT.onFailureGlobal} />
+                        </div>
                         <Input 
                           placeholder="e.g., notify"
                           value={(editingWorkflow.error_handling as any)?.on_failure || ''}
@@ -598,7 +664,10 @@ export function WorkflowWorkbench() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Notification Channel</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Label>Notification Channel</Label>
+                          <InfoTip content={TOOLTIP_CONTENT.notificationChannel} />
+                        </div>
                         <Input 
                           placeholder="e.g., #alerts"
                           value={(editingWorkflow.error_handling as any)?.channel || ''}
@@ -770,7 +839,10 @@ function StepCard({
           {/* Left Column: Action & Executor */}
           <div className="col-span-7 space-y-4">
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Action Description</Label>
+              <div className="flex items-center gap-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Action Description</Label>
+                <InfoTip content={TOOLTIP_CONTENT.actionDescription} />
+              </div>
               <Textarea 
                 placeholder="Describe what this step does in natural language..."
                 value={step.action}
@@ -780,7 +852,10 @@ function StepCard({
             </div>
             
             <div className="space-y-3">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Executor</Label>
+              <div className="flex items-center gap-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Executor</Label>
+                <InfoTip content={TOOLTIP_CONTENT.executor} />
+              </div>
               <RadioGroup 
                 value={executorType} 
                 onValueChange={(val: any) => handleExecutorChange(val)}
@@ -836,7 +911,10 @@ function StepCard({
           {/* Right Column: Dependencies & Config */}
           <div className="col-span-5 space-y-4">
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Depends On</Label>
+              <div className="flex items-center gap-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Depends On</Label>
+                <InfoTip content={TOOLTIP_CONTENT.dependsOn} />
+              </div>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1 border rounded-md p-2 bg-muted/10 max-h-[100px] overflow-y-auto">
                 {otherStepIds.map(id => (
                   <div key={id} className="flex items-center space-x-2">
@@ -857,12 +935,15 @@ function StepCard({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Outputs</Label>
+              <div className="flex items-center gap-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Outputs</Label>
+                <InfoTip content={TOOLTIP_CONTENT.stepOutputs} />
+              </div>
               <div className="flex flex-wrap gap-1 mb-2">
                 {step.outputs?.map((out, i) => (
                   <Badge key={i} variant="secondary" className="text-[10px] gap-1 pr-1">
                     {out}
-                    <X className="h-2 w-2 cursor-pointer hover:text-destructive" onClick={() => {
+                    < LucideX className="h-2 w-2 cursor-pointer hover:text-destructive" onClick={() => {
                       onUpdate({ outputs: step.outputs?.filter((_, idx) => idx !== i) });
                     }} />
                   </Badge>
@@ -891,7 +972,10 @@ function StepCard({
           {/* Inputs Mapping */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Inputs Mapping</Label>
+              <div className="flex items-center gap-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Inputs Mapping</Label>
+                <InfoTip content={TOOLTIP_CONTENT.inputsMapping} />
+              </div>
               <Button variant="ghost" size="sm" className="h-6 px-1 text-[10px]" onClick={() => {
                 onUpdate({ inputs: { ...(step.inputs || {}), '': '' } });
               }}>
@@ -959,7 +1043,10 @@ function StepCard({
           <div className="space-y-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Conditions</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Conditions</Label>
+                  <InfoTip content={TOOLTIP_CONTENT.conditions} />
+                </div>
                 <Button variant="ghost" size="sm" className="h-6 px-1 text-[10px]" onClick={() => {
                   onUpdate({ conditions: [...(step.conditions || []), ''] });
                 }}>
@@ -999,6 +1086,7 @@ function StepCard({
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-muted-foreground" />
                   <Label className="text-[10px] uppercase font-bold text-muted-foreground">Compliance</Label>
+                  <InfoTip content={TOOLTIP_CONTENT.compliance} />
                 </div>
                 <Switch 
                   checked={showCompliance} 
@@ -1132,26 +1220,5 @@ function PreviewPanel({
         </CardContent>
       )}
     </Card>
-  );
-}
-
-function X({ className, onClick }: { className?: string; onClick?: () => void }) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      className={className}
-      onClick={onClick}
-    >
-      <path d="M18 6 6 18" />
-      <path d="m6 6 12 12" />
-    </svg>
   );
 }
