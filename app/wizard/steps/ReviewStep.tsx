@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAgentWorkspace } from '../../context/AgentContext';
 import { useSettings } from '../../context/SettingsContext';
 import { Button } from '@/components/ui/button';
@@ -74,7 +74,11 @@ export function ReviewStep({ fieldErrors = {} }: { fieldErrors?: Record<string, 
           <CardContent className="text-sm space-y-2">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Provider:</span>
-              <span>{settings.providerId}</span>
+              <span className="capitalize">{settings.providerId}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Model:</span>
+              <span className="font-mono text-xs">{settings.modelId || 'Not selected'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">API Key:</span>
@@ -107,10 +111,14 @@ export function ReviewStep({ fieldErrors = {} }: { fieldErrors?: Record<string, 
         </TooltipProvider>
 
         {!settings.apiKeys[settings.providerId] && (
-          <p className="text-xs text-destructive mt-2 text-center">Please set an API key in the Model step to continue.</p>
+          <p className="text-xs text-destructive mt-2 text-center">
+            Please set an API key in <Link to="/settings" className="underline hover:text-primary">Settings</Link> to continue.
+          </p>
         )}
         {!settings.modelId && settings.apiKeys[settings.providerId] && (
-          <p className="text-xs text-destructive mt-2 text-center">Please select a model in the Model step to continue.</p>
+          <p className="text-xs text-destructive mt-2 text-center">
+            Please select a generation model in <Link to="/settings" className="underline hover:text-primary">Settings</Link> to continue.
+          </p>
         )}
       </div>
     </div>

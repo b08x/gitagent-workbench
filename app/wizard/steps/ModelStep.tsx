@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InfoIcon, Settings2, Loader2, CheckCircle2 } from 'lucide-react';
 
-export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
+export function ModelStep({ fieldErrors = {}, hideGeneration = false }: { fieldErrors?: Record<string, string>; hideGeneration?: boolean }) {
   const { settings, updateSettings, setApiKey } = useSettings();
   const { state, dispatch } = useAgentWorkspace();
   const [genModels, setGenModels] = useState<ModelOption[]>([]);
@@ -103,127 +103,129 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
 
   return (
     <div className="space-y-8">
-      <section className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Generation Model</h2>
-          <p className="text-muted-foreground">Choose which LLM will generate your agent.</p>
-        </div>
-
-        <div className="grid gap-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label>Provider</Label>
-              <Select 
-                value={settings.providerId} 
-                onValueChange={v => updateSettingsAndWorkspace({ providerId: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.values(providers).map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Model</Label>
-              <Select 
-                value={settings.modelId} 
-                onValueChange={v => updateSettingsAndWorkspace({ modelId: v })}
-              >
-                <SelectTrigger>
-                  {loadingGen ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  <SelectValue placeholder="Select a model..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {genModels.map(m => (
-                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      {!hideGeneration && (
+        <section className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Generation Model</h2>
+            <p className="text-muted-foreground">Choose which LLM will generate your agent.</p>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="fallback-models">Fallback Models (Optional)</Label>
-            <Input 
-              id="fallback-models"
-              placeholder="anthropic/claude-3-haiku, openai/gpt-4o-mini"
-              value={(state.generationConfig.fallbackModelIds || []).join(', ')}
-              onChange={e => {
-                const fallbacks = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                dispatch({
-                  type: 'UPDATE_WORKSPACE',
-                  payload: {
-                    generationConfig: {
-                      ...state.generationConfig,
-                      fallbackModelIds: fallbacks
+          <div className="grid gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Provider</Label>
+                <Select 
+                  value={settings.providerId} 
+                  onValueChange={v => updateSettingsAndWorkspace({ providerId: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(providers).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Model</Label>
+                <Select 
+                  value={settings.modelId} 
+                  onValueChange={v => updateSettingsAndWorkspace({ modelId: v })}
+                >
+                  <SelectTrigger>
+                    {loadingGen ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    <SelectValue placeholder="Select a model..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {genModels.map(m => (
+                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="fallback-models">Fallback Models (Optional)</Label>
+              <Input 
+                id="fallback-models"
+                placeholder="anthropic/claude-3-haiku, openai/gpt-4o-mini"
+                value={(state.generationConfig.fallbackModelIds || []).join(', ')}
+                onChange={e => {
+                  const fallbacks = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                  dispatch({
+                    type: 'UPDATE_WORKSPACE',
+                    payload: {
+                      generationConfig: {
+                        ...state.generationConfig,
+                        fallbackModelIds: fallbacks
+                      }
                     }
-                  }
-                });
-              }}
-            />
-            <p className="text-[10px] text-muted-foreground">Comma-separated list of fallback models (e.g., provider/model-id).</p>
+                  });
+                }}
+              />
+              <p className="text-[10px] text-muted-foreground">Comma-separated list of fallback models (e.g., provider/model-id).</p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="flex items-center justify-between">
+                API Key
+                {settings.apiKeys[settings.providerId] && (
+                  <span className="text-[10px] text-green-500 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> Key Set
+                  </span>
+                )}
+              </Label>
+              <Input 
+                type="password" 
+                placeholder={
+                  settings.providerId === 'ollama' 
+                    ? 'Not required for local Ollama' 
+                    : settings.apiKeys[settings.providerId] === '********'
+                      ? 'Key provided via environment'
+                      : 'sk-...'
+                } 
+                value={settings.apiKeys[settings.providerId] === '********' ? '' : (settings.apiKeys[settings.providerId] || '')}
+                onChange={e => setApiKey(settings.providerId, e.target.value)}
+                disabled={settings.providerId === 'ollama'}
+              />
+              <p className="text-xs text-muted-foreground">
+                {settings.apiKeys[settings.providerId] === '********' 
+                  ? 'Managed securely on server via environment variables.'
+                  : 'Sensitive keys are proxied through a secure local backend.'}
+              </p>
+            </div>
+
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex gap-2">
+              <InfoIcon className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700">
+                Settings (except API keys) are now persisted across sessions using localStorage. 
+                Multiple tabs will stay synchronized automatically.
+              </p>
+            </div>
+
+            {!providers[settings.providerId].supportsDirectBrowser && (
+              <Alert className="bg-amber-500/10 border-amber-500/20 text-amber-500">
+                <InfoIcon className="h-4 w-4" />
+                <AlertDescription>
+                  {settings.providerId} may require a CORS proxy for direct browser calls. OpenRouter is recommended for browser-native use.
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
+        </section>
+      )}
 
-          <div className="grid gap-2">
-            <Label className="flex items-center justify-between">
-              API Key
-              {settings.apiKeys[settings.providerId] && (
-                <span className="text-[10px] text-green-500 flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3" /> Key Set
-                </span>
-              )}
-            </Label>
-            <Input 
-              type="password" 
-              placeholder={
-                settings.providerId === 'ollama' 
-                  ? 'Not required for local Ollama' 
-                  : settings.apiKeys[settings.providerId] === '********'
-                    ? 'Key provided via environment'
-                    : 'sk-...'
-              } 
-              value={settings.apiKeys[settings.providerId] === '********' ? '' : (settings.apiKeys[settings.providerId] || '')}
-              onChange={e => setApiKey(settings.providerId, e.target.value)}
-              disabled={settings.providerId === 'ollama'}
-            />
-            <p className="text-xs text-muted-foreground">
-              {settings.apiKeys[settings.providerId] === '********' 
-                ? 'Managed securely on server via environment variables.'
-                : 'Sensitive keys are proxied through a secure local backend.'}
-            </p>
-          </div>
-
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex gap-2">
-            <InfoIcon className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-700">
-              Settings (except API keys) are now persisted across sessions using localStorage. 
-              Multiple tabs will stay synchronized automatically.
-            </p>
-          </div>
-
-          {!providers[settings.providerId].supportsDirectBrowser && (
-            <Alert className="bg-amber-500/10 border-amber-500/20 text-amber-500">
-              <InfoIcon className="h-4 w-4" />
-              <AlertDescription>
-                {settings.providerId} may require a CORS proxy for direct browser calls. OpenRouter is recommended for browser-native use.
-              </AlertDescription>
-            </Alert>
-          )}
-        </div>
-      </section>
-
-      <div className="border-t pt-8" />
+      {!hideGeneration && <div className="border-t pt-8" />}
 
       <section className="space-y-6">
         <div>
           <div className="flex items-center gap-2">
             <Settings2 className="h-5 w-5 text-primary" />
-            <h2 className="text-2xl font-bold tracking-tight">Agent Runtime Model</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Model & Runtime</h2>
           </div>
           <p className="text-muted-foreground">Configure the model your agent will use at runtime.</p>
         </div>
@@ -321,6 +323,56 @@ export function ModelStep({ fieldErrors = {} }: { fieldErrors?: Record<string, s
                 value={state.manifest.model?.constraints?.top_k ?? ''}
                 onChange={e => updateConstraints('top_k', parseInt(e.target.value) || 0)}
               />
+            </div>
+          </div>
+
+          <div className="border-t pt-6" />
+
+          <div>
+            <h3 className="text-sm font-semibold mb-3">Runtime Settings</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="max_turns">Max Turns</Label>
+                <Input 
+                  id="max_turns"
+                  type="number"
+                  placeholder="30"
+                  value={state.manifest.runtime?.max_turns ?? state.runtimeConfig?.max_turns ?? ''}
+                  onChange={e => {
+                    const val = parseInt(e.target.value) || 0;
+                    dispatch({
+                      type: 'UPDATE_MANIFEST',
+                      payload: {
+                        runtime: {
+                          ...(state.manifest.runtime || {}),
+                          max_turns: val,
+                        },
+                      },
+                    });
+                  }}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="timeout">Timeout (seconds)</Label>
+                <Input 
+                  id="timeout"
+                  type="number"
+                  placeholder="120"
+                  value={state.manifest.runtime?.timeout ?? state.runtimeConfig?.timeout ?? ''}
+                  onChange={e => {
+                    const val = parseInt(e.target.value) || 0;
+                    dispatch({
+                      type: 'UPDATE_MANIFEST',
+                      payload: {
+                        runtime: {
+                          ...(state.manifest.runtime || {}),
+                          timeout: val,
+                        },
+                      },
+                    });
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>

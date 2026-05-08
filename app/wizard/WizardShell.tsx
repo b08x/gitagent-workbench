@@ -18,13 +18,15 @@ import { ReviewStep } from './steps/ReviewStep';
 import { ContextStep } from './steps/ContextStep';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+const WizardModelStep = (props: any) => <ModelStep {...props} hideGeneration={true} />;
+
 const steps = [
   { id: 'template', title: 'Template', component: TemplateSelectStep },
   { id: 'context', title: 'Context', component: ContextStep },
   { id: 'structure', title: 'Structure', component: StructureStep },
   { id: 'identity', title: 'Identity', component: IdentityStep },
-  { id: 'model', title: 'Model', component: ModelStep },
-  { id: 'config', title: 'Config', component: ModelConfigStep },
+  { id: 'model', title: 'Model', component: WizardModelStep },
+  { id: 'config', title: 'Parameters', component: ModelConfigStep },
   { id: 'skills', title: 'Capabilities', component: CapabilitiesStep },
   { id: 'deployment', title: 'Deployment', component: DeploymentStep },
   { id: 'delegation', title: 'Delegation', component: DelegationStep },
