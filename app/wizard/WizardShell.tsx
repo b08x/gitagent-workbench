@@ -9,6 +9,7 @@ import { ModelStep } from './steps/ModelStep';
 import { ModelConfigStep } from './steps/ModelConfigStep';
 import { CapabilitiesStep } from './steps/CapabilitiesStep';
 import { DeploymentStep } from './steps/DeploymentStep';
+import { ToolsStep } from './steps/ToolsStep';
 import { DelegationStep } from './steps/DelegationStep';
 import { DutiesStep } from './steps/DutiesStep';
 import { ComplianceStep } from './steps/ComplianceStep';
@@ -28,6 +29,7 @@ const steps = [
   { id: 'model', title: 'Model', component: WizardModelStep },
   { id: 'config', title: 'Parameters', component: ModelConfigStep },
   { id: 'skills', title: 'Capabilities', component: CapabilitiesStep },
+  { id: 'tools', title: 'Tools', component: ToolsStep },
   { id: 'deployment', title: 'Deployment', component: DeploymentStep },
   { id: 'delegation', title: 'Delegation', component: DelegationStep },
   { id: 'duties', title: 'Duties', component: DutiesStep },
@@ -53,6 +55,7 @@ export function WizardShell() {
   const filteredSteps = steps.filter(s => {
     if (s.id === 'config' && state.selectedTemplate === 'minimal') return false;
     if (s.id === 'skills' && state.selectedTemplate === 'minimal') return false;
+    if (s.id === 'tools' && state.selectedTemplate === 'minimal') return false;
     if (s.id === 'deployment' && state.selectedTemplate === 'minimal') return false;
     if (s.id === 'delegation' && state.selectedTemplate !== 'full') return false;
     if (s.id === 'duties' && state.selectedTemplate !== 'full') return false;
