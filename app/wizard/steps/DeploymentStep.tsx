@@ -5,7 +5,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, RotateCcw, Info } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { AlertCircle, RotateCcw, Info, Rocket } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 const TOOL_GROUPS = [
@@ -122,6 +124,25 @@ export function DeploymentStep() {
     });
   };
 
+  const toggleDeploymentTarget = (target: any) => {
+    const current = state.deploymentTargets || ['cli'];
+    const next = current.includes(target)
+      ? current.filter(t => t !== target)
+      : [...current, target];
+    dispatch({ type: 'UPDATE_WORKSPACE', payload: { deploymentTargets: next } });
+    dispatch({ type: 'UPDATE_MANIFEST', payload: { deployment_targets: next } });
+  };
+
+  const DEPLOYMENT_OPTIONS = [
+    { id: 'cli', label: 'CLI', description: 'Terminal only, no gateway' },
+    { id: 'telegram', label: 'Telegram', description: 'Gateway.telegram stub included' },
+    { id: 'discord', label: 'Discord', description: 'Gateway.discord stub included' },
+    { id: 'slack', label: 'Slack', description: 'Gateway.slack stub included' },
+    { id: 'api', label: 'API/Embedded', description: 'Disables terminal toolset; sets skip_context_files hint', tooltip: 'Disables terminal toolset; sets skip_context_files hint' },
+    { id: 'background', label: 'Background/Scheduled', description: 'Enables cronjob toolset and delegation toolset', tooltip: 'Enables cronjob toolset and delegation toolset' },
+    { id: 'homeassistant', label: 'Home Assistant', description: 'Enables homeassistant toolset' },
+  ];
+
   // Check for skill warnings
   const skillWarnings = skillsList.flatMap(skill => {
     const skillTools = (skill.allowedTools || '').split(' ').filter(Boolean);
@@ -136,6 +157,54 @@ export function DeploymentStep() {
 
   return (
     <div className="space-y-8">
+      <section className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Rocket className="h-5 w-5 text-primary" />
+          <h2 className="text-2xl font-bold tracking-tight">Deployment Targets</h2>
+        </div>
+        <p className="text-muted-foreground">Select where your agent will be deployed to pre-configure the Hermes environment.</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TooltipProvider>
+            {DEPLOYMENT_OPTIONS.map((opt) => (
+              <div key={opt.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors">
+                <Checkbox 
+                  id={`target-${opt.id}`} 
+                  checked={(state.deploymentTargets || ['cli']).includes(opt.id as any)}
+                  onCheckedChange={() => toggleDeploymentTarget(opt.id)}
+                  className="mt-1"
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor={`target-${opt.id}`}
+                      className="text-sm font-semibold leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {opt.label}
+                    </label>
+                    {opt.tooltip && (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs text-xs">{opt.tooltip}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {opt.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </TooltipProvider>
+        </div>
+      </section>
+
+      <Separator className="my-8" />
+
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Tool Permissions</h2>
         <p className="text-muted-foreground">

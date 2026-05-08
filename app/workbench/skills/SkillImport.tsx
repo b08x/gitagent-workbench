@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import JSZip from 'jszip';
 import { ParsedSkill } from '../../../lib/gitagent/types';
 import { parseSkillMd, resolveGitHubRawUrl } from '../../../lib/gitagent/parseSkillMd';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -19,7 +20,14 @@ import {
   Globe, 
   ExternalLink,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Upload,
+  FileArchive,
+  FolderTree,
+  FileText,
+  Terminal,
+  Layers,
+  Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -28,7 +36,7 @@ interface SkillImportProps {
 }
 
 export function SkillImport({ onImport }: SkillImportProps) {
-  const [activeTab, setActiveTab] = useState('skillsmp');
+  const [activeTab, setActiveTab] = useState('upload');
   const [query, setQuery] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
   const [githubSkillName, setGithubSkillName] = useState('');
@@ -36,21 +44,41 @@ export function SkillImport({ onImport }: SkillImportProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any[]>([]);
-  const [preview, setPreview] = useState<ReturnType<typeof parseSkillMd> | null>(null);
+  const [preview, setPreview] = useState<ParsedSkill | null>(null);
   const [manualName, setManualName] = useState('');
   const [manualDesc, setManualDesc] = useState('');
   const [showFullInstructions, setShowFullInstructions] = useState(false);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [hasFrontmatter, setHasFrontmatter] = useState(false);
 
   // Debounce paste parsing
   useEffect(() => {
     if (activeTab !== 'paste' || !pasteContent.trim()) {
-      if (activeTab === 'paste') setPreview(null);
+      if (activeTab === 'paste') {
+        setPreview(null);
+        setWarnings([]);
+        setHasFrontmatter(false);
+      }
       return;
     }
 
     const timer = setTimeout(() => {
       const result = parseSkillMd(pasteContent);
-      setPreview(result);
+      setPreview({
+        name: result.skill.name || '',
+        description: result.skill.description || '',
+        instructions: result.skill.instructions || '',
+        allowedTools: result.skill.allowedTools || [],
+        category: result.skill.category || 'general',
+        license: result.skill.license,
+        compatibility: result.skill.compatibility,
+        metadata: result.skill.metadata,
+        references: [],
+        examples: [],
+        scripts: []
+      });
+      setWarnings(result.warnings);
+      setHasFrontmatter(result.hasFrontmatter);
       if (result.skill.name) setManualName(result.skill.name);
       if (result.skill.description) setManualDesc(result.skill.description);
     }, 300);
@@ -88,7 +116,23 @@ export function SkillImport({ onImport }: SkillImportProps) {
       if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
       const content = await res.text();
       const result = parseSkillMd(content);
-      setPreview(result);
+      
+      setPreview({
+        name: result.skill.name || '',
+        description: result.skill.description || '',
+        instructions: result.skill.instructions || '',
+        allowedTools: result.skill.allowedTools || [],
+        category: result.skill.category || 'general',
+        license: result.skill.license,
+        compatibility: result.skill.compatibility,
+        metadata: result.skill.metadata,
+        references: [],
+        examples: [],
+        scripts: []
+      });
+      setWarnings(result.warnings);
+      setHasFrontmatter(result.hasFrontmatter);
+      
       if (result.skill.name) setManualName(result.skill.name);
       if (result.skill.description) setManualDesc(result.skill.description);
     } catch (err) {
@@ -98,23 +142,123 @@ export function SkillImport({ onImport }: SkillImportProps) {
     }
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.zip') && !file.name.endsWith('.skill')) {
+      setError('Only .zip and .skill files are supported.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setPreview(null);
+
+    try {
+      const zip = await JSZip.loadAsync(file);
+      const skillFile = zip.file('SKILL.md');
+      
+      if (!skillFile) {
+        throw new Error('SKILL.md not found in the root of the compressed file.');
+      }
+
+      const skillContent = await skillFile.async('text');
+      const result = parseSkillMd(skillContent);
+      
+      const references: any[] = [];
+      const scripts: any[] = [];
+      const assets: any[] = [];
+      const workflows: any[] = [];
+
+      // Collect all load promises
+      const filePromises: Promise<void>[] = [];
+
+      zip.forEach((relativePath, file) => {
+        if (file.dir) return;
+
+        if (relativePath.startsWith('references/')) {
+          filePromises.push(file.async('text').then(content => {
+            references.push({
+              filename: relativePath.replace('references/', ''),
+              description: `Imported reference: ${relativePath}`,
+              trigger: relativePath.split('/').pop() || '',
+              content
+            });
+          }));
+        } else if (relativePath.startsWith('scripts/')) {
+          filePromises.push(file.async('text').then(content => {
+            scripts.push({
+              filename: relativePath.replace('scripts/', ''),
+              content
+            });
+          }));
+        } else if (relativePath.startsWith('assets/')) {
+          // assets might be binary
+          filePromises.push(file.async('base64').then(content => {
+            const ext = relativePath.split('.').pop() || '';
+            let type = 'application/octet-stream';
+            if (['png', 'jpg', 'jpeg', 'gif', 'svg'].includes(ext)) type = `image/${ext}`;
+            else if (['js', 'ts', 'py', 'rb'].includes(ext)) type = 'text/plain';
+
+            assets.push({
+              filename: relativePath.replace('assets/', ''),
+              content,
+              type
+            });
+          }));
+        } else if (relativePath.startsWith('workflows/')) {
+          filePromises.push(file.async('text').then(content => {
+            workflows.push({
+              filename: relativePath.replace('workflows/', ''),
+              content
+            });
+          }));
+        }
+      });
+
+      await Promise.all(filePromises);
+
+      setPreview({
+        name: result.skill.name || file.name.replace(/\.(zip|skill)$/, ''),
+        description: result.skill.description || 'Imported from compressed file',
+        instructions: result.skill.instructions || '',
+        allowedTools: result.skill.allowedTools || [],
+        category: result.skill.category || 'general',
+        license: result.skill.license,
+        compatibility: result.skill.compatibility,
+        metadata: result.skill.metadata,
+        references,
+        scripts,
+        assets,
+        workflows,
+        examples: [] // examples usually inside SKILL.md or a separate file if we want to add it
+      });
+      setWarnings(result.warnings);
+      setHasFrontmatter(result.hasFrontmatter);
+      
+      if (result.skill.name) setManualName(result.skill.name);
+      if (result.skill.description) setManualDesc(result.skill.description);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to parse compressed file.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAdd = () => {
     if (!preview) return;
     
-    const name = (preview.skill.name || manualName || 'imported-skill')
+    const name = (preview.name || manualName || 'imported-skill')
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/^-+|-+$/g, '');
 
     const skill: ParsedSkill = {
+      ...preview,
       name,
-      description: preview.skill.description || manualDesc || '',
-      instructions: preview.skill.instructions || '',
-      allowedTools: preview.skill.allowedTools || [],
-      license: preview.skill.license,
-      compatibility: preview.skill.compatibility,
-      category: preview.skill.category || 'general',
-      references: [],
+      description: preview.description || manualDesc || '',
     };
 
     onImport(skill);
@@ -123,10 +267,9 @@ export function SkillImport({ onImport }: SkillImportProps) {
   const renderPreview = () => {
     if (!preview) return null;
 
-    const { skill, warnings, hasFrontmatter } = preview;
-    const name = skill.name || manualName;
-    const desc = skill.description || manualDesc;
-    const instructions = skill.instructions || '';
+    const name = preview.name || manualName;
+    const desc = preview.description || manualDesc;
+    const instructions = preview.instructions || '';
     const previewText = instructions.slice(0, 400);
     const hasMore = instructions.length > 400;
 
@@ -147,7 +290,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
           </div>
         </div>
 
-        {!hasFrontmatter && (
+        {(!hasFrontmatter && activeTab !== 'upload') && (
           <div className="grid gap-4 p-4 border rounded-lg bg-accent/20">
             <div className="space-y-2">
               <Label htmlFor="manual-name">Skill Name (kebab-case)</Label>
@@ -171,7 +314,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
         )}
 
         <Card>
-          <CardContent className="pt-6 space-y-4">
+          <CardContent className="pt-6 space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground block mb-1">Name</span>
@@ -179,31 +322,62 @@ export function SkillImport({ onImport }: SkillImportProps) {
               </div>
               <div>
                 <span className="text-muted-foreground block mb-1">Category</span>
-                <Badge variant="secondary">{skill.category || 'general'}</Badge>
+                <Badge variant="secondary">{preview.category || 'general'}</Badge>
               </div>
               <div className="col-span-2">
                 <span className="text-muted-foreground block mb-1">Description</span>
                 <p>{desc || '—'}</p>
               </div>
-              <div>
+              <div className="col-span-2">
                 <span className="text-muted-foreground block mb-1">Allowed Tools</span>
                 <div className="flex flex-wrap gap-1">
-                  {skill.allowedTools?.length ? skill.allowedTools.map(t => (
+                  {preview.allowedTools?.length ? preview.allowedTools.map(t => (
                     <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>
-                  )) : <span className="text-muted-foreground italic">none</span>}
+                  )) : <span className="text-muted-foreground italic text-xs">none</span>}
                 </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground block mb-1">License</span>
-                <span>{skill.license || '—'}</span>
               </div>
             </div>
 
+            {/* Compressed Content Summary */}
+            {(preview.references?.length || 0) > 0 || (preview.scripts?.length || 0) > 0 || (preview.assets?.length || 0) > 0 || (preview.workflows?.length || 0) > 0 ? (
+              <div className="border rounded-lg p-3 bg-muted/20 space-y-3">
+                <p className="text-xs font-bold flex items-center gap-2">
+                  <FolderTree className="h-3 w-3 text-primary" /> Imported Bundle Contents
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {preview.references?.length ? (
+                    <div className="flex items-center gap-1.5 text-[10px]">
+                      <FileText className="h-3 w-3 text-blue-500" />
+                      <span>{preview.references.length} References</span>
+                    </div>
+                  ) : null}
+                  {preview.scripts?.length ? (
+                    <div className="flex items-center gap-1.5 text-[10px]">
+                      <Terminal className="h-3 w-3 text-green-500" />
+                      <span>{preview.scripts.length} Scripts</span>
+                    </div>
+                  ) : null}
+                  {preview.assets?.length ? (
+                    <div className="flex items-center gap-1.5 text-[10px]">
+                      <Layers className="h-3 w-3 text-purple-500" />
+                      <span>{preview.assets.length} Assets</span>
+                    </div>
+                  ) : null}
+                  {preview.workflows?.length ? (
+                    <div className="flex items-center gap-1.5 text-[10px]">
+                      <Zap className="h-3 w-3 text-amber-500" />
+                      <span>{preview.workflows.length} Workflows</span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             <div className="space-y-2">
               <span className="text-muted-foreground text-sm block">Instructions Preview</span>
-              <div className="bg-muted p-4 rounded-lg font-mono text-xs whitespace-pre-wrap relative">
+              <div className="bg-muted p-4 rounded-lg font-mono text-xs whitespace-pre-wrap relative max-h-[300px] overflow-hidden">
                 {showFullInstructions ? instructions : previewText}
-                {hasMore && !showFullInstructions && <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-muted to-transparent" />}
+                {hasMore && !showFullInstructions && <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-muted to-transparent" />}
               </div>
               {hasMore && (
                 <Button 
@@ -234,7 +408,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
               disabled={!name || !desc}
               onClick={handleAdd}
             >
-              <CheckCircle2 className="mr-2 h-5 w-5" /> Add to Agent
+              <CheckCircle2 className="mr-2 h-5 w-5" /> Confirm Import
             </Button>
           </CardContent>
         </Card>
@@ -244,13 +418,76 @@ export function SkillImport({ onImport }: SkillImportProps) {
 
   return (
     <div className="grid grid-cols-12 gap-8 h-full">
-      <div className="col-span-12 lg:col-span-5 space-y-6">
+      <div className="col-span-12 lg:col-span-5 space-y-6 overflow-y-auto pr-2 pb-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="upload">Upload</TabsTrigger>
             <TabsTrigger value="skillsmp">SkillsMP</TabsTrigger>
             <TabsTrigger value="github">GitHub</TabsTrigger>
             <TabsTrigger value="paste">Paste</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="upload" className="space-y-6 pt-4 animate-in fade-in slide-in-from-left-4">
+            <div className="space-y-4">
+              <div 
+                className="border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center space-y-4 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer relative"
+                onClick={() => document.getElementById('skill-upload')?.click()}
+              >
+                <div className="p-4 rounded-full bg-primary/10">
+                  <Upload className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                  <p className="font-bold">Click to upload or drag and drop</p>
+                  <p className="text-sm text-muted-foreground">.zip or .skill bundles</p>
+                </div>
+                <input 
+                  id="skill-upload"
+                  type="file" 
+                  accept=".zip,.skill"
+                  className="hidden" 
+                  onChange={handleFileUpload}
+                />
+              </div>
+
+              <div className="p-4 rounded-lg bg-muted/50 space-y-3">
+                <p className="text-xs font-bold flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
+                  Expected Bundle Structure
+                </p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-mono">
+                    <FileText className="h-3 w-3 text-muted-foreground" />
+                    <span>SKILL.md (required)</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-mono pl-4">
+                    <FolderTree className="h-3 w-3 text-muted-foreground/50" />
+                    <span>references/</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-mono pl-4">
+                    <FolderTree className="h-3 w-3 text-muted-foreground/50" />
+                    <span>assets/</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-mono pl-4">
+                    <FolderTree className="h-3 w-3 text-muted-foreground/50" />
+                    <span>scripts/</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-mono pl-4">
+                    <FolderTree className="h-3 w-3 text-muted-foreground/50" />
+                    <span>workflows/</span>
+                  </div>
+                </div>
+              </div>
+
+              {error && activeTab === 'upload' && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Import Failed</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    {error}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </TabsContent>
 
           <TabsContent value="skillsmp" className="space-y-4 pt-4">
             <div className="flex gap-2">
@@ -285,10 +522,23 @@ export function SkillImport({ onImport }: SkillImportProps) {
                   key={skill.id} 
                   className="cursor-pointer hover:border-primary/50 transition-colors"
                   onClick={() => {
-                    // In a real app, we'd fetch the raw SKILL.md from the registry
-                    // For this prototype, we'll simulate it
                     const mockMd = `---\nname: ${skill.name}\ndescription: ${skill.description}\nallowed-tools: ${skill.tools?.join(' ') || ''}\nmetadata:\n  hermes:\n    category: ${skill.category || 'general'}\n---\n\n${skill.instructions || 'Instructions for ' + skill.name}`;
-                    setPreview(parseSkillMd(mockMd));
+                    const res = parseSkillMd(mockMd);
+                    setPreview({
+                      name: res.skill.name || '',
+                      description: res.skill.description || '',
+                      instructions: res.skill.instructions || '',
+                      allowedTools: res.skill.allowedTools || [],
+                      category: res.skill.category || 'general',
+                      license: res.skill.license,
+                      compatibility: res.skill.compatibility,
+                      metadata: res.skill.metadata,
+                      references: [],
+                      examples: [],
+                      scripts: []
+                    });
+                    setWarnings(res.warnings);
+                    setHasFrontmatter(res.hasFrontmatter);
                   }}
                 >
                   <CardContent className="p-4">
@@ -375,16 +625,23 @@ export function SkillImport({ onImport }: SkillImportProps) {
         </Tabs>
       </div>
 
-      <div className="col-span-12 lg:col-span-7 border-l pl-8">
-        {preview ? renderPreview() : (
+      <div className="col-span-12 lg:col-span-7 border-l pl-8 h-full overflow-y-auto pb-8">
+        {loading ? (
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
+            <div className="p-12 animate-pulse bg-muted rounded-xl">
+              <FileArchive className="h-12 w-12 text-muted-foreground" />
+            </div>
+            <p className="text-muted-foreground font-medium">Processing skill data...</p>
+          </div>
+        ) : preview ? renderPreview() : (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 text-muted-foreground">
             <div className="p-6 rounded-full bg-muted">
               <FileCode className="h-12 w-12" />
             </div>
             <div>
-              <h3 className="font-medium text-foreground">No Skill Selected</h3>
+              <h3 className="font-medium text-foreground">Import Selection Required</h3>
               <p className="text-sm max-w-xs mx-auto">
-                Search the registry, fetch from GitHub, or paste content to see a preview.
+                Upload a bundle, search the registry, or fetch from GitHub to preview the skill.
               </p>
             </div>
           </div>

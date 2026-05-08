@@ -25,7 +25,7 @@ export function ReferencesManager({ skill }: ReferencesManagerProps) {
     setExpandedId(references.length);
   };
 
-  const updateReference = (index: number, updates: Partial<{ filename: string; description: string; trigger: string }>) => {
+  const updateReference = (index: number, updates: Partial<{ filename: string; description: string; trigger: string; content?: string }>) => {
     const newReferences = [...references];
     newReferences[index] = { ...newReferences[index], ...updates };
     updateSkill(skill.id, { references: newReferences });
@@ -104,6 +104,17 @@ export function ReferencesManager({ skill }: ReferencesManagerProps) {
                     placeholder="When the agent should load it"
                   />
                 </div>
+                {ref.content !== undefined && (
+                  <div className="grid gap-2">
+                    <Label>Content (Markdown)</Label>
+                    <Textarea 
+                      value={ref.content}
+                      onChange={(e) => updateReference(index, { content: e.target.value })}
+                      placeholder="Supporting documentation text..."
+                      className="min-h-[200px] font-mono text-xs"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>

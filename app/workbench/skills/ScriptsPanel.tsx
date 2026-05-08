@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, Code2, FileCode } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
@@ -19,14 +20,14 @@ export function ScriptsPanel({ skill }: ScriptsPanelProps) {
   const scripts = skill.scripts || [];
 
   const addScript = () => {
-    if (newScript && !scripts.includes(newScript)) {
-      updateSkill(skill.id, { scripts: [...scripts, newScript] });
+    if (newScript && !scripts.find(s => s.filename === newScript)) {
+      updateSkill(skill.id, { scripts: [...scripts, { filename: newScript, content: '' }] });
       setNewScript('');
     }
   };
 
   const removeScript = (scriptName: string) => {
-    updateSkill(skill.id, { scripts: scripts.filter(s => s !== scriptName) });
+    updateSkill(skill.id, { scripts: scripts.filter(s => s.filename !== scriptName) });
   };
 
   return (
@@ -45,16 +46,21 @@ export function ScriptsPanel({ skill }: ScriptsPanelProps) {
           <Label>Declared Scripts</Label>
           <div className="grid gap-2">
             {scripts.map(script => (
-              <div key={script} className="flex items-center justify-between p-2 rounded-md border bg-muted/30">
+              <div key={script.filename} className="flex items-center justify-between p-2 rounded-md border bg-muted/30">
                 <div className="flex items-center gap-2">
                   <FileCode className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-mono">{script}</span>
+                  <span className="text-sm font-mono">{script.filename}</span>
+                  {script.content && (
+                    <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-100">
+                      Has Content
+                    </Badge>
+                  )}
                 </div>
                 <Button 
                   variant="ghost" 
                   size="icon" 
                   className="h-8 w-8 text-destructive"
-                  onClick={() => removeScript(script)}
+                  onClick={() => removeScript(script.filename)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

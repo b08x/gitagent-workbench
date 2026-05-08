@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { useAgentWorkspace, SkillEntry, ToolEntry } from '../../context/AgentContext';
+import { useNavigate } from 'react-router-dom';
+import { useAgentWorkspace, SkillEntry } from '../../context/AgentContext';
+import { useSkillWorkbench } from '../../context/SkillWorkbenchContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, AlertCircle, Info, Brain, BookOpen, Zap, Settings2 } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, Info, Brain, BookOpen, Zap, Settings2, ExternalLink, Library } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -36,14 +38,17 @@ const CANONICAL_TOOLS = [
 
 export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
-  const [skillErrors, setSkillErrors] = useState<Record<number, string>>({});
-  const [toolErrors, setToolErrors] = useState<Record<number, string>>({});
+  const { state: workbenchState } = useSkillWorkbench();
+  const navigate = useNavigate();
+
   const [loadingSkills, setLoadingSkills] = useState<Record<number, boolean>>({});
   const [memorySeedingEnabled, setMemorySeedingEnabled] = useState(state.memoryBootstrap !== null);
 
   const setSkillLoading = (index: number, loading: boolean) => {
     setLoadingSkills(prev => ({ ...prev, [index]: loading }));
   };
+
+  const availableWorkbenchSkills = workbenchState.skills;
 
   if (state.selectedTemplate === 'minimal') {
     return (
@@ -77,14 +82,31 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
 
   const toggleSkillTool = (index: number, tool: string) => {
     const skill = state.skillsList[index];
-    const currentTools = skill.allowedTools ? skill.allowedTools.split(' ').filter(Boolean) : [];
+    const currentTools = (skill.allowedTools || '').split(' ').filter(Boolean);
     const nextTools = currentTools.includes(tool)
       ? currentTools.filter(t => t !== tool)
       : [...currentTools, tool];
     handleSkillChange(index, 'allowedTools', nextTools.join(' '));
   };
 
-  // ── Knowledge ──────────────────────────────────────────────────────────────
+  const importFromWorkbench = (skillId: string) => {
+    const workbenchSkill = availableWorkbenchSkills.find(s => s.id === skillId);
+    if (!workbenchSkill) return;
+
+    const existingIndex = state.skillsList.findIndex(s => s.name === workbenchSkill.name);
+    if (existingIndex !== -1) return;
+
+    const newSkill: SkillEntry = {
+      name: workbenchSkill.name,
+      description: workbenchSkill.description,
+      instructions: workbenchSkill.instructions,
+      category: (workbenchSkill.metadata?.category as any) || 'general',
+      allowedTools: workbenchSkill.allowedTools.join(' ')
+    };
+
+    updateSkills([...state.skillsList, newSkill]);
+  };
+
   const updateKnowledge = (newDocs: typeof state.knowledgeDocs) => {
     dispatch({ type: 'UPDATE_WORKSPACE', payload: { knowledgeDocs: newDocs } });
   };
@@ -129,45 +151,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
   };
 
   // ── Tools & Deployment ─────────────────────────────────────────────────────
-  const updateTools = (newTools: ToolEntry[]) => {
-    dispatch({ type: 'UPDATE_WORKSPACE', payload: { toolsList: newTools } });
-    dispatch({ type: 'UPDATE_MANIFEST', payload: { tools: newTools.map(t => t.name).filter(Boolean) } });
-  };
-
-  const addTool = () => {
-    updateTools([...state.toolsList, { name: '', description: '' }]);
-  };
-
-  const removeTool = (index: number) => {
-    const newTools = [...state.toolsList];
-    newTools.splice(index, 1);
-    updateTools(newTools);
-  };
-
-  const handleToolChange = (index: number, field: keyof ToolEntry, value: string) => {
-    const newTools = [...state.toolsList];
-    newTools[index] = { ...newTools[index], [field]: value };
-    updateTools(newTools);
-  };
-
-  const toggleDeploymentTarget = (target: any) => {
-    const current = state.deploymentTargets || ['cli'];
-    const next = current.includes(target)
-      ? current.filter(t => t !== target)
-      : [...current, target];
-    dispatch({ type: 'UPDATE_WORKSPACE', payload: { deploymentTargets: next } });
-    dispatch({ type: 'UPDATE_MANIFEST', payload: { deployment_targets: next } });
-  };
-
-  const DEPLOYMENT_OPTIONS = [
-    { id: 'cli', label: 'CLI', description: 'Terminal only, no gateway' },
-    { id: 'telegram', label: 'Telegram', description: 'Gateway.telegram stub included' },
-    { id: 'discord', label: 'Discord', description: 'Gateway.discord stub included' },
-    { id: 'slack', label: 'Slack', description: 'Gateway.slack stub included' },
-    { id: 'api', label: 'API/Embedded', description: 'Disables terminal toolset; sets skip_context_files hint', tooltip: 'Disables terminal toolset; sets skip_context_files hint' },
-    { id: 'background', label: 'Background/Scheduled', description: 'Enables cronjob toolset and delegation toolset', tooltip: 'Enables cronjob toolset and delegation toolset' },
-    { id: 'homeassistant', label: 'Home Assistant', description: 'Enables homeassistant toolset' },
-  ];
+  // Moved to DeploymentStep and ToolsStep
 
   return (
     <div className="space-y-8">
@@ -186,105 +170,174 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
 
         {/* ── SKILLS TAB ────────────────────────────────────────────────────── */}
         <TabsContent value="skills" className="space-y-6">
-          <div className="flex items-start gap-4 p-4 bg-primary/5 border border-primary/10 rounded-lg mb-6">
-            <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              <strong className="text-foreground">Skills</strong> are procedural knowledge. <strong className="text-foreground">HOW</strong> to do things.
-              Loaded on demand, only when relevant. Zero token cost until triggered. Put HOW-TO knowledge here.
-            </p>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-4 p-4 bg-primary/5 border border-primary/10 rounded-lg flex-1">
+              <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                <strong className="text-foreground">Skills</strong> are procedural knowledge. <strong className="text-foreground">HOW</strong> to do things.
+                Loaded on demand, only when relevant. Zero token cost until triggered.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => navigate('/workbench/skills')}>
+              <ExternalLink className="mr-2 h-4 w-4" /> Skill Workbench
+            </Button>
           </div>
 
-          <div className="space-y-4">
-            {state.skillsList.map((skill, index) => (
-              <Card key={index} className="relative overflow-hidden">
-                <CardContent className="pt-6 space-y-4">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeSkill(index)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor={`skill-name-${index}`}>Skill Name (kebab-case)</Label>
-                      <Input 
-                        id={`skill-name-${index}`}
-                        placeholder="research-expert"
-                        value={skill.name}
-                        onChange={e => handleSkillChange(index, 'name', e.target.value)}
-                        className={cn((fieldErrors[`skillsList.${index}.name`]) && "border-destructive")}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={`skill-category-${index}`}>Category</Label>
-                      <Input 
-                        id={`skill-category-${index}`}
-                        placeholder="e.g. devops, research"
-                        value={skill.category}
-                        onChange={e => handleSkillChange(index, 'category', e.target.value as any)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor={`skill-desc-${index}`}>Description</Label>
-                    <Input 
-                      id={`skill-desc-${index}`}
-                      placeholder="Expert at searching and synthesizing information..."
-                      value={skill.description}
-                      onChange={e => handleSkillChange(index, 'description', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label>Allowed Tools</Label>
-                    <div className="flex flex-wrap gap-2 p-3 border rounded-md bg-muted/30">
-                      {CANONICAL_TOOLS.map(tool => (
-                        <div key={tool} className="flex items-center space-x-2">
-                          <Checkbox 
-                            id={`skill-${index}-tool-${tool}`}
-                            checked={(skill.allowedTools || '').split(' ').includes(tool)}
-                            onCheckedChange={() => toggleSkillTool(index, tool)}
-                          />
-                          <label htmlFor={`skill-${index}-tool-${tool}`} className="text-xs cursor-pointer select-none">
-                            {tool}
-                          </label>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1 space-y-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Available Blueprints</Label>
+                <Card>
+                  <CardContent className="p-0">
+                    <div className="divide-y max-h-[400px] overflow-y-auto">
+                      {availableWorkbenchSkills.length > 0 ? (
+                        availableWorkbenchSkills.map(s => (
+                          <div 
+                            key={s.id} 
+                            className="p-3 hover:bg-muted/50 cursor-pointer flex items-center justify-between group transition-colors"
+                            onClick={() => importFromWorkbench(s.id)}
+                          >
+                            <div className="space-y-0.5">
+                              <p className="text-sm font-medium">{s.name}</p>
+                              <p className="text-[10px] text-muted-foreground line-clamp-1">{s.description}</p>
+                            </div>
+                            <Plus className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-8 text-center space-y-3">
+                          <Library className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                          <p className="text-xs text-muted-foreground italic">No skills in workbench.</p>
+                          <Button size="xs" variant="link" onClick={() => navigate('/workbench/skills')}>
+                            Create your first skill
+                          </Button>
                         </div>
-                      ))}
+                      )}
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
 
-                  <div className="grid gap-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor={`skill-instructions-${index}`}>Instructions</Label>
-                      <GenerateImproveButton 
-                        fieldValue={skill.instructions || ''}
-                        fileType="skill-md"
-                        fieldName={`Skill: ${skill.name} Instructions`}
-                        workspace={state}
-                        onLoadingChange={(loading) => setSkillLoading(index, loading)}
-                        onResult={(val) => handleSkillChange(index, 'instructions', val)}
-                      />
-                    </div>
-                    <Textarea 
-                      id={`skill-instructions-${index}`}
-                      placeholder="1. Step one...&#10;2. Step two..."
-                      value={skill.instructions || ''}
-                      disabled={loadingSkills[index]}
-                      onChange={e => handleSkillChange(index, 'instructions', e.target.value)}
-                      className="min-h-[100px]"
-                    />
+            <div className="lg:col-span-2 space-y-4">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Agent Capabilities</Label>
+              {state.skillsList.length === 0 && (
+                <div className="border-2 border-dashed rounded-xl p-12 text-center space-y-4">
+                  <Zap className="h-12 w-12 text-muted-foreground/20 mx-auto" />
+                  <div className="space-y-1">
+                    <p className="font-medium">No skills assigned to agent</p>
+                    <p className="text-sm text-muted-foreground">Import from workbench or create a draft below.</p>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                  <Button variant="outline" size="sm" onClick={addSkill}>
+                    <Plus className="mr-2 h-4 w-4" /> Create Draft Skill
+                  </Button>
+                </div>
+              )}
+              
+              <div className="space-y-4">
+                {state.skillsList.map((skill, index) => (
+                  <Card key={index} className="relative overflow-hidden group">
+                    <CardContent className="pt-6 space-y-4">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="absolute top-2 right-2 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => removeSkill(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
 
-            <Button variant="outline" className="w-full border-dashed" onClick={addSkill}>
-              <Plus className="mr-2 h-4 w-4" /> Add Skill
-            </Button>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor={`skill-name-${index}`}>Skill Name (kebab-case)</Label>
+                          <Input 
+                            id={`skill-name-${index}`}
+                            placeholder="research-expert"
+                            value={skill.name}
+                            onChange={e => handleSkillChange(index, 'name', e.target.value)}
+                            className={cn((fieldErrors[`skillsList.${index}.name`]) && "border-destructive")}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor={`skill-category-${index}`}>Category</Label>
+                          <Select 
+                            value={skill.category} 
+                            onValueChange={v => handleSkillChange(index, 'category' as any, v)}
+                          >
+                            <SelectTrigger id={`skill-category-${index}`}>
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="general">General</SelectItem>
+                              <SelectItem value="research">Research</SelectItem>
+                              <SelectItem value="code">Code</SelectItem>
+                              <SelectItem value="compliance">Compliance</SelectItem>
+                              <SelectItem value="communication">Communication</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label htmlFor={`skill-desc-${index}`}>Description</Label>
+                        <Input 
+                          id={`skill-desc-${index}`}
+                          placeholder="Expert at searching and synthesizing information..."
+                          value={skill.description}
+                          onChange={e => handleSkillChange(index, 'description', e.target.value)}
+                        />
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label className="text-xs">Allowed Tools</Label>
+                        <div className="flex flex-wrap gap-2 p-3 border rounded-md bg-muted/30">
+                          {CANONICAL_TOOLS.map(tool => (
+                            <div key={tool} className="flex items-center space-x-2">
+                              <Checkbox 
+                                id={`skill-${index}-tool-${tool}`}
+                                checked={(skill.allowedTools || '').split(' ').includes(tool)}
+                                onCheckedChange={() => toggleSkillTool(index, tool)}
+                              />
+                              <label htmlFor={`skill-${index}-tool-${tool}`} className="text-[10px] cursor-pointer select-none">
+                                {tool}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor={`skill-instructions-${index}`}>Instructions</Label>
+                          <GenerateImproveButton 
+                            fieldValue={skill.instructions || ''}
+                            fileType="skill-md"
+                            fieldName={`Skill: ${skill.name} Instructions`}
+                            workspace={state}
+                            onLoadingChange={(loading) => setSkillLoading(index, loading)}
+                            onResult={(val) => handleSkillChange(index, 'instructions', val)}
+                          />
+                        </div>
+                        <Textarea 
+                          id={`skill-instructions-${index}`}
+                          placeholder="1. Step one...&#10;2. Step two..."
+                          value={skill.instructions || ''}
+                          disabled={loadingSkills[index]}
+                          onChange={e => handleSkillChange(index, 'instructions', e.target.value)}
+                          className="min-h-[100px] text-xs font-mono"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+
+                {state.skillsList.length > 0 && (
+                  <Button variant="outline" className="w-full border-dashed" onClick={addSkill}>
+                    <Plus className="mr-2 h-4 w-4" /> Add Another Capability
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         </TabsContent>
 
@@ -422,102 +475,6 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
       </Tabs>
 
       <Separator className="my-8" />
-
-      <section className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Settings2 className="h-5 w-5 text-primary" />
-          <h2 className="text-2xl font-bold tracking-tight">Tools</h2>
-        </div>
-        <p className="text-muted-foreground">Declare tools that the agent can use to interact with the world.</p>
-
-        <div className="space-y-4">
-          {state.toolsList.map((tool, index) => (
-            <Card key={index} className="relative overflow-hidden">
-              <CardContent className="pt-6 space-y-4">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"
-                  onClick={() => removeTool(index)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor={`tool-name-${index}`}>Tool Name (kebab-case)</Label>
-                    <Input 
-                      id={`tool-name-${index}`}
-                      placeholder="web-search"
-                      value={tool.name}
-                      onChange={e => handleToolChange(index, 'name', e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor={`tool-desc-${index}`}>Description</Label>
-                    <Input 
-                      id={`tool-desc-${index}`}
-                      placeholder="Search the web for information..."
-                      value={tool.description}
-                      onChange={e => handleToolChange(index, 'description', e.target.value)}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-
-          <Button variant="outline" className="w-full border-dashed" onClick={addTool}>
-            <Plus className="mr-2 h-4 w-4" /> Add Tool
-          </Button>
-        </div>
-      </section>
-
-      <section className="space-y-6 pt-6 border-t">
-        <div className="flex items-center gap-2">
-          <Rocket className="h-5 w-5 text-primary" />
-          <h2 className="text-2xl font-bold tracking-tight">Deployment Targets</h2>
-        </div>
-        <p className="text-muted-foreground">Select where your agent will be deployed to pre-configure the Hermes environment.</p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TooltipProvider>
-            {DEPLOYMENT_OPTIONS.map((opt) => (
-              <div key={opt.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors">
-                <Checkbox 
-                  id={`target-${opt.id}`} 
-                  checked={(state.deploymentTargets || ['cli']).includes(opt.id as any)}
-                  onCheckedChange={() => toggleDeploymentTarget(opt.id)}
-                  className="mt-1"
-                />
-                <div className="grid gap-1.5 leading-none">
-                  <div className="flex items-center gap-2">
-                    <label
-                      htmlFor={`target-${opt.id}`}
-                      className="text-sm font-semibold leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      {opt.label}
-                    </label>
-                    {opt.tooltip && (
-                      <Tooltip>
-                        <TooltipTrigger render={<Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />} />
-                        <TooltipContent>
-                          <p className="max-w-xs text-xs">{opt.tooltip}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {opt.description}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </TooltipProvider>
-        </div>
-      </section>
     </div>
   );
 }
-
-import { Rocket } from 'lucide-react';
