@@ -43,15 +43,7 @@ function Header() {
                 variant={location.pathname === '/workbench/agent' ? 'secondary' : 'ghost'} 
                 size="sm" 
               >
-                Dashboard
-              </Button>
-            </Link>
-            <Link to="/wizard">
-              <Button 
-                variant={location.pathname.startsWith('/wizard') ? 'secondary' : 'ghost'} 
-                size="sm" 
-              >
-                Agent Wizard
+                Agent Workbench
               </Button>
             </Link>
             <Link to="/workbench/skills">
@@ -151,7 +143,7 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<Navigate to="/workbench/agent" replace />} />
             <Route path="/workbench/agent" element={<AgentWorkbench />} />
-            <Route path="/wizard" element={<WizardShell />} />
+            <Route path="/wizard" element={<Navigate to="/workbench/agent?tab=architect" replace />} />
             <Route path="/generating" element={<GenerationDashboard />} />
             <Route path="/editor" element={<FileEditor />} />
             <Route path="/export" element={<ExportView />} />
@@ -169,3 +161,4 @@ function AppContent() {
     </BrowserRouter>
   );
 }
+
