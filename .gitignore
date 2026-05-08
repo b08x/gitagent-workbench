@@ -9,3 +9,10 @@ coverage/
 
 .codemap/
 tests/
+
+.ck/
+.ckignore
+**/graphify-out/cache/*
+
+cost.json
+manifest.json

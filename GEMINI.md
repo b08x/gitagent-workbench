@@ -72,3 +72,13 @@ The `AgentWorkspace` is a complex object. Always refer to `lib/gitagent/types.ts
 - **Environment Variables**: API keys in `.env.local` must follow naming conventions: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY` (or `GEMINI_API_KEY`), `MISTRAL_API_KEY`, `OPENROUTER_API_KEY`.
 - **Structure Types**: Agent generation logic varies significantly between `minimal`, `standard`, and `full` structures. See `orchestrator.ts` for conditional logic.
 - **Risk Tiers**: Compliance duties (`GEN_DUTIES`) are only generated for non-low risk tiers or `full` structures.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- ALWAYS read graphify-out/GRAPH_REPORT.md before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.
+- IF graphify-out/wiki/index.md EXISTS, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
