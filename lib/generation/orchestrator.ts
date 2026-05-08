@@ -1,94 +1,15 @@
-import { AgentWorkspace, ParsedSkill, ToolSchema } from '../gitagent/types';
+import { AgentWorkspace } from '../gitagent/types';
 import { providers } from '../providers';
-import { generateHermesConfig } from '../gitagent/config-generator';
-import { buildGenerationPrompt } from './strategy';
-import { validateWorkspace } from './validator';
-import { soulPrompt } from './prompts/soul-md';
-import { agentYamlPrompt } from './prompts/agent-yaml';
-import { skillPrompt } from './prompts/skill-md';
-import { referencesReadmePrompt } from './prompts/references-readme';
-import { toolYamlPrompt } from './prompts/tool-yaml';
-import { retryWithBackoff } from '../utils/retry';
+import { getTemplateInstructions } from './templates';
+import { getApplicableSteps } from './steps';
+import { sanitizePromptContent } from './sanitizer';
+import { countTokens } from './token-counter';
+import { saveWorkspaceSnapshot } from './persistence';
+import { OrchestratorConfig, OrchestratorEvent } from './types';
+import { ALL_HANDLERS } from './handlers/core-handlers';
 
-export interface OrchestratorConfig {
-  providerId: string;
-  apiKey: string;
-  modelId: string;
-  fallbackModelIds?: string[];
-  apiKeys?: Record<string, string>;
-}
-
-export interface OrchestratorEvent {
-  step: string;
-  substep?: string;
-  status: 'start' | 'progress' | 'done' | 'error' | 'skip';
-  content?: string;
-  workspace?: AgentWorkspace;
-}
-
-export async function generateWithRetryAndFallback(
-  prompt: any,
-  config: OrchestratorConfig
-): Promise<any> {
-  const models = [config.modelId, ...(config.fallbackModelIds || [])];
-  let lastError: any;
-
-  for (const modelSpec of models) {
-    let providerId = config.providerId;
-    let modelId = modelSpec;
-    if (modelSpec.includes('/') && providers[modelSpec.split('/')[0]]) {
-      const parts = modelSpec.split('/');
-      providerId = parts[0];
-      modelId = parts.slice(1).join('/');
-    }
-    const provider = providers[providerId];
-    const apiKey = config.apiKeys?.[providerId] || config.apiKey;
-
-    if (!provider || !apiKey) continue;
-
-    try {
-      return await retryWithBackoff(() => provider.generate(prompt, apiKey, modelId));
-    } catch (error: any) {
-      lastError = error;
-    }
-  }
-  throw lastError;
-}
-
-export async function* streamWithRetryAndFallback(
-  prompt: any,
-  config: OrchestratorConfig
-): AsyncGenerator<string> {
-  const models = [config.modelId, ...(config.fallbackModelIds || [])];
-  let lastError: any;
-
-  for (const modelSpec of models) {
-    let providerId = config.providerId;
-    let modelId = modelSpec;
-    if (modelSpec.includes('/') && providers[modelSpec.split('/')[0]]) {
-      const parts = modelSpec.split('/');
-      providerId = parts[0];
-      modelId = parts.slice(1).join('/');
-    }
-    const provider = providers[providerId];
-    const apiKey = config.apiKeys?.[providerId] || config.apiKey;
-
-    if (!provider || !apiKey) continue;
-
-    try {
-      // We retry the stream creation and the first chunk if possible
-      // In many cases, 429 happens on the first chunk or connection
-      const stream = provider.stream(prompt, apiKey, modelId);
-      for await (const chunk of stream) {
-        yield chunk;
-      }
-      return;
-    } catch (error: any) {
-      lastError = error;
-    }
-  }
-  throw lastError;
-}
+export * from './types';
+export * from './engine';
 
 export async function* runGeneration(
   workspace: AgentWorkspace,
@@ -97,304 +18,98 @@ export async function* runGeneration(
   const provider = providers[config.providerId];
   if (!provider) throw new Error(`Provider ${config.providerId} not found`);
 
-  const structureType = workspace.meta.structureType;
-  const isMinimal = structureType === 'minimal';
-  const isFull = structureType === 'full';
-  const ext = workspace as any;
-
-  const steps = [
-    'SANITIZE_INPUTS',
-    'GEN_YAML',
-    'GEN_SOUL',
-    ...(isMinimal ? [] : ['GEN_RULES']),
-    ...(isMinimal ? [] : ['GEN_PROMPT']),
-    ...(!isMinimal && (workspace.manifest.compliance?.risk_tier !== 'low' || isFull)
-      ? ['GEN_DUTIES']
-      : []),
-    'GEN_CONFIG',
-    'GEN_SKILLS',
-    'GEN_KNOWLEDGE_DOCS',
-    'GEN_TOOLS',
-    ...(Object.keys(workspace.subAgents).length > 0 || (ext.subAgentsList && ext.subAgentsList.length > 0) ? ['GEN_SUBAGENTS'] : []),
-    ...(isFull ? ['GEN_WORKFLOWS'] : []),
-    ...(isFull ? ['GEN_EXAMPLES'] : []),
-    'VALIDATE_OUT',
-  ];
-
+  const applicableSteps = getApplicableSteps(workspace);
   let ws = { ...workspace };
   const scaffoldContext = (workspace as any).scaffoldContext || [];
   const selectedTemplate = (workspace as any).selectedTemplate;
 
-  const contextPrompt = scaffoldContext.length > 0 
-    ? `\n\nAdditional Context from Uploaded Files:\n${scaffoldContext.map((f: any) => `File: ${f.name}\nContent: ${f.content || '[Media File]'}`).join('\n---\n')}`
-    : '';
+  // ENG-104: Semantic Context Window Truncation
+  const defaultLimit = 100000;
+  const hardLimit = config.contextLimit || defaultLimit;
+  const truncationLimit = Math.floor(hardLimit * 0.8);
+  
+  const header = "\n\nAdditional Context from Uploaded Files:\n";
+  let contextPrompt = "";
+  let totalTokens = countTokens(header);
+  let truncatedFilesCount = 0;
 
-  const templatePrompt = selectedTemplate === 'data-analyst' 
-    ? '\n\nTEMPLATE: Data Analyst. Focus on CSV/JSON processing, data cleaning, statistical analysis, and visualization. Ensure tools for data manipulation are prioritized.'
-    : selectedTemplate === 'web-scraper'
-    ? '\n\nTEMPLATE: Web Scraper. Focus on headless browsing, DOM extraction, rate limiting, and structured data output. Ensure tools for networking and parsing are prioritized.'
-    : selectedTemplate === 'researcher'
-    ? '\n\nTEMPLATE: Researcher. Focus on deep synthesis, multi-source verification, and citation-heavy markdown outputs. Ensure tools for search and knowledge retrieval are prioritized.'
-    : '';
+  if (scaffoldContext.length > 0) {
+    contextPrompt = header;
+    for (const file of scaffoldContext) {
+      const fileContent = `File: ${file.name}\nContent: ${sanitizePromptContent(file.content || '[Media File]')}\n---\n`;
+      const fileTokens = countTokens(fileContent);
 
-  for (const step of steps) {
+      if (totalTokens + fileTokens <= truncationLimit) {
+        contextPrompt += fileContent;
+        totalTokens += fileTokens;
+      } else {
+        truncatedFilesCount++;
+      }
+    }
+  }
+
+  if (truncatedFilesCount > 0) {
+    yield { 
+      step: 'SANITIZE_INPUTS', 
+      status: 'progress', 
+      content: `Warning: Context size exceeds 80% of limit (${truncationLimit}). Dropped ${truncatedFilesCount} files to avoid malformed output.` 
+    };
+  }
+
+  const templatePrompt = getTemplateInstructions(selectedTemplate);
+  let skip = config.resumeFromStep ? true : false;
+
+  for (const stepConfig of applicableSteps) {
+    const step = stepConfig.id;
+
+    if (skip) {
+      if (step === config.resumeFromStep) {
+        skip = false;
+      } else {
+        yield { step, status: 'done', content: 'Already completed (skipped)' };
+        continue;
+      }
+    }
+
+    const handler = ALL_HANDLERS.find(h => h.id === step);
+    if (!handler) {
+      yield { step, status: 'skip', content: `No handler found for step: ${step}` };
+      continue;
+    }
+
     yield { step, status: 'start' };
 
     try {
-      // ── SANITIZE_INPUTS ───────────────────────────────────────────────────
-      if (step === 'SANITIZE_INPUTS') {
-        yield { step, status: 'progress', content: 'Sanitizing and refining agent configuration...' };
-        const prompt = {
-          system: `You are the Editor Assistant. Your job is to sanitize and refine the user's initial agent configuration.
-Ensure the name is kebab-case, the description is clear and professional, and the core identity (SOUL) is consistent with the agent's purpose.
-If the user provided context files, incorporate key insights from them into the refined configuration.`,
-          user: `Current Workspace State:
-Name: ${ws.manifest.name}
-Description: ${ws.manifest.description}
-Template: ${selectedTemplate}
-Context Files: ${scaffoldContext.map((f: any) => f.name).join(', ')}
+      const iterator = handler.handle({
+        workspace: ws,
+        config,
+        templatePrompt,
+        contextPrompt
+      });
 
-Refine the manifest and provide a concise summary of changes.`,
-        };
-
-        const result = await generateWithRetryAndFallback(prompt, config);
-        // We don't strictly update the workspace here unless we want to force changes,
-        // but we'll use this as a "pre-flight" check.
-        yield { step, status: 'done', content: result.text || 'Configuration sanitized.' };
-      }
-
-      // ── GEN_YAML ───────────────────────────────────────────────────────────
-      else if (step === 'GEN_YAML') {
-        const prompt = agentYamlPrompt(ws);
-        if (scaffoldContext.length > 0 || templatePrompt) {
-          prompt.user += `\n\nUse the following context and template instructions to help determine appropriate metadata, description, and compliance settings:\n${templatePrompt}${contextPrompt}`;
+      let next = await iterator.next();
+      while (!next.done) {
+        const value = next.value;
+        if (value && typeof value === 'object' && 'status' in value) {
+          yield value as OrchestratorEvent;
         }
-        const result = await generateWithRetryAndFallback(prompt, config);
-        const generated = result.object || {};
-        ws = {
-          ...ws,
-          manifest: {
-            ...generated,
-            name: ws.manifest.name || generated.name,
-            version: ws.manifest.version || generated.version,
-            description: ws.manifest.description || generated.description,
-            author: ws.manifest.author || generated.author,
-            skills: ws.manifest.skills,
-            tools: ws.manifest.tools,
-            compliance: ws.manifest.compliance || generated.compliance,
-          },
-        };
+        next = await iterator.next();
+      }
+      
+      const patch = next.value;
+      if (patch) {
+        ws = { ...ws, ...patch } as AgentWorkspace;
         yield { step, status: 'done', workspace: ws };
+      } else {
+        yield { step, status: 'done' };
       }
-
-      // ── GEN_SOUL ───────────────────────────────────────────────────────────
-      else if (step === 'GEN_SOUL') {
-        const prompt = soulPrompt(ws);
-        if (scaffoldContext.length > 0 || templatePrompt) {
-          prompt.user += `\n\nUse the following context and template instructions to help define the agent's personality and core identity:\n${templatePrompt}${contextPrompt}`;
-        }
-        let content = '';
-        for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
-          content += chunk;
-          yield { step, status: 'progress', content };
-        }
-        ws = { ...ws, soul: content };
-        yield { step, status: 'done', workspace: ws };
-      }
-
-      // ── GEN_RULES ──────────────────────────────────────────────────────────
-      else if (step === 'GEN_RULES') {
-        const prompt = buildGenerationPrompt('rules-md', 'drafting', ws);
-        let content = '';
-        for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
-          content += chunk;
-        }
-        ws = { ...ws, rules: content };
-        yield { step, status: 'done', workspace: ws };
-      }
-
-      // ── GEN_PROMPT ─────────────────────────────────────────────────────────
-      else if (step === 'GEN_PROMPT') {
-        const prompt = buildGenerationPrompt('prompt-md', 'drafting', ws);
-        let content = '';
-        for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
-          content += chunk;
-        }
-        ws = { ...ws, prompt_md: content };
-        yield { step, status: 'done', workspace: ws };
-      }
-
-      // ── GEN_DUTIES ─────────────────────────────────────────────────────────
-      else if (step === 'GEN_DUTIES') {
-        const prompt = buildGenerationPrompt('duties-md', 'drafting', ws);
-        let content = '';
-        for await (const chunk of streamWithRetryAndFallback(prompt, config)) {
-          content += chunk;
-        }
-        ws = { ...ws, duties: content };
-        yield { step, status: 'done', workspace: ws };
-      }
-
-      // ── GEN_CONFIG ─────────────────────────────────────────────────────────
-      else if (step === 'GEN_CONFIG') {
-        ws.hermesConfig = generateHermesConfig(ws);
-        yield { step, status: 'done', workspace: ws };
-      }
-
-      // ── GEN_SKILLS ─────────────────────────────────────────────────────────
-      // Generates one SKILL.md per declared skill name.
-      // Now includes references/ scaffold and progressive disclosure.
-      else if (step === 'GEN_SKILLS') {
-        const skillNames = ws.manifest.skills || [];
-        const updatedSkills = { ...ws.skills };
-
-        for (const name of skillNames) {
-          const skill = updatedSkills[name];
-          
-          // a. Generate references/README.md catalogue
-          yield { step, substep: `${name}/references`, status: 'start' };
-          const refPrompt = referencesReadmePrompt(
-            name,
-            skill.description,
-            skill.allowedTools,
-            skill.category
-          );
-          const refResult = await generateWithRetryAndFallback(refPrompt, config);
-          const refCatalogue = refResult.object?.references || [];
-          
-          updatedSkills[name] = {
-            ...skill,
-            references: refCatalogue
-          };
-          yield { step, substep: `${name}/references`, status: 'done' };
-
-          // b. Generate SKILL.md
-          yield { step, substep: `${name}/SKILL.md`, status: 'start' };
-          const prompt = skillPrompt(ws, name, refCatalogue);
-          const result = await generateWithRetryAndFallback(prompt, config);
-          const generated = result.object || {};
-
-          updatedSkills[name] = {
-            ...updatedSkills[name],
-            instructions: generated.instructions || '',
-            metadata: {
-              ...updatedSkills[name].metadata,
-              frontmatter: generated.frontmatter
-            }
-          };
-          yield { step, substep: `${name}/SKILL.md`, status: 'done' };
-        }
-
-        ws = { ...ws, skills: updatedSkills };
-        yield { step, status: 'done', workspace: ws };
-      }
-
-      // ── GEN_KNOWLEDGE_DOCS ─────────────────────────────────────────────────
-      else if (step === 'GEN_KNOWLEDGE_DOCS') {
-        yield { step, status: 'progress', content: 'Checking knowledge documents...' };
-        const docsToGen = (ws.knowledgeDocs || []).filter(d => !d.content);
-        if (docsToGen.length === 0) {
-          yield { step, status: 'done', content: 'All knowledge documents have content.' };
-        } else {
-          yield { 
-            step, 
-            status: 'skip', 
-            content: `Generation deferred for: ${docsToGen.map(d => d.path).join(', ')}` 
-          };
-        }
-      }
-
-      // ── GEN_TOOLS ──────────────────────────────────────────────────────────
-      // Generates one tools/<n>.yaml per declared tool name.
-      // Each tool MUST have input_schema (MCP-compatible) — NOT `parameters`.
-      // Without this step, gitagent validate fails: "Referenced tool X not found".
-      else if (step === 'GEN_TOOLS') {
-        const toolNames = ws.manifest.tools || [];
-        const updatedTools = { ...ws.tools };
-
-        for (const name of toolNames) {
-          yield { step: `GEN_TOOL:${name}`, status: 'start' };
-          const prompt = toolYamlPrompt(ws, name);
-          const result = await generateWithRetryAndFallback(prompt, config);
-
-          const toolObj = result.object ?? null;
-          updatedTools[name] = {
-            name: toolObj?.name ?? name,
-            description: toolObj?.description ?? `Tool: ${name}`,
-            input_schema: toolObj?.input_schema ?? {
-              type: 'object',
-              properties: {
-                query: { type: 'string', description: 'Input query or parameters' },
-              },
-              required: ['query'],
-            },
-          };
-          yield { step: `GEN_TOOL:${name}`, status: 'done' };
-        }
-
-        ws = { ...ws, tools: updatedTools };
-        yield { step, status: 'done', workspace: ws };
-      }
-
-      // ── GEN_SUBAGENTS ──────────────────────────────────────────────────────
-      else if (step === 'GEN_SUBAGENTS') {
-        const subAgentNames = Object.keys(ws.subAgents);
-        const matrix = ws.toolPermissions?.matrix || {};
-        const subAgentTools = Object.entries(matrix)
-          .filter(([_, cols]) => cols['sub-agent'] === true)
-          .map(([tool, _]) => tool);
-
-        for (const name of subAgentNames) {
-          ws.subAgents[name].manifest = {
-            ...ws.subAgents[name].manifest,
-            tools: subAgentTools
-          };
-        }
-        
-        // Also handle subAgentsList from wizard if applicable
-        if ((ws as any).subAgentsList) {
-          (ws as any).subAgentsList = (ws as any).subAgentsList.map((a: any) => ({
-            ...a,
-            tools: subAgentTools
-          }));
-        }
-
-        yield { step, status: 'done', workspace: ws };
-      }
-
-      // ── GEN_WORKFLOWS ──────────────────────────────────────────────────────
-      else if (step === 'GEN_WORKFLOWS') {
-        yield { step, status: 'done', workspace: ws };
-      }
-
-      // ── GEN_EXAMPLES ───────────────────────────────────────────────────────
-      else if (step === 'GEN_EXAMPLES') {
-        const goodPrompt = buildGenerationPrompt('soul-md', 'review', ws);
-        goodPrompt.system = `Generate 3-5 examples of GOOD outputs for a gitagent named "${ws.manifest.name}". Format as markdown with ## Example N headers.`;
-        goodPrompt.user = `Agent: ${ws.manifest.name}\nDomain: ${ws.manifest.description}\n\nGenerate good-outputs.md.`;
-        let good = '';
-        for await (const chunk of streamWithRetryAndFallback(goodPrompt, config)) {
-          good += chunk;
-        }
-        const badPrompt = { ...goodPrompt };
-        badPrompt.system = badPrompt.system.replace('GOOD', 'BAD (outputs to avoid)');
-        let bad = '';
-        for await (const chunk of streamWithRetryAndFallback(badPrompt, config)) {
-          bad += chunk;
-        }
-        ws = { ...ws, examples: { goodOutputs: good, badOutputs: bad } };
-        yield { step, status: 'done', workspace: ws };
-      }
-
-      // ── VALIDATE_OUT ───────────────────────────────────────────────────────
-      else if (step === 'VALIDATE_OUT') {
-        ws = { ...ws, validationResult: validateWorkspace(ws) };
-        yield { step, status: 'done', workspace: ws };
-      }
-
     } catch (error: any) {
       yield { step, status: 'error', content: error.message };
-      // Continue to next step — partial output is still useful
+      if (stepConfig.isCritical) {
+        throw new Error(`Critical step "${stepConfig.label}" failed: ${error.message}`);
+      }
+    } finally {
+      saveWorkspaceSnapshot(ws);
     }
   }
 

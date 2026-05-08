@@ -1,18 +1,24 @@
-export interface GenerationPrompt {
+import { z } from 'zod';
+
+export interface GenerationPrompt<T extends z.ZodTypeAny = any> {
   system: string;
   user: string;
-  schema?: any;
+  schema?: T;
 }
 
-export interface GenerationResult {
+export interface GenerationResult<T = any> {
   text: string;
-  object?: any;
+  object?: T;
 }
 
 export interface ModelProvider {
   id: string;
   name: string;
   supportsDirectBrowser: boolean;
-  generate(prompt: GenerationPrompt, apiKey: string, modelId: string): Promise<GenerationResult>;
+  generate<T extends z.ZodTypeAny = any>(
+    prompt: GenerationPrompt<T>, 
+    apiKey: string, 
+    modelId: string
+  ): Promise<GenerationResult<z.infer<T>>>;
   stream(prompt: GenerationPrompt, apiKey: string, modelId: string): AsyncGenerator<string>;
 }
