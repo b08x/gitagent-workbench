@@ -98,9 +98,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // Sync state between tabs and fetch server-side key status
   useEffect(() => {
     // Check which keys are already present on the server (e.g. from .env)
-    fetch('/api/providers')
-      .then(res => res.json())
-      .then(status => {
+    const fetchStatus = async (retries = 3, delay = 1000) => {
+      try {
+        const res = await fetch('/api/providers');
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        const status = await res.json();
+        
         setSettings(prev => {
           const newKeys = { ...prev.apiKeys };
           Object.entries(status).forEach(([pid, hasKey]) => {
@@ -118,8 +121,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           });
           return { ...prev, apiKeys: newKeys };
         });
-      })
-      .catch(err => console.error('Failed to fetch provider status:', err));
+      } catch (err) {
+        if (retries > 0) {
+          console.warn(`Failed to fetch provider status, retrying in ${delay}ms... (${retries} attempts left)`);
+          setTimeout(() => fetchStatus(retries - 1, delay * 2), delay);
+        } else {
+          console.error('Failed to fetch provider status after multiple attempts:', err);
+        }
+      }
+    };
+
+    fetchStatus();
 
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'gitagent_settings' && e.newValue) {
