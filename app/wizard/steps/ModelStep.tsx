@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InfoIcon, Settings2, Loader2, CheckCircle2 } from 'lucide-react';
 
-export function ModelStep({ fieldErrors = {}, hideGeneration = false }: { fieldErrors?: Record<string, string>; hideGeneration?: boolean }) {
+export function ModelStep({ fieldErrors = {}, hideGeneration = false, hideRuntime = false }: { fieldErrors?: Record<string, string>; hideGeneration?: boolean; hideRuntime?: boolean }) {
   const { settings, updateSettings, setApiKey } = useSettings();
   const { state, dispatch } = useAgentWorkspace();
   const [genModels, setGenModels] = useState<ModelOption[]>([]);
@@ -18,6 +18,7 @@ export function ModelStep({ fieldErrors = {}, hideGeneration = false }: { fieldE
   const [loadingRuntime, setLoadingRuntime] = useState(false);
 
   useEffect(() => {
+    if (hideGeneration) return;
     const loadGenModels = async () => {
       setLoadingGen(true);
       try {
@@ -31,9 +32,10 @@ export function ModelStep({ fieldErrors = {}, hideGeneration = false }: { fieldE
       }
     };
     loadGenModels();
-  }, [settings.providerId, settings.apiKeys[settings.providerId]]);
+  }, [settings.providerId, settings.apiKeys[settings.providerId], hideGeneration]);
 
   useEffect(() => {
+    if (hideRuntime) return;
     const loadRuntimeModels = async () => {
       setLoadingRuntime(true);
       try {
@@ -47,7 +49,7 @@ export function ModelStep({ fieldErrors = {}, hideGeneration = false }: { fieldE
       }
     };
     loadRuntimeModels();
-  }, [state.runtimeProviderId, settings.apiKeys[state.runtimeProviderId]]);
+  }, [state.runtimeProviderId, settings.apiKeys[state.runtimeProviderId], hideRuntime]);
 
   const updateModel = (field: string, value: any) => {
     dispatch({
@@ -221,162 +223,164 @@ export function ModelStep({ fieldErrors = {}, hideGeneration = false }: { fieldE
 
       {!hideGeneration && <div className="border-t pt-8" />}
 
-      <section className="space-y-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <Settings2 className="h-5 w-5 text-primary" />
-            <h2 className="text-2xl font-bold tracking-tight">Model & Runtime</h2>
-          </div>
-          <p className="text-muted-foreground">Configure the model your agent will use at runtime.</p>
-        </div>
-
-        <div className="grid gap-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label>Provider</Label>
-              <Select 
-                value={state.runtimeProviderId} 
-                onValueChange={updateRuntimeProvider}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.values(providers).map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Preferred Model</Label>
-              <Select 
-                value={state.manifest.model?.preferred || ''} 
-                onValueChange={v => updateModel('preferred', v)}
-              >
-                <SelectTrigger>
-                  {loadingRuntime ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  <SelectValue placeholder="Select a model..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {runtimeModels.map(m => (
-                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {(isClaudeCode || isGeminiCli) && (
-            <p className="text-xs text-amber-600 font-medium">
-              Restricted to {isClaudeCode ? 'Anthropic' : 'Gemini'} models for {agentName}.
-            </p>
-          )}
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="temperature">Temperature</Label>
-              <Input 
-                id="temperature"
-                type="number"
-                step="0.1"
-                min="0"
-                max="2"
-                placeholder="0.7"
-                value={state.manifest.model?.constraints?.temperature ?? ''}
-                onChange={e => updateConstraints('temperature', parseFloat(e.target.value) || 0)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="max_tokens">Max Tokens</Label>
-              <Input 
-                id="max_tokens"
-                type="number"
-                placeholder="4096"
-                value={state.manifest.model?.constraints?.max_tokens ?? ''}
-                onChange={e => updateConstraints('max_tokens', parseInt(e.target.value) || 0)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="top_p">Top P</Label>
-              <Input 
-                id="top_p"
-                type="number"
-                step="0.05"
-                min="0"
-                max="1"
-                placeholder="1.0"
-                value={state.manifest.model?.constraints?.top_p ?? ''}
-                onChange={e => updateConstraints('top_p', parseFloat(e.target.value) || 0)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="top_k">Top K</Label>
-              <Input 
-                id="top_k"
-                type="number"
-                placeholder="40"
-                value={state.manifest.model?.constraints?.top_k ?? ''}
-                onChange={e => updateConstraints('top_k', parseInt(e.target.value) || 0)}
-              />
-            </div>
-          </div>
-
-          <div className="border-t pt-6" />
-
+      {!hideRuntime && (
+        <section className="space-y-6">
           <div>
-            <h3 className="text-sm font-semibold mb-3">Runtime Settings</h3>
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5 text-primary" />
+              <h2 className="text-2xl font-bold tracking-tight">Model & Runtime</h2>
+            </div>
+            <p className="text-muted-foreground">Configure the model your agent will use at runtime.</p>
+          </div>
+
+          <div className="grid gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Provider</Label>
+                <Select 
+                  value={state.runtimeProviderId} 
+                  onValueChange={updateRuntimeProvider}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(providers).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Preferred Model</Label>
+                <Select 
+                  value={state.manifest.model?.preferred || ''} 
+                  onValueChange={v => updateModel('preferred', v)}
+                >
+                  <SelectTrigger>
+                    {loadingRuntime ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    <SelectValue placeholder="Select a model..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {runtimeModels.map(m => (
+                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {(isClaudeCode || isGeminiCli) && (
+              <p className="text-xs text-amber-600 font-medium">
+                Restricted to {isClaudeCode ? 'Anthropic' : 'Gemini'} models for {agentName}.
+              </p>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="max_turns">Max Turns</Label>
+                <Label htmlFor="temperature">Temperature</Label>
                 <Input 
-                  id="max_turns"
+                  id="temperature"
                   type="number"
-                  placeholder="30"
-                  value={state.manifest.runtime?.max_turns ?? state.runtimeConfig?.max_turns ?? ''}
-                  onChange={e => {
-                    const val = parseInt(e.target.value) || 0;
-                    dispatch({
-                      type: 'UPDATE_MANIFEST',
-                      payload: {
-                        runtime: {
-                          ...(state.manifest.runtime || {}),
-                          max_turns: val,
-                        },
-                      },
-                    });
-                  }}
+                  step="0.1"
+                  min="0"
+                  max="2"
+                  placeholder="0.7"
+                  value={state.manifest.model?.constraints?.temperature ?? ''}
+                  onChange={e => updateConstraints('temperature', parseFloat(e.target.value) || 0)}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="timeout">Timeout (seconds)</Label>
+                <Label htmlFor="max_tokens">Max Tokens</Label>
                 <Input 
-                  id="timeout"
+                  id="max_tokens"
                   type="number"
-                  placeholder="120"
-                  value={state.manifest.runtime?.timeout ?? state.runtimeConfig?.timeout ?? ''}
-                  onChange={e => {
-                    const val = parseInt(e.target.value) || 0;
-                    dispatch({
-                      type: 'UPDATE_MANIFEST',
-                      payload: {
-                        runtime: {
-                          ...(state.manifest.runtime || {}),
-                          timeout: val,
-                        },
-                      },
-                    });
-                  }}
+                  placeholder="4096"
+                  value={state.manifest.model?.constraints?.max_tokens ?? ''}
+                  onChange={e => updateConstraints('max_tokens', parseInt(e.target.value) || 0)}
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="top_p">Top P</Label>
+                <Input 
+                  id="top_p"
+                  type="number"
+                  step="0.05"
+                  min="0"
+                  max="1"
+                  placeholder="1.0"
+                  value={state.manifest.model?.constraints?.top_p ?? ''}
+                  onChange={e => updateConstraints('top_p', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="top_k">Top K</Label>
+                <Input 
+                  id="top_k"
+                  type="number"
+                  placeholder="40"
+                  value={state.manifest.model?.constraints?.top_k ?? ''}
+                  onChange={e => updateConstraints('top_k', parseInt(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+
+            <div className="border-t pt-6" />
+
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Runtime Settings</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="max_turns">Max Turns</Label>
+                  <Input 
+                    id="max_turns"
+                    type="number"
+                    placeholder="30"
+                    value={state.manifest.runtime?.max_turns ?? state.runtimeConfig?.max_turns ?? ''}
+                    onChange={e => {
+                      const val = parseInt(e.target.value) || 0;
+                      dispatch({
+                        type: 'UPDATE_MANIFEST',
+                        payload: {
+                          runtime: {
+                            ...(state.manifest.runtime || {}),
+                            max_turns: val,
+                          },
+                        },
+                      });
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="timeout">Timeout (seconds)</Label>
+                  <Input 
+                    id="timeout"
+                    type="number"
+                    placeholder="120"
+                    value={state.manifest.runtime?.timeout ?? state.runtimeConfig?.timeout ?? ''}
+                    onChange={e => {
+                      const val = parseInt(e.target.value) || 0;
+                      dispatch({
+                        type: 'UPDATE_MANIFEST',
+                        payload: {
+                          runtime: {
+                            ...(state.manifest.runtime || {}),
+                            timeout: val,
+                          },
+                        },
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
