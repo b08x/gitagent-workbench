@@ -37,18 +37,11 @@ export function KnowledgeWorkbench() {
   const [isAdding, setIsAdding] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<KnowledgeEntry | null>(null);
   const [isEditingPreview, setIsEditingPreview] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const knowledge = state.knowledge || { documents: [] };
   const documents = knowledge.documents;
 
-  const filteredDocuments = useMemo(() => {
-    return documents.filter(doc => 
-      doc.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-  }, [documents, searchQuery]);
+  const filteredDocuments = documents;
 
   const tokenBudget = useMemo(() => {
     return documents
@@ -171,131 +164,66 @@ export function KnowledgeWorkbench() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search documents by path, description, or tags..." 
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 border-b">
-                <tr>
-                  <th className="text-left p-4 font-medium">Path</th>
-                  <th className="text-left p-4 font-medium">Tags</th>
-                  <th className="text-left p-4 font-medium">Priority</th>
-                  <th className="text-left p-4 font-medium">Always Load</th>
-                  <th className="text-left p-4 font-medium">Status</th>
-                  <th className="text-right p-4 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredDocuments.map((doc, idx) => (
-                  <tr key={idx} className="hover:bg-muted/30 transition-colors group">
-                    <td className="p-4">
-                      <div className="flex flex-col">
-                        <span className="font-mono font-medium">{doc.path}</span>
-                        {doc.description && <span className="text-[10px] text-muted-foreground line-clamp-1">{doc.description}</span>}
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex flex-wrap gap-1">
-                        {doc.tags?.map(tag => (
-                          <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">
-                            {tag}
-                          </Badge>
-                        ))}
-                        {(!doc.tags || doc.tags.length === 0) && <span className="text-muted-foreground italic text-[10px]">None</span>}
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <Select 
-                        value={doc.priority || 'medium'} 
-                        onValueChange={(val: any) => handleUpdateDocument(idx, { priority: val })}
-                      >
-                        <SelectTrigger className={cn(
-                          "h-7 w-24 text-[10px] font-bold uppercase",
-                          doc.priority === 'high' ? "text-amber-600 border-amber-200 bg-amber-50" :
-                          doc.priority === 'low' ? "text-muted-foreground border-muted bg-muted/20" :
-                          "text-blue-600 border-blue-200 bg-blue-50"
-                        )}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="low">Low</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredDocuments.map((doc, idx) => (
+              <Card 
+                key={idx} 
+                className="group hover:border-primary/50 cursor-pointer transition-all hover:shadow-md flex flex-col"
+                onClick={() => {
+                  setPreviewDoc(doc);
+                  setIsEditingPreview(false);
+                }}
+              >
+                <CardHeader className="p-4 pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="h-4 w-4 text-primary shrink-0" />
+                      <CardTitle className="text-sm truncate font-mono">{doc.path}</CardTitle>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveDocument(idx);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 pt-0 flex-1 space-y-3">
+                   {doc.description && <p className="text-xs text-muted-foreground line-clamp-2">{doc.description}</p>}
+                   <div className="flex flex-wrap gap-1">
+                      {doc.tags?.map(tag => (
+                        <Badge key={tag} variant="secondary" className="text-[9px] px-1 py-0">{tag}</Badge>
+                      ))}
+                   </div>
+                   <div className="flex items-center justify-between mt-auto pt-2 border-t text-[10px]">
                       <div className="flex items-center gap-2">
-                        <Switch 
-                          checked={doc.always_load} 
-                          onCheckedChange={(val) => handleUpdateDocument(idx, { always_load: val })}
-                        />
-                        {doc.always_load && doc.content && (
-                          <span className="text-[10px] text-amber-600 font-medium animate-in fade-in">
-                            ~{Math.round(doc.content.length / 4)} tokens
-                          </span>
-                        )}
+                         <Badge variant="outline" className={cn(
+                           "px-1 py-0",
+                           doc.priority === 'high' ? "text-amber-600 border-amber-200" :
+                           doc.priority === 'low' ? "text-muted-foreground border-muted" :
+                           "text-blue-600 border-blue-200"
+                         )}>{doc.priority || 'medium'}</Badge>
+                         {doc.always_load && <Badge variant="outline" className="text-amber-600 border-amber-200">Always</Badge>}
                       </div>
-                    </td>
-                    <td className="p-4">
-                      {doc.content ? (
-                        <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 text-[10px]">
-                          Uploaded
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground border-muted bg-muted/20 text-[10px]">
-                          Path only
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8"
-                          onClick={() => {
-                            setPreviewDoc(doc);
-                            setIsEditingPreview(false);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8"
-                          onClick={() => {
-                            setPreviewDoc(doc);
-                            setIsEditingPreview(true);
-                          }}
-                        >
-                          <Edit3 className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleRemoveDocument(idx)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      {doc.content && <span className="text-muted-foreground">~{Math.round(doc.content.length / 4)} tokens</span>}
+                   </div>
+                </CardContent>
+              </Card>
+            ))}
+            {!isAdding && (
+               <Card 
+                className="border-dashed hover:bg-accent hover:border-primary/50 cursor-pointer transition-all flex flex-col items-center justify-center p-6 h-40 text-center gap-2"
+                onClick={() => setIsAdding(true)}
+              >
+                 <Plus className="h-8 w-8 text-muted-foreground" />
+                 <span className="font-medium text-muted-foreground">Add Document</span>
+              </Card>
+            )}
         </div>
       )}
 

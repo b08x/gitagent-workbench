@@ -93,7 +93,8 @@ export function ReviewStep({ fieldErrors = {} }: { fieldErrors?: Record<string, 
         
         <TooltipProvider>
           <Tooltip>
-            <TooltipTrigger render={<div className="w-full" />}>
+            <TooltipTrigger asChild>
+              <div className="w-full">
                 <Button 
                   className="w-full h-12 text-lg" 
                   onClick={handleGenerate} 
@@ -101,6 +102,7 @@ export function ReviewStep({ fieldErrors = {} }: { fieldErrors?: Record<string, 
                 >
                   <Rocket className="mr-2 h-5 w-5" /> Generate Agent
                 </Button>
+              </div>
             </TooltipTrigger>
             {Object.keys(fieldErrors).length > 0 && (
               <TooltipContent>

@@ -25,6 +25,7 @@ import {
   CheckCircle2, 
   ArrowUp, 
   ArrowDown,
+  ArrowRight,
   Search,
   Workflow,
   Settings2,
@@ -69,9 +70,9 @@ const TOOLTIP_CONTENT = {
 
 function InfoTip({ content }: { content: string }) {
   return (
-    <TooltipProvider delay={200}>
+    <TooltipProvider delayDuration={200}>
       <Tooltip>
-        <TooltipTrigger>
+        <TooltipTrigger asChild>
           <Info className="h-3.5 w-3.5 text-muted-foreground/60 hover:text-primary cursor-help transition-colors shrink-0" />
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[200px] text-[10px] leading-relaxed p-2">
@@ -143,17 +144,13 @@ export function WorkflowWorkbench() {
   const { state, dispatch } = useAgentWorkspace();
   const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowSchema | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
 
   // ── Derived Data ───────────────────────────────────────────────────────────
 
   const workflows = state.workflows || {};
   const workflowList = Object.entries(workflows).map(([id, w]) => ({ id, ...w }));
   
-  const filteredWorkflows = workflowList.filter(w => 
-    w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    w.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredWorkflows = workflowList;
 
   const activeWorkflow = useMemo(() => {
     if (activeWorkflowId && workflows[activeWorkflowId]) {
@@ -302,72 +299,27 @@ export function WorkflowWorkbench() {
     Object.keys(stepIdErrors).length === 0;
 
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden border-t">
-      {/* Left Panel: Workflow List */}
-      <div className="w-80 border-r bg-muted/30 flex flex-col">
-        <div className="p-4 border-b space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-bold text-lg flex items-center gap-2">
-              <Workflow className="h-5 w-5 text-primary" />
-              Workflows
-            </h2>
-            <Button size="sm" variant="outline" onClick={handleNewWorkflow}>
-              <Plus className="h-4 w-4 mr-1" /> New
-            </Button>
-          </div>
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search workflows..." 
-              className="pl-8 h-9"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-          </div>
+    <div className="container mx-auto py-8 px-4 flex flex-col gap-6 overflow-auto">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Workflow Workbench</h1>
+          <p className="text-muted-foreground">Manage multi-step pipelines for your agents</p>
         </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {filteredWorkflows.map(w => (
-            <div 
-              key={w.id}
-              className={cn(
-                "p-3 rounded-lg border cursor-pointer transition-all hover:bg-accent group relative",
-                activeWorkflowId === w.id ? "bg-accent border-primary" : "bg-card"
-              )}
-              onClick={() => handleSelectWorkflow(w.id)}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-medium text-sm truncate pr-6">{w.name}</span>
-                <Badge variant="secondary" className="text-[10px] h-4 px-1">
-                  {w.steps.length} steps
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground line-clamp-1">{w.description || 'No description'}</p>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-6 w-6 absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteWorkflow(w.id);
-                }}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
-          ))}
-          {filteredWorkflows.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              <p className="text-sm">No workflows found</p>
-            </div>
-          )}
+        <div className="flex items-center gap-2">
+            <Button onClick={handleNewWorkflow}>
+                <Plus className="h-4 w-4 mr-2" /> Create Workflow
+            </Button>
         </div>
       </div>
 
-      {/* Right Panel: Editor */}
-      <div className="flex-1 flex flex-col min-w-0 bg-background">
+      <div className="flex-1">
         {editingWorkflow ? (
-          <>
-            <div className="h-14 border-b px-6 flex items-center justify-between bg-card">
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <Button variant="ghost" size="sm" onClick={() => setEditingWorkflow(null)} className="h-8 -ml-2 text-muted-foreground hover:text-foreground">
+               <ArrowRight className="h-4 w-4 mr-2 rotate-180" /> Back to Workflows
+            </Button>
+            
+            <div className="h-14 border-b flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Workflow className="h-5 w-5 text-primary" />
                 <span className="font-semibold">{editingWorkflow.name || 'Untitled Workflow'}</span>
@@ -388,8 +340,8 @@ export function WorkflowWorkbench() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8">
-              <div className="max-w-4xl mx-auto space-y-12">
+            <div className="p-0 space-y-12 pb-20">
+               <div className="max-w-4xl mx-auto space-y-12">
                 
                 {/* Section 1: Identity */}
                 <section className="space-y-4">
@@ -762,19 +714,44 @@ export function WorkflowWorkbench() {
 
               </div>
             </div>
-          </>
+          </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
-            <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-6">
-              <Workflow className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">Workflow Workbench</h2>
-            <p className="text-muted-foreground max-w-md mb-8">
-              Build deterministic multi-step pipelines with dependency ordering and data flow mapping.
-            </p>
-            <Button onClick={handleNewWorkflow}>
-              <Plus className="h-4 w-4 mr-2" /> Create Your First Workflow
-            </Button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {workflowList.map(w => (
+                <Card 
+                  key={w.id} 
+                  className="group hover:border-primary/50 cursor-pointer transition-all hover:shadow-md h-40 flex flex-col"
+                  onClick={() => handleSelectWorkflow(w.id)}
+                >
+                   <CardHeader className="p-4 pb-0">
+                     <div className="flex items-center justify-between">
+                        <CardTitle className="text-base truncate">{w.name}</CardTitle>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteWorkflow(w.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                        </Button>
+                     </div>
+                   </CardHeader>
+                   <CardContent className="p-4 flex-1">
+                      <p className="text-sm text-muted-foreground line-clamp-2">{w.description || 'No description'}</p>
+                      <Badge variant="secondary" className="mt-2 text-[10px]">{w.steps.length} steps</Badge>
+                   </CardContent>
+                </Card>
+              ))}
+              <Card 
+                className="border-dashed hover:bg-accent hover:border-primary/50 cursor-pointer transition-all flex flex-col items-center justify-center p-6 h-40 text-center gap-2"
+                onClick={handleNewWorkflow}
+              >
+                 <Plus className="h-8 w-8 text-muted-foreground" />
+                 <span className="font-medium text-muted-foreground">Create Workflow</span>
+              </Card>
           </div>
         )}
       </div>

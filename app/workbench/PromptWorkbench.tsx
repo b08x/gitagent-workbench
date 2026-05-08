@@ -48,14 +48,8 @@ export function PromptWorkbench() {
     }
   ]);
   const [activePromptId, setActivePromptId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const activePrompt = prompts.find(p => p.id === activePromptId);
-
-  const filteredPrompts = prompts.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   const createPrompt = () => {
     const newPrompt: PromptTemplate = {
@@ -92,66 +86,27 @@ export function PromptWorkbench() {
   };
 
   return (
-    <div className="container mx-auto py-8 px-4 h-[calc(100vh-4rem)] overflow-hidden flex flex-col gap-6">
+    <div className="container mx-auto py-8 px-4 flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Prompt Workbench</h1>
           <p className="text-muted-foreground">Manage and refine your agent's core instructions</p>
         </div>
         <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setActivePromptId(null)}>
-                <Search className="h-4 w-4 mr-2" /> Gallery
-            </Button>
             <Button onClick={createPrompt}>
-                <Plus className="h-4 w-4 mr-2" /> New Prompt
+                <Plus className="h-4 w-4 mr-2" /> Create Prompt
             </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
-        <div className="grid grid-cols-12 gap-8 h-full">
-          {/* Sidebar */}
-          <div className="col-span-3 flex flex-col gap-4 h-full border-r pr-6">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search prompts..." 
-                className="pl-8"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-2">
-              {filteredPrompts.map(p => (
-                <div
-                  key={p.id}
-                  onClick={() => setActivePromptId(p.id)}
-                  className={cn(
-                    "group flex flex-col p-3 rounded-lg border cursor-pointer transition-all hover:bg-accent",
-                    activePromptId === p.id ? "bg-accent border-primary" : "bg-card"
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="font-medium truncate">{p.name}</p>
-                    <Trash2 
-                      className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deletePrompt(p.id);
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground line-clamp-1">{p.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Main Editor */}
-          <div className="col-span-9 h-full overflow-hidden flex flex-col">
-            {activePrompt ? (
-              <Card className="h-full border-0 shadow-none flex flex-col overflow-hidden">
+      <div className="flex-1">
+        {activePrompt ? (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <Button variant="ghost" size="sm" onClick={() => setActivePromptId(null)} className="h-8 -ml-2 text-muted-foreground hover:text-foreground">
+               <ArrowRight className="h-4 w-4 mr-2 rotate-180" /> Back to Gallery
+            </Button>
+            
+            <Card className="border shadow-none flex flex-col overflow-hidden">
                 <CardHeader className="px-0 pt-0 pb-6 shrink-0">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
@@ -203,40 +158,48 @@ export function PromptWorkbench() {
                   </div>
                 </CardContent>
               </Card>
-            ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center space-y-8">
-                <div className="space-y-2">
-                  <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Terminal className="h-10 w-10 text-primary" />
-                  </div>
-                  <h3 className="text-2xl font-bold">Instruction Library</h3>
-                  <p className="text-muted-foreground max-w-md mx-auto">
-                    Select a core instruction set to refine, or create a new one. 
-                    You can generate prompts based on your agent's goals.
-                  </p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 w-full max-w-2xl">
-                    <Card className="hover:bg-accent cursor-pointer transition-colors" onClick={createPrompt}>
-                        <CardContent className="p-6 flex flex-col items-center gap-2">
-                            <Plus className="h-6 w-6 text-primary" />
-                            <p className="font-bold">Blank Template</p>
-                            <p className="text-xs text-muted-foreground text-center">Start from scratch</p>
-                        </CardContent>
+            </div>
+          ) : (
+              <div className="space-y-8">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {prompts.map(p => (
+                      <Card 
+                        key={p.id} 
+                        className="group hover:border-primary/50 cursor-pointer transition-all hover:shadow-md h-40 flex flex-col"
+                        onClick={() => setActivePromptId(p.id)}
+                      >
+                         <CardHeader className="p-4 pb-0">
+                           <div className="flex items-center justify-between">
+                              <CardTitle className="text-base truncate">{p.name}</CardTitle>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deletePrompt(p.id);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                              </Button>
+                           </div>
+                         </CardHeader>
+                         <CardContent className="p-4 flex-1">
+                            <p className="text-sm text-muted-foreground line-clamp-3">{p.description}</p>
+                         </CardContent>
+                      </Card>
+                    ))}
+                    <Card 
+                      className="border-dashed hover:bg-accent hover:border-primary/50 cursor-pointer transition-all flex flex-col items-center justify-center p-6 h-40 text-center gap-2"
+                      onClick={createPrompt}
+                    >
+                       <Plus className="h-8 w-8 text-muted-foreground" />
+                       <span className="font-medium text-muted-foreground">Create Branch</span>
                     </Card>
-                    <Card className="hover:bg-accent cursor-pointer transition-colors">
-                        <CardContent className="p-6 flex flex-col items-center gap-2 opacity-50">
-                            <Sparkles className="h-6 w-6 text-purple-500" />
-                            <p className="font-bold">Auto-Generate</p>
-                            <p className="text-xs text-muted-foreground text-center">Using Gemini Flash</p>
-                        </CardContent>
-                    </Card>
-                </div>
+                 </div>
               </div>
             )}
-          </div>
         </div>
-      </div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import * as React from 'react';
+import { createContext, useContext, useReducer, ReactNode } from 'react';
 import { AgentWorkspace, StructureType, ParsedSkill } from '../../lib/gitagent/types';
 
 type Action =
