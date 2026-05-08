@@ -407,6 +407,53 @@ export function serializeSkill(skill: any): string {
   return `---\n${frontmatterYaml}\n---\n\n${skill.instructions || ''}`;
 }
 
+export async function serializeSkillZip(skill: any): Promise<Blob> {
+  const zip = new JSZip();
+  const skillName = skill.name || 'skill';
+  
+  // ── SKILL.md ─────────────────────────────────────────────────────────────
+  zip.file('SKILL.md', serializeSkill(skill));
+
+  // ── references/ ──────────────────────────────────────────────────────────
+  if (skill.references && skill.references.length > 0) {
+    skill.references.forEach((ref: any) => {
+      if (ref.content) {
+        zip.file(`references/${ref.filename}`, ref.content);
+      }
+    });
+  }
+
+  // ── scripts/ ─────────────────────────────────────────────────────────────
+  if (skill.scripts && skill.scripts.length > 0) {
+    skill.scripts.forEach((script: any) => {
+      if (script.content) {
+        zip.file(`scripts/${script.filename}`, script.content);
+      }
+    });
+  }
+
+  // ── assets/ ──────────────────────────────────────────────────────────────
+  if (skill.assets && skill.assets.length > 0) {
+    skill.assets.forEach((asset: any) => {
+      if (asset.content) {
+        // base64 to binary
+        zip.file(`assets/${asset.filename}`, asset.content, { base64: true });
+      }
+    });
+  }
+
+  // ── workflows/ ───────────────────────────────────────────────────────────
+  if (skill.workflows && skill.workflows.length > 0) {
+    skill.workflows.forEach((wf: any) => {
+      if (wf.content) {
+        zip.file(`workflows/${wf.filename}`, wf.content);
+      }
+    });
+  }
+
+  return await zip.generateAsync({ type: 'blob' });
+}
+
 // Recursively remove null/undefined so serialized YAML is clean and doesn't
 // trip gitagent's additionalProperties check on agent.yaml.
 function stripNulls(obj: unknown): unknown {

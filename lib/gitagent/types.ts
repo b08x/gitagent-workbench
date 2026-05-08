@@ -101,9 +101,11 @@ export interface SkillDefinition {
   allowedTools: string[];
   metadata: SkillMetadata;
   instructions: string;
-  references: Array<{ filename: string; description: string; trigger: string }>;
+  references: Array<{ filename: string; description: string; trigger: string; content?: string }>;
   examples: SkillExample[];
-  scripts: string[]; // Just filenames
+  scripts: Array<{ filename: string; content: string }>;
+  assets?: Array<{ filename: string; content: string; type: string }>;
+  workflows?: Array<{ filename: string; content: string }>;
 }
 
 export interface ParsedSkill {
@@ -115,9 +117,11 @@ export interface ParsedSkill {
   license?: string;
   compatibility?: string;
   metadata?: Record<string, any>;
-  references: Array<{ filename: string; description: string; trigger: string }>;
+  references: Array<{ filename: string; description: string; trigger: string; content?: string }>;
   examples?: Array<{ input: string; output: string }>;
-  scripts?: string[];
+  scripts?: Array<{ filename: string; content: string }>;
+  assets?: Array<{ filename: string; content: string; type: string }>;
+  workflows?: Array<{ filename: string; content: string }>;
 }
 
 // ─── Tools ──────────────────────────────────────────────────────────────────

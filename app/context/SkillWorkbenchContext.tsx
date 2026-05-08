@@ -33,7 +33,9 @@ const initialSkill: SkillDefinition = {
   instructions: '',
   references: [],
   examples: [],
-  scripts: []
+  scripts: [],
+  assets: [],
+  workflows: []
 };
 
 export function SkillWorkbenchProvider({ children }: { children: ReactNode }) {

@@ -14,6 +14,8 @@ import { InstructionsEditor } from './InstructionsEditor';
 import { ReferencesManager } from './ReferencesManager';
 import { ExamplesManager } from './ExamplesManager';
 import { ScriptsPanel } from './ScriptsPanel';
+import { AssetsManager } from './AssetsManager';
+import { WorkflowsManager } from './WorkflowsManager';
 import { SkillPreview } from './SkillPreview';
 import { SkillImport } from './SkillImport';
 import { ParsedSkill } from '../../../lib/gitagent/types';
@@ -70,7 +72,9 @@ export function SkillWorkbench() {
       },
       references: skill.references || [],
       examples: skill.examples || [],
-      scripts: skill.scripts || []
+      scripts: skill.scripts || [],
+      assets: skill.assets || [],
+      workflows: skill.workflows || []
     });
 
     agentDispatch({
@@ -89,9 +93,10 @@ export function SkillWorkbench() {
           <h1 className="text-3xl font-bold tracking-tight">Skill Workbench</h1>
           <p className="text-muted-foreground">Author and manage standalone agent capabilities</p>
         </div>
-        <Tabs value={topTab} onValueChange={setTopTab} className="w-[400px]">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs value={topTab} onValueChange={setTopTab} className="w-[500px]">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="my-skills">My Skills</TabsTrigger>
+            <TabsTrigger value="blueprints">Blueprints</TabsTrigger>
             <TabsTrigger value="create" onClick={() => { createSkill(); setTopTab('my-skills'); }}>Create</TabsTrigger>
             <TabsTrigger value="import">Import</TabsTrigger>
           </TabsList>
@@ -176,12 +181,14 @@ export function SkillWorkbench() {
                     </div>
 
                     <Tabs defaultValue="identity" className="w-full">
-                      <TabsList className="grid w-full grid-cols-6">
+                      <TabsList className="grid w-full grid-cols-8">
                         <TabsTrigger value="identity">Identity</TabsTrigger>
                         <TabsTrigger value="tools">Tools</TabsTrigger>
                         <TabsTrigger value="instructions">Instructions</TabsTrigger>
                         <TabsTrigger value="examples">Examples</TabsTrigger>
                         <TabsTrigger value="resources">Resources</TabsTrigger>
+                        <TabsTrigger value="assets">Assets</TabsTrigger>
+                        <TabsTrigger value="workflows">Workflows</TabsTrigger>
                         <TabsTrigger value="preview">Preview</TabsTrigger>
                       </TabsList>
 
@@ -208,6 +215,14 @@ export function SkillWorkbench() {
                         </div>
                       </TabsContent>
 
+                      <TabsContent value="assets" className="mt-6">
+                        <AssetsManager skill={activeSkill} />
+                      </TabsContent>
+
+                      <TabsContent value="workflows" className="mt-6">
+                        <WorkflowsManager skill={activeSkill} />
+                      </TabsContent>
+
                       <TabsContent value="preview" className="mt-6">
                         <SkillPreview skill={activeSkill} />
                       </TabsContent>
@@ -229,6 +244,25 @@ export function SkillWorkbench() {
                     </Button>
                   </div>
                 )}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="blueprints" className="h-full mt-0">
+            <div className="h-full flex flex-col items-center justify-center text-center space-y-6">
+              <div className="p-8 rounded-full bg-primary/5">
+                <BookOpen className="h-16 w-16 text-primary/40" />
+              </div>
+              <div className="max-w-md space-y-2">
+                <h2 className="text-2xl font-bold">RAG Blueprints</h2>
+                <p className="text-muted-foreground leading-relaxed">
+                  Future Capability: This section will connect to a vector-backed RAG store. 
+                  You will be able to search and retrieve skill blueprints to bootstrap new agent capabilities.
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <Button variant="outline" className="opacity-50 cursor-not-allowed">Connect Vector DB</Button>
+                <Button variant="outline" className="opacity-50 cursor-not-allowed">Index Skills</Button>
               </div>
             </div>
           </TabsContent>
