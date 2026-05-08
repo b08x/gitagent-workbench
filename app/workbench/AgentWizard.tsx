@@ -113,7 +113,7 @@ export function AgentWizard() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)] bg-background border rounded-xl overflow-hidden shadow-lg mx-auto max-w-4xl">
+    <div className="flex flex-col h-full bg-background border rounded-xl overflow-hidden shadow-lg mx-auto w-full">
       {/* Header */}
       <div className="px-6 py-4 border-b bg-card flex items-center justify-between">
         <div className="flex items-center gap-3">
