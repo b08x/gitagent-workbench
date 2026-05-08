@@ -37,7 +37,7 @@ export function SettingsPanel() {
         />
       </div>
 
-      <ModelStep />
+      <ModelStep hideRuntime={true} />
 
       <TaskModelSettings />
       
