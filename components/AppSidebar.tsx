@@ -30,6 +30,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail,
+  useSidebar,
 } from "./ui/sidebar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@radix-ui/react-collapsible"
 import { Link, useLocation } from "react-router-dom"
@@ -47,6 +48,11 @@ const items: SidebarItem[] = [
     title: "Dashboard",
     url: "/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Docs",
+    url: "/docs",
+    icon: BookOpen,
   },
   {
     title: "Workbenches",
@@ -107,14 +113,32 @@ const items: SidebarItem[] = [
 
 export function AppSidebar() {
   const location = useLocation()
+  const { setOpen, open } = useSidebar()
+
+  const handleMouseEnter = () => {
+    setOpen(true)
+  }
+
+  const handleMouseLeave = () => {
+    setOpen(false)
+  }
+
+  const handleAction = () => {
+    setOpen(false)
+  }
 
   return (
-    <Sidebar collapsible="icon" variant="inset">
+    <Sidebar 
+      collapsible="icon" 
+      variant="inset"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link to="/">
+              <Link to="/" onClick={handleAction}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
                   GA
                 </div>
@@ -170,7 +194,7 @@ export function AppSidebar() {
                                         {subItem.items.map((deepItem) => (
                                           <SidebarMenuSubItem key={deepItem.title}>
                                             <SidebarMenuSubButton asChild isActive={location.pathname === deepItem.url}>
-                                              <Link to={deepItem.url || "#"}>
+                                              <Link to={deepItem.url || "#"} onClick={handleAction}>
                                                 {deepItem.icon && <deepItem.icon className="h-4 w-4" />}
                                                 <span>{deepItem.title}</span>
                                               </Link>
@@ -184,7 +208,7 @@ export function AppSidebar() {
                               ) : (
                                 <SidebarMenuSubItem>
                                   <SidebarMenuSubButton asChild isActive={location.pathname === subItem.url}>
-                                    <Link to={subItem.url}>
+                                    <Link to={subItem.url} onClick={handleAction}>
                                       {subItem.icon && <subItem.icon className="h-4 w-4" />}
                                       <span>{subItem.title}</span>
                                     </Link>
@@ -199,7 +223,7 @@ export function AppSidebar() {
                   </Collapsible>
                 ) : (
                   <SidebarMenuButton asChild tooltip={item.title} isActive={location.pathname === item.url}>
-                    <Link to={item.url}>
+                    <Link to={item.url} onClick={handleAction}>
                       {item.icon && <item.icon />}
                       <span>{item.title}</span>
                     </Link>

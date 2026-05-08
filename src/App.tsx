@@ -18,6 +18,7 @@ import { Dashboard } from '../app/workbench/Dashboard';
 import { PromptWorkbench } from '../app/workbench/PromptWorkbench';
 import { VersionControl } from '../app/workbench/VersionControl';
 import { GitIntegration } from '../app/workbench/GitIntegration';
+import { DocsPage } from '../app/documentation/DocsPage';
 import { SettingsView } from '../app/settings/SettingsView';
 import { Button } from '../components/ui/button';
 import { Settings, Github, Package, X, Download, BookOpen, Workflow, Database, MessageSquare } from 'lucide-react';
@@ -57,6 +58,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/docs" element={<DocsPage />} />
           <Route path="/workbench/agent" element={<AgentWorkbench />} />
           <Route path="/workbench/prompts" element={<PromptWorkbench />} />
           <Route path="/wizard" element={<Navigate to="/workbench/agent?tab=architect" replace />} />
