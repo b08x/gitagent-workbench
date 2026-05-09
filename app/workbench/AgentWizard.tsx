@@ -15,7 +15,6 @@ import {
   Save
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { GoogleGenAI, Type } from "@google/genai";
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -56,22 +55,6 @@ export function AgentWizard() {
     setContextFiles(contextFiles.filter((_, i) => i !== index));
   };
 
-  const fileToPart = async (file: File): Promise<any> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64Data = (reader.result as string).split(',')[1];
-        resolve({
-          inlineData: {
-            data: base64Data,
-            mimeType: file.type || 'application/octet-stream',
-          },
-        });
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleSend = async () => {
     if (!input.trim() && contextFiles.length === 0) return;
     if (isProcessing) return;
@@ -82,7 +65,7 @@ export function AgentWizard() {
     setIsProcessing(true);
 
     try {
-      const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const { providerId, modelId, parameters } = settings.taskModels.architect;
       
       const assistantMessage: ChatMessage = { 
         role: 'assistant', 
@@ -90,7 +73,23 @@ export function AgentWizard() {
       };
       setMessages(prev => [...prev, assistantMessage]);
 
-      const fileParts = await Promise.all(contextFiles.map(fileToPart));
+      const fileParts = await Promise.all(contextFiles.map(async (file) => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64Data = (reader.result as string).split(',')[1];
+            // Format for Vercel AI SDK multimodal
+            if (file.type.startsWith('image/')) {
+              resolve({ type: 'image', image: base64Data, mimeType: file.type });
+            } else {
+              // For non-images, we'll try to pass as file if the provider supports it, 
+              // or just provide it as text if it's a known text type
+              resolve({ type: 'file', data: base64Data, mimeType: file.type || 'application/octet-stream' });
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      }));
       
       const systemInstruction = `You are an expert AI Architect. Your goal is to design an agent based on user requests and provided context documents.
       You must respond in JSON format with the following schema:
@@ -111,42 +110,62 @@ export function AgentWizard() {
       - INTEGRATE ALL RELEVANT INFORMATION from any provided documents into the Soul and Rules.
       - The agent name MUST be kebab-case.`;
 
-      const response = await client.models.generateContent({
-        model: "gemini-2.0-flash-exp",
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: systemInstruction },
-              ...fileParts,
-              { text: `User Prompt: ${input}` }
-            ]
-          }
-        ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              manifest: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  description: { type: Type.STRING }
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          providerId,
+          modelId,
+          options: parameters,
+          prompt: {
+            system: systemInstruction,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: `User Prompt: ${input}` },
+                  ...fileParts
+                ]
+              }
+            ],
+            schema: {
+              type: "object",
+              properties: {
+                manifest: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    description: { type: "string" }
+                  },
+                  required: ["name", "description"]
                 },
-                required: ["name", "description"]
+                soul: { type: "string" },
+                rules: { type: "string" },
+                skills: { type: "string" },
+                explanation: { type: "string" }
               },
-              soul: { type: Type.STRING },
-              rules: { type: Type.STRING },
-              skills: { type: Type.STRING },
-              explanation: { type: Type.STRING }
-            },
-            required: ["manifest", "soul", "rules", "skills", "explanation"]
+              required: ["manifest", "soul", "rules", "skills", "explanation"]
+            }
           }
-        }
+        })
       });
 
-      const result = JSON.parse(response.text);
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        } else {
+          const text = await response.text();
+          console.error('Non-JSON error response:', text);
+          throw new Error(`Server error (${response.status}): ${text.substring(0, 100)}...`);
+        }
+      }
+
+      const data = await response.json();
+      const result = data.object;
 
       // Update workspace
       dispatch({

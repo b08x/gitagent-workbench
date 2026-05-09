@@ -31,6 +31,7 @@ export interface AppConfig {
     chatTests: TaskConfig;
     memorySeeding: TaskConfig;
     documentation: TaskConfig;
+    architect: TaskConfig;
   };
 }
 
@@ -56,6 +57,7 @@ const DEFAULTS: AppConfig = {
     chatTests: { providerId: 'openrouter', modelId: '' },
     memorySeeding: { providerId: 'openrouter', modelId: '' },
     documentation: { providerId: 'openrouter', modelId: '' },
+    architect: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
   }
 };
 

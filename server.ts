@@ -3,7 +3,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { generateText, streamText, Output, APICallError, InvalidArgumentError, TypeValidationError, jsonSchema } from "ai";
+import { generateText, generateObject, streamText, APICallError, InvalidArgumentError, TypeValidationError } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -22,7 +22,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '20mb' }));
+  app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
   // In-memory key storage for this session (demo purposes as requested)
   // Maps providerId to key. Pre-fill from environment variables.
@@ -114,20 +115,41 @@ async function startServer() {
       const provider = getProvider(providerId, apiKey);
       const model = provider(modelId);
 
-      const result = await generateText({
+      const generateOptions: any = {
         model,
         system: prompt.system,
-        prompt: prompt.user,
-        experimental_output: prompt.schema ? Output.object({ schema: jsonSchema(prompt.schema) }) : undefined,
         ...options
-      });
+      };
 
-      res.json({ text: result.text, object: result.experimental_output });
+      if (prompt.messages && prompt.messages.length > 0) {
+        generateOptions.messages = prompt.messages;
+      } else if (prompt.user) {
+        generateOptions.prompt = prompt.user;
+      }
+
+      if (prompt.schema) {
+        const result = await generateObject({
+          ...generateOptions,
+          output: 'object',
+          schema: prompt.schema, // generateObject supports JSON schema directly in some versions or via z.object
+        });
+        return res.json({ object: result.object });
+      } else {
+        const result = await generateText(generateOptions);
+        return res.json({ text: result.text });
+      }
     } catch (error: any) {
       console.error("Proxy Generate Error:", error);
       const status = mapErrorToStatus(error);
-      res.status(status).json({ error: error.message });
+      res.status(status).json({ 
+        error: error.message,
+        details: error.details || undefined
+      });
     }
+  });
+
+  app.get("/api/health", (req, res) => {
+    res.json({ ok: true, timestamp: new Date().toISOString() });
   });
 
   app.post("/api/stream", async (req, res) => {
@@ -208,6 +230,10 @@ async function startServer() {
     }
   });
 
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -228,4 +254,6 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("CRITICAL: Failed to start server:", err);
+});
