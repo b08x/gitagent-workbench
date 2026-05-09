@@ -8,8 +8,9 @@ package-lock.json
 .env.example
 tea_debug.log
 docker-compose.yml
+*.zip
 
-**/tests/*
+tests/
 
 .ck/
 .ckignore
