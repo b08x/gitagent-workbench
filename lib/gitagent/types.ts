@@ -80,6 +80,16 @@ export interface AgentManifest {
 
 // ─── Skills ─────────────────────────────────────────────────────────────────
 
+export type SkillCategory = 'general' | 'research' | 'code' | 'compliance' | 'communication';
+
+export interface SkillEntry {
+  name: string;
+  description: string;
+  instructions: string;
+  allowedTools?: string;
+  category: SkillCategory;
+}
+
 export interface SkillMetadata {
   author?: string;
   version?: string;

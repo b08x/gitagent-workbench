@@ -1,20 +1,8 @@
 import * as React from 'react';
 import { createContext, useContext, useReducer, ReactNode } from 'react';
-import { AgentWorkspace, StructureType, ParsedSkill } from '../../lib/gitagent/types';
-
-type Action =
-  | { type: 'SET_WORKSPACE'; payload: AgentWorkspace }
-  | { type: 'UPDATE_META'; payload: Partial<AgentWorkspace['meta']> }
-  | { type: 'UPDATE_MANIFEST'; payload: Partial<AgentWorkspace['manifest']> }
-  | { type: 'SET_FILE'; payload: { path: string; content: string } }
-  | { type: 'UPDATE_WORKSPACE'; payload: Partial<ExtendedWorkspace> }
-  | { type: 'ADD_SKILL'; payload: ParsedSkill }
-  | { type: 'SET_TEMPLATE'; payload: 'minimal' | 'standard' | 'full' | 'data-analyst' | 'web-scraper' | 'researcher' }
-  | { type: 'ADD_SCAFFOLD_CONTEXT'; payload: ScaffoldContextFile }
-  | { type: 'REMOVE_SCAFFOLD_CONTEXT'; payload: string }
-  | { type: 'SAVE_SNAPSHOT'; payload: string }
-  | { type: 'RESTORE_SNAPSHOT'; payload: number }
-  | { type: 'DELETE_SNAPSHOT'; payload: number };
+import { AgentWorkspace, StructureType, ParsedSkill, SkillEntry } from '../../lib/gitagent/types';
+import { assembleSoul, assembleRules } from '@/lib/gitagent/assembleSystemPrompt';
+import { parseMarkdownToFineGrained } from '@/lib/gitagent/parser';
 
 export interface ScaffoldContextFile {
   name: string;
@@ -23,13 +11,19 @@ export interface ScaffoldContextFile {
   dataUrl?: string;
 }
 
-export interface SkillEntry {
-  name: string;
-  description: string;
-  instructions: string;
-  allowedTools?: string;
-  category: 'general' | 'research' | 'code' | 'compliance' | 'communication';
-}
+type Action =
+  | { type: 'SET_WORKSPACE'; payload: AgentWorkspace }
+  | { type: 'UPDATE_META'; payload: Partial<AgentWorkspace['meta']> }
+  | { type: 'UPDATE_MANIFEST'; payload: Partial<AgentWorkspace['manifest']> }
+  | { type: 'SET_FILE'; payload: { path: string; content: string } }
+  | { type: 'UPDATE_WORKSPACE'; payload: Partial<ExtendedWorkspace> }
+  | { type: 'ADD_SKILL'; payload: ParsedSkill }
+  | { type: 'SET_TEMPLATE'; payload: StructureType }
+  | { type: 'ADD_SCAFFOLD_CONTEXT'; payload: ScaffoldContextFile }
+  | { type: 'REMOVE_SCAFFOLD_CONTEXT'; payload: string }
+  | { type: 'SAVE_SNAPSHOT'; payload: string }
+  | { type: 'RESTORE_SNAPSHOT'; payload: number }
+  | { type: 'DELETE_SNAPSHOT'; payload: number };
 
 export interface ToolEntry {
   name: string;
@@ -98,7 +92,7 @@ export interface HookEntry {
 }
 
 interface ExtendedWorkspace extends AgentWorkspace {
-  selectedTemplate: 'minimal' | 'standard' | 'full' | 'data-analyst' | 'web-scraper' | 'researcher';
+  selectedTemplate: StructureType;
   'core-identity'?: string;
   'communication-style'?: string;
   'values-principles'?: string;
@@ -307,10 +301,51 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
     case 'UPDATE_MANIFEST':
       return { ...state, manifest: { ...state.manifest, ...action.payload } };
     case 'UPDATE_WORKSPACE':
-      return { ...state, ...action.payload };
+      let payload = { ...action.payload };
+      
+      // Auto-parse soul/rules/skills if they are being updated in bulk
+      if (payload.soul) {
+        const soulUpdates = parseMarkdownToFineGrained(payload.soul, 'soul');
+        payload = { ...payload, ...soulUpdates };
+        if (soulUpdates['core-identity']) {
+          payload.manifest = { 
+            ...(state.manifest || {}), 
+            ...(payload.manifest || {}), 
+            description: soulUpdates['core-identity'] 
+          };
+        }
+      }
+      if (payload.rules) {
+        const rulesUpdates = parseMarkdownToFineGrained(payload.rules, 'rules');
+        payload = { ...payload, ...rulesUpdates };
+      }
+      if (payload.skills && typeof payload.skills === 'string') {
+        // Special case where skills might be sent as a markdown block
+        const skillsUpdates = parseMarkdownToFineGrained(payload.skills, 'skills');
+        payload = { ...payload, ...skillsUpdates };
+      }
+
+      return { ...state, ...payload };
     case 'SET_FILE':
-      // Simplified file setter
-      return { ...state, [action.payload.path]: action.payload.content };
+      const filePayload = action.payload;
+      let nextState = { ...state, [filePayload.path]: filePayload.content };
+      
+      // Sync from file content back to structured fields
+      if (filePayload.path === 'soul') {
+        const soulUpdates = parseMarkdownToFineGrained(filePayload.content, 'soul');
+        nextState = { ...nextState, ...soulUpdates };
+        if (soulUpdates['core-identity']) {
+          nextState.manifest = { ...nextState.manifest, description: soulUpdates['core-identity'] };
+        }
+      } else if (filePayload.path === 'rules') {
+        const rulesUpdates = parseMarkdownToFineGrained(filePayload.content, 'rules');
+        nextState = { ...nextState, ...rulesUpdates };
+      } else if (filePayload.path === 'skills') {
+        const skillsUpdates = parseMarkdownToFineGrained(filePayload.content, 'skills');
+        nextState = { ...nextState, ...skillsUpdates };
+      }
+
+      return nextState;
     case 'SET_TEMPLATE':
       return { ...state, selectedTemplate: action.payload, meta: { ...state.meta, structureType: action.payload } };
     case 'ADD_SKILL':

@@ -1,10 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAgentWorkspace } from '../context/AgentContext';
 import { useSettings } from '../context/SettingsContext';
-import { providers } from '../../lib/providers';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
   Send, 
   Upload, 
@@ -12,13 +10,12 @@ import {
   Bot, 
   User, 
   Sparkles, 
-  AlertCircle, 
-  CheckCircle2,
   Loader2,
   FileText,
   Save
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { GoogleGenAI, Type } from "@google/genai";
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -59,6 +56,22 @@ export function AgentWizard() {
     setContextFiles(contextFiles.filter((_, i) => i !== index));
   };
 
+  const fileToPart = async (file: File): Promise<any> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Data = (reader.result as string).split(',')[1];
+        resolve({
+          inlineData: {
+            data: base64Data,
+            mimeType: file.type || 'application/octet-stream',
+          },
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleSend = async () => {
     if (!input.trim() && contextFiles.length === 0) return;
     if (isProcessing) return;
@@ -69,29 +82,84 @@ export function AgentWizard() {
     setIsProcessing(true);
 
     try {
-      // In a real implementation, we'd send the prompt + context to Gemini
-      // and get a structured response that updates the workspace.
-      // For this demo, we'll simulate the "understanding" and population.
-
+      const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      
       const assistantMessage: ChatMessage = { 
         role: 'assistant', 
         content: "I'm analyzing your request and context to configure your agent..." 
       };
       setMessages(prev => [...prev, assistantMessage]);
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Mock "understanding" from prompt
-      const detectedName = input.match(/named? ([\w\s-]+)/i)?.[1] || "New Agent";
+      const fileParts = await Promise.all(contextFiles.map(fileToPart));
       
-      // Update workspace based on prompt (simulation)
+      const systemInstruction = `You are an expert AI Architect. Your goal is to design an agent based on user requests and provided context documents.
+      You must respond in JSON format with the following schema:
+      {
+        "manifest": {
+          "name": "string (kebab-case)",
+          "description": "string (one sentence)"
+        },
+        "soul": "Markdown string with ## sections (Core Identity, Communication Style, Values & Principles, Domain Expertise, Collaboration Style)",
+        "rules": "Markdown string with ## sections (Must Always, Must Never, Output Constraints, Interaction Boundaries)",
+        "skills": "Markdown string with ## Skill: Name sections",
+        "explanation": "Brief explanation of what was updated"
+      }
+      
+      Guidelines:
+      - Core Identity should strictly reflect the agent purpose.
+      - Skills should be detailed and include allowed tools if applicable.
+      - INTEGRATE ALL RELEVANT INFORMATION from any provided documents into the Soul and Rules.
+      - The agent name MUST be kebab-case.`;
+
+      const response = await client.models.generateContent({
+        model: "gemini-2.0-flash-exp",
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: systemInstruction },
+              ...fileParts,
+              { text: `User Prompt: ${input}` }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              manifest: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  description: { type: Type.STRING }
+                },
+                required: ["name", "description"]
+              },
+              soul: { type: Type.STRING },
+              rules: { type: Type.STRING },
+              skills: { type: Type.STRING },
+              explanation: { type: Type.STRING }
+            },
+            required: ["manifest", "soul", "rules", "skills", "explanation"]
+          }
+        }
+      });
+
+      const result = JSON.parse(response.text);
+
+      // Update workspace
       dispatch({
-        type: 'UPDATE_MANIFEST',
+        type: 'UPDATE_WORKSPACE',
         payload: {
-          name: detectedName,
-          description: `An agent built to: ${input}`,
-          version: '0.1.0'
+          manifest: {
+            ...state.manifest,
+            name: result.manifest.name,
+            description: result.manifest.description
+          },
+          soul: result.soul,
+          rules: result.rules,
+          skills: result.skills // Note: AgentContext should parse this string
         }
       });
 
@@ -99,14 +167,17 @@ export function AgentWizard() {
         ...prev.slice(0, -1), 
         { 
           role: 'assistant', 
-          content: `Great! I've updated your agent's identity based on your request. I named it "${detectedName}" and set the initial description. What else should it be able to do?` 
+          content: result.explanation || "I've updated your agent configuration based on the provided input and context."
         }
       ]);
 
       setContextFiles([]);
     } catch (err) {
       console.error(err);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I had trouble processing that request." }]);
+      setMessages(prev => [
+        ...prev.slice(0, -1),
+        { role: 'assistant', content: "Sorry, I had trouble processing that request. Please ensure your prompt is clear and files are readable." }
+      ]);
     } finally {
       setIsProcessing(false);
     }
