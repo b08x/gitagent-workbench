@@ -40,6 +40,26 @@ export function SettingsPanel() {
       <ModelStep hideRuntime={true} />
 
       <TaskModelSettings />
+
+      <div className="bg-muted/30 border rounded-lg p-4 space-y-2">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Settings2 className="h-4 w-4" />
+          Persistence Status
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          API keys entered manually are session-only. To persist them, use the <span className="font-bold text-foreground">Secrets</span> button in the AI Studio header.
+        </p>
+        <div className="flex flex-wrap gap-2 pt-1">
+          {settings.envProviders?.map(pid => (
+            <Badge key={pid} variant="secondary" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/20 capitalize">
+              {pid} Ready
+            </Badge>
+          ))}
+          {(!settings.envProviders || settings.envProviders.length === 0) && (
+            <p className="text-[10px] text-muted-foreground italic">No persistent keys found.</p>
+          )}
+        </div>
+      </div>
       
       <div className="space-y-4 border-t pt-6">
         <div className="flex items-center gap-2">

@@ -59,6 +59,25 @@ export async function fetchChatModels(
 ): Promise<ModelOption[]> {
   // Deduplicate by ID before returning
   const results = await (async () => {
+    // Try server-side proxy if no local API key or if it's a masked key
+    if (!apiKey || apiKey === '********' || providerId === 'openai') {
+      try {
+        const res = await fetch(`/api/models/${providerId}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) {
+            return json.data.map((m: any) => ({
+              id: m.id,
+              name: m.id,
+              raw: m.id
+            }));
+          }
+        }
+      } catch (e) {
+        console.warn(`Server-side model fetch failed for ${providerId}, falling back to client or curated.`);
+      }
+    }
+
     if (providerId === 'openrouter') {
       const res = await fetch('https://openrouter.ai/api/v1/models');
       if (!res.ok) throw new Error(`OpenRouter models fetch failed: ${res.status}`);

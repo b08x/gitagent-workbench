@@ -18,18 +18,11 @@ import {
   FileText, 
   Loader2, 
   Sparkles,
-  Zap,
-  Brain,
-  Bot,
-  Cloud,
-  Wind,
-  Globe,
-  Monitor,
-  Info,
-  Layers
+  Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ProviderIcon } from '@lobehub/icons';
 
 const TASKS = [
   { id: 'scripts', name: 'Scripts/Tools Generation', icon: Cpu },
@@ -40,18 +33,6 @@ const TASKS = [
   { id: 'documentation', name: 'Documentation', icon: FileText },
   { id: 'architect', name: 'Agent Architect AI', icon: Sparkles },
 ] as const;
-
-const PROVIDER_ICONS: Record<string, any> = {
-  google: Cloud,
-  anthropic: Brain,
-  openai: Bot,
-  mistral: Wind,
-  groq: Zap,
-  ollama: Monitor,
-  openrouter: Globe,
-};
-
-const FallbackIcon = Layers;
 
 function getModelCapabilities(modelId: string, providerId: string) {
   const isReasoning = modelId.includes('o1') || modelId.includes('o3') || modelId.includes('reasoner') || modelId.includes('r1');
@@ -139,7 +120,6 @@ export function TaskModelSettings() {
                     >
                       <TabsList className="grid grid-cols-4 md:grid-cols-7 h-9 w-full bg-background/50 p-1">
                         {Object.values(providers).map(p => {
-                          const PIcon = PROVIDER_ICONS[p.id] || FallbackIcon;
                           return (
                             <TabsTrigger 
                               key={p.id} 
@@ -150,7 +130,7 @@ export function TaskModelSettings() {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <div className="flex items-center justify-center w-full h-full">
-                                      <PIcon className="h-4 w-4" />
+                                      <ProviderIcon provider={p.id} size={20} />
                                     </div>
                                   </TooltipTrigger>
                                   <TooltipContent>

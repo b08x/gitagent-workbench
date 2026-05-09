@@ -21,7 +21,9 @@ export interface TaskConfig {
 export interface AppConfig {
   providerId: string;
   modelId: string;
+  parameters?: TaskConfigParameters;
   apiKeys: Record<string, string>;
+  envProviders?: string[]; // IDs of providers with keys in ENV
   mcpServers: string[];
   theme: 'light' | 'dark';
   taskModels: {
@@ -47,7 +49,13 @@ const SettingsContext = createContext<{
 const DEFAULTS: AppConfig = {
   providerId: 'openrouter',
   modelId: '',
+  parameters: {
+    temperature: 0.7,
+    topP: 1,
+    maxTokens: undefined
+  },
   apiKeys: {}, // Will NOT be persisted to localStorage
+  envProviders: [],
   mcpServers: [],
   theme: 'light',
   taskModels: {
@@ -105,15 +113,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       try {
         const res = await fetch('/api/providers');
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        const status = await res.json();
+        const status = await res.json() as Record<string, { hasKey: boolean; isEnv: boolean }>;
         
         setSettings(prev => {
           const newKeys = { ...prev.apiKeys };
-          Object.entries(status).forEach(([pid, hasKey]) => {
+          const envProviders: string[] = [];
+
+          Object.entries(status).forEach(([pid, info]) => {
+            if (info.isEnv) envProviders.push(pid);
+
             // If server has key and we don't have a placeholder, add one to indicate "present"
-            if (hasKey && !newKeys[pid]) {
+            if (info.hasKey && !newKeys[pid]) {
               newKeys[pid] = '********'; 
-            } else if (!hasKey && newKeys[pid] && newKeys[pid] !== '********') {
+            } else if (!info.hasKey && newKeys[pid] && newKeys[pid] !== '********') {
               // If we have a key in state but server doesn't (e.g. server restarted), sync it
               fetch('/api/keys', {
                 method: 'POST',
@@ -122,7 +134,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               }).catch(err => console.error(`Failed to re-sync key for ${pid}:`, err));
             }
           });
-          return { ...prev, apiKeys: newKeys };
+          return { ...prev, apiKeys: newKeys, envProviders };
         });
       } catch (err) {
         if (retries > 0) {
