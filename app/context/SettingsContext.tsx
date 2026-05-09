@@ -26,6 +26,7 @@ export interface AppConfig {
   envProviders?: string[]; // IDs of providers with keys in ENV
   mcpServers: string[];
   theme: 'light' | 'dark';
+  debugLogging: boolean;
   taskModels: {
     scripts: TaskConfig;
     knowledge: TaskConfig;
@@ -58,6 +59,7 @@ const DEFAULTS: AppConfig = {
   envProviders: [],
   mcpServers: [],
   theme: 'light',
+  debugLogging: false,
   taskModels: {
     scripts: { providerId: 'openrouter', modelId: '' },
     knowledge: { providerId: 'openrouter', modelId: '' },
