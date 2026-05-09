@@ -184,7 +184,7 @@ export function DeploymentStep() {
                     </label>
                     {opt.tooltip && (
                       <Tooltip>
-                        <TooltipTrigger>
+                        <TooltipTrigger asChild>
                           <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent>

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Save, Wand2, BookOpen, Code2, ListChecks, FileText, ChevronRight, Search, Download } from 'lucide-react';
+import { Plus, Trash2, Save, Wand2, BookOpen, Code2, ListChecks, FileText, ChevronRight, Search, Download, ArrowRight } from 'lucide-react';
 import { SkillIdentityPanel } from './SkillIdentityPanel';
 import { AllowedToolsSelector } from './AllowedToolsSelector';
 import { InstructionsEditor } from './InstructionsEditor';
@@ -24,15 +24,9 @@ import { cn } from '../../../lib/utils';
 export function SkillWorkbench() {
   const { state, createSkill, updateSkill, setActiveSkill, deleteSkill } = useSkillWorkbench();
   const { dispatch: agentDispatch } = useAgentWorkspace();
-  const [searchQuery, setSearchQuery] = useState('');
   const [topTab, setTopTab] = useState('my-skills');
 
   const activeSkill = state.skills.find(s => s.id === state.activeSkillId);
-
-  const filteredSkills = state.skills.filter(s => 
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   const handleAddSkillToAgent = () => {
     if (!activeSkill) return;
@@ -87,84 +81,31 @@ export function SkillWorkbench() {
   };
 
   return (
-    <div className="container mx-auto py-8 px-4 h-[calc(100vh-4rem)] overflow-hidden flex flex-col gap-6">
+    <div className="container mx-auto py-8 px-4 flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Skill Workbench</h1>
           <p className="text-muted-foreground">Author and manage standalone agent capabilities</p>
         </div>
         <Tabs value={topTab} onValueChange={setTopTab} className="w-[500px]">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="my-skills">My Skills</TabsTrigger>
             <TabsTrigger value="blueprints">Blueprints</TabsTrigger>
-            <TabsTrigger value="create" onClick={() => { createSkill(); setTopTab('my-skills'); }}>Create</TabsTrigger>
             <TabsTrigger value="import">Import</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
-      <div className="flex-1 overflow-hidden">
-        <Tabs value={topTab} className="h-full">
-          <TabsContent value="my-skills" className="h-full mt-0">
-            <div className="grid grid-cols-12 gap-8 h-full">
-              {/* Sidebar: Skill List */}
-              <div className="col-span-3 flex flex-col gap-4 h-full border-r pr-6">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold">Skills</h2>
-                  <Button size="sm" onClick={() => createSkill()}>
-                    <Plus className="h-4 w-4 mr-2" /> New
-                  </Button>
-                </div>
+      <div className="flex-1">
+        <Tabs value={topTab}>
+          <TabsContent value="my-skills" className="mt-0">
+            <div className="space-y-6">
+              {activeSkill ? (
+                 <div className="animate-in fade-in duration-300 space-y-6">
+                    <Button variant="ghost" size="sm" onClick={() => setActiveSkill(null)} className="h-8 -ml-2 text-muted-foreground hover:text-foreground">
+                      <ArrowRight className="h-4 w-4 mr-2 rotate-180" /> Back to Skills
+                    </Button>
 
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search skills..." 
-                    className="pl-8"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                  />
-                </div>
-
-                <div className="flex-1 overflow-y-auto space-y-2">
-                  {filteredSkills.map(skill => (
-                    <div
-                      key={skill.id}
-                      onClick={() => setActiveSkill(skill.id)}
-                      className={cn(
-                        "group flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all hover:bg-accent",
-                        state.activeSkillId === skill.id ? "bg-accent border-primary" : "bg-card"
-                      )}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{skill.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{skill.description || 'No description'}</p>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteSkill(skill.id);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  {filteredSkills.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <p className="text-sm">No skills found</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Main Content: Editor */}
-              <div className="col-span-9 h-full overflow-y-auto pr-2 pb-8">
-                {activeSkill ? (
-                  <div className="space-y-8">
                     <div className="flex items-center justify-between">
                       <div>
                         <h2 className="text-2xl font-bold tracking-tight">{activeSkill.name}</h2>
@@ -227,24 +168,45 @@ export function SkillWorkbench() {
                         <SkillPreview skill={activeSkill} />
                       </TabsContent>
                     </Tabs>
-                  </div>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
-                    <div className="p-6 rounded-full bg-accent">
-                      <Code2 className="h-12 w-12 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-bold">Skill Workbench</h2>
-                      <p className="text-muted-foreground max-w-md mx-auto mt-2">
-                        Select a skill from the sidebar or create a new one to start authoring standalone capabilities.
-                      </p>
-                    </div>
-                    <Button onClick={() => createSkill()}>
-                      <Plus className="h-4 w-4 mr-2" /> Create Your First Skill
-                    </Button>
-                  </div>
-                )}
-              </div>
+                 </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {state.skills.map(skill => (
+                      <Card 
+                        key={skill.id} 
+                        className="group hover:border-primary/50 cursor-pointer transition-all hover:shadow-md h-40 flex flex-col"
+                        onClick={() => setActiveSkill(skill.id)}
+                      >
+                         <CardHeader className="p-4 pb-0">
+                           <div className="flex items-center justify-between">
+                              <CardTitle className="text-base truncate">{skill.name}</CardTitle>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteSkill(skill.id);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                              </Button>
+                           </div>
+                         </CardHeader>
+                         <CardContent className="p-4 flex-1">
+                            <p className="text-sm text-muted-foreground line-clamp-3">{skill.description || 'No description'}</p>
+                         </CardContent>
+                      </Card>
+                    ))}
+                    <Card 
+                      className="border-dashed hover:bg-accent hover:border-primary/50 cursor-pointer transition-all flex flex-col items-center justify-center p-6 h-40 text-center gap-2"
+                      onClick={() => createSkill()}
+                    >
+                       <Plus className="h-8 w-8 text-muted-foreground" />
+                       <span className="font-medium text-muted-foreground">Create Skill</span>
+                    </Card>
+                </div>
+              )}
             </div>
           </TabsContent>
 
