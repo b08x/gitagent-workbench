@@ -6,11 +6,11 @@ import { z } from 'zod';
 export const openaiProvider: ModelProvider = {
   id: 'openai',
   name: 'OpenAI',
-  supportsDirectBrowser: false,
+  supportsDirectBrowser: true,
   async generate<T extends z.ZodTypeAny = any>(prompt: GenerationPrompt<T>, apiKey: string, modelId: string): Promise<GenerationResult<z.infer<T>>> {
     const openai = createOpenAI({ apiKey });
     const { text, experimental_output } = await generateText({
-      model: openai(modelId),
+      model: openai(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -20,7 +20,7 @@ export const openaiProvider: ModelProvider = {
   async *stream(prompt, apiKey, modelId) {
     const openai = createOpenAI({ apiKey });
     const { textStream } = streamText({
-      model: openai(modelId),
+      model: openai(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
     });

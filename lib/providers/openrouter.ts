@@ -11,12 +11,12 @@ export const openrouterProvider: ModelProvider = {
     const openrouter = createOpenRouter({ 
       apiKey,
       headers: {
-        'HTTP-Referer': window.location.origin,
+        'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
         'X-Title': 'GitAgent Workbench'
       }
     });
     const { text, experimental_output } = await generateText({
-      model: openrouter(modelId),
+      model: openrouter(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -27,12 +27,12 @@ export const openrouterProvider: ModelProvider = {
     const openrouter = createOpenRouter({ 
       apiKey,
       headers: {
-        'HTTP-Referer': window.location.origin,
+        'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
         'X-Title': 'GitAgent Workbench'
       }
     });
     const { textStream } = streamText({
-      model: openrouter(modelId),
+      model: openrouter(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
     });

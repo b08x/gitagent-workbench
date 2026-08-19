@@ -5,12 +5,12 @@ import { z } from 'zod';
 
 export const mistralProvider: ModelProvider = {
   id: 'mistral',
-  name: 'Mistral',
-  supportsDirectBrowser: false,
+  name: 'Mistral AI',
+  supportsDirectBrowser: true,
   async generate<T extends z.ZodTypeAny = any>(prompt: GenerationPrompt<T>, apiKey: string, modelId: string): Promise<GenerationResult<z.infer<T>>> {
     const mistral = createMistral({ apiKey });
     const { text, experimental_output } = await generateText({
-      model: mistral(modelId),
+      model: mistral(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -20,7 +20,7 @@ export const mistralProvider: ModelProvider = {
   async *stream(prompt, apiKey, modelId) {
     const mistral = createMistral({ apiKey });
     const { textStream } = streamText({
-      model: mistral(modelId),
+      model: mistral(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
     });
