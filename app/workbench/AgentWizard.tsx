@@ -198,11 +198,15 @@ export function AgentWizard() {
       ]);
 
       setContextFiles([]);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      const errorText = err?.message || "Sorry, I had trouble processing that request.";
       setMessages(prev => [
         ...prev.slice(0, -1),
-        { role: 'assistant', content: "Sorry, I had trouble processing that request. Please ensure your prompt is clear and files are readable." }
+        { 
+          role: 'assistant', 
+          content: `Error: ${errorText}\n\nTip: You can switch providers or update your API key in the Model / Settings step, or use Gemini.` 
+        }
       ]);
     } finally {
       setIsProcessing(false);

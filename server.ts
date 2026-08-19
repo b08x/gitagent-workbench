@@ -48,18 +48,21 @@ async function startServer() {
   const serverKeys: Record<string, string> = {};
   const envKeys: Set<string> = new Set();
   
-    // Initialize from env
-  Object.entries(PROVIDER_MAP).forEach(([pid, envName]) => {
-    if (process.env[envName]) {
-      serverKeys[pid] = process.env[envName]!;
-      envKeys.add(pid);
-    }
-    // Fallback for google
-    if (pid === 'google' && !serverKeys[pid] && process.env['GOOGLE_API_KEY']) {
-      serverKeys[pid] = process.env['GOOGLE_API_KEY']!;
-      envKeys.add(pid);
-    }
-  });
+  function refreshEnvKeys() {
+    Object.entries(PROVIDER_MAP).forEach(([pid, envName]) => {
+      if (process.env[envName]) {
+        serverKeys[pid] = process.env[envName]!;
+        envKeys.add(pid);
+      }
+      if (pid === 'google' && !serverKeys[pid] && process.env['GOOGLE_API_KEY']) {
+        serverKeys[pid] = process.env['GOOGLE_API_KEY']!;
+        envKeys.add(pid);
+      }
+    });
+  }
+
+  // Initialize from env
+  refreshEnvKeys();
 
   function mapErrorToStatus(error: any): number {
     if (error instanceof InvalidArgumentError || error instanceof TypeValidationError) return 400;
@@ -73,6 +76,7 @@ async function startServer() {
   }
 
   app.get("/api/health", (req, res) => {
+    refreshEnvKeys();
     res.json({ 
       ok: true, 
       timestamp: new Date().toISOString(), 
@@ -82,6 +86,7 @@ async function startServer() {
   });
 
   app.get("/api/providers", (req, res) => {
+    refreshEnvKeys();
     const status = Object.keys(PROVIDER_MAP).reduce((acc, pid) => {
       acc[pid] = {
         hasKey: !!serverKeys[pid],
@@ -93,6 +98,7 @@ async function startServer() {
   });
 
   app.get("/api/models/:providerId", async (req, res) => {
+    refreshEnvKeys();
     const { providerId } = req.params;
     const apiKey = serverKeys[providerId];
 
@@ -109,8 +115,6 @@ async function startServer() {
         return res.json(json);
       }
       if (providerId === 'anthropic') {
-        // Anthropic doesn't have a standard models list endpoint easily accessible like this
-        // So we might just return curated or empty
         return res.json({ data: [] });
       }
       if (providerId === 'groq') {
@@ -128,9 +132,13 @@ async function startServer() {
         return res.json(json);
       }
       if (providerId === 'google') {
-        // Google models can be fetched but requires a different approach
-        // For now return empty and let frontend fallback
-        return res.json({ data: [] });
+        return res.json({ 
+          data: [
+            { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
+            { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+            { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' }
+          ]
+        });
       }
       
       res.status(404).json({ error: "Model fetch only supported for select providers via proxy." });
@@ -142,8 +150,16 @@ async function startServer() {
   app.post("/api/keys", (req, res) => {
     try {
       const { providerId, key } = req.body;
-      if (providerId && key) {
-        serverKeys[providerId] = key;
+      if (providerId && typeof key === 'string') {
+        if (key === '********') {
+          return res.json({ success: true, ignored: true });
+        }
+        if (key === '') {
+          delete serverKeys[providerId];
+          envKeys.delete(providerId);
+        } else {
+          serverKeys[providerId] = key;
+        }
         res.json({ success: true });
       } else {
         res.status(400).json({ error: "Missing providerId or key" });
@@ -153,7 +169,6 @@ async function startServer() {
     }
   });
 
-  // Renamed to /api/architect to avoid common filtering of "/api/generate"
   // Decoding helper for WAF-evasive payloads
   const decodePrompt = (prompt: any) => {
     if (typeof prompt === 'string' && (prompt.startsWith('base64:') || /^[A-Za-z0-9+/]*={0,2}$/.test(prompt))) {
@@ -167,25 +182,65 @@ async function startServer() {
     return prompt;
   };
 
+  function normalizeModelId(providerId: string, modelId: string): string {
+    if (!modelId) {
+      if (providerId === 'google') return 'gemini-2.0-flash-exp';
+      if (providerId === 'openai') return 'gpt-4o-mini';
+      if (providerId === 'anthropic') return 'claude-3-5-haiku-20241022';
+      if (providerId === 'groq') return 'llama-3.3-70b-versatile';
+      if (providerId === 'mistral') return 'mistral-small-latest';
+      if (providerId === 'ollama') return 'llama3.2';
+      return 'openai/gpt-4o-mini';
+    }
+    if (providerId === 'google' && modelId.startsWith('google/')) {
+      return modelId.slice(7);
+    }
+    if (providerId === 'openai' && modelId.startsWith('openai/')) {
+      return modelId.slice(7);
+    }
+    if (providerId === 'anthropic' && modelId.startsWith('anthropic/')) {
+      return modelId.slice(10);
+    }
+    if (providerId === 'groq' && modelId.startsWith('groq/')) {
+      return modelId.slice(5);
+    }
+    if (providerId === 'mistral' && modelId.startsWith('mistral/')) {
+      return modelId.slice(8);
+    }
+    return modelId;
+  }
+
+  function getProvider(providerId: string, apiKey: string) {
+    switch (providerId) {
+      case "openrouter": return createOpenRouter({ apiKey });
+      case "anthropic": return createAnthropic({ apiKey });
+      case "openai": return createOpenAI({ apiKey });
+      case "google": return createGoogleGenerativeAI({ apiKey });
+      case "mistral": return createMistral({ apiKey });
+      case "groq": return createGroq({ apiKey });
+      case "ollama": return createOllama({});
+      default: throw new Error(`Unknown provider: ${providerId}`);
+    }
+  }
+
   app.post("/api/compute/v1", async (req, res) => {
-    try {
-      let { prompt, modelId, providerId, options } = req.body;
-      
-      // Handle evasive encoding
-      prompt = decodePrompt(prompt);
-      
-      if (!modelId) {
-        return res.status(400).json({ error: "Missing modelId in request." });
-      }
+    refreshEnvKeys();
+    let { prompt, modelId, providerId, options } = req.body;
+    
+    // Handle evasive encoding
+    prompt = decodePrompt(prompt);
+    providerId = providerId || 'google';
 
-      const apiKey = serverKeys[providerId];
-      
-      if (!apiKey) {
-        return res.status(401).json({ error: `API key for ${providerId} not found on server.` });
-      }
+    const cleanModelId = normalizeModelId(providerId, modelId);
+    let apiKey = serverKeys[providerId];
+    
+    // If chosen provider has no key or is invalid, check if we have a working google key
+    const googleKey = serverKeys['google'] || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
-      const provider = getProvider(providerId, apiKey);
-      const model = provider(modelId);
+    const executeGeneration = async (pid: string, mid: string, key: string) => {
+      const normalizedMid = normalizeModelId(pid, mid);
+      const provider = getProvider(pid, key);
+      const model = provider(normalizedMid);
 
       const generateOptions: any = {
         model,
@@ -205,37 +260,84 @@ async function startServer() {
           output: 'object',
           schema: jsonSchema(prompt.schema),
         });
-        return res.json({ object: result.object });
+        return { object: result.object };
       } else {
         const result = await generateText(generateOptions);
-        return res.json({ text: result.text });
+        return { text: result.text };
       }
-    } catch (error: any) {
-      console.error("Proxy Generate Error:", error);
-      const status = mapErrorToStatus(error);
+    };
+
+    try {
+      if (!apiKey) {
+        if (googleKey && providerId !== 'google') {
+          console.warn(`No key for ${providerId}, falling back to google/gemini`);
+          const fallbackRes = await executeGeneration('google', 'gemini-2.0-flash-exp', googleKey);
+          return res.json(fallbackRes);
+        }
+        return res.status(401).json({ 
+          error: `API key for ${providerId} not configured. Please add an API key in Settings or switch to Gemini.` 
+        });
+      }
+
+      const result = await executeGeneration(providerId, cleanModelId, apiKey);
+      return res.json(result);
+    } catch (primaryError: any) {
+      console.warn(`Primary generation with ${providerId}/${cleanModelId} failed:`, primaryError.message);
+
+      // Check if this error is a quota / key limit / auth error and we have a Google key fallback
+      const isQuotaOrAuth = 
+        primaryError.message?.toLowerCase().includes('limit') ||
+        primaryError.message?.toLowerCase().includes('quota') ||
+        primaryError.message?.toLowerCase().includes('unauthorized') ||
+        primaryError.message?.toLowerCase().includes('forbidden') ||
+        primaryError.message?.toLowerCase().includes('api key') ||
+        primaryError.statusCode === 429 ||
+        primaryError.statusCode === 401 ||
+        primaryError.statusCode === 403;
+
+      if (isQuotaOrAuth && googleKey && providerId !== 'google') {
+        try {
+          console.log(`Attempting fallback to Google Gemini (gemini-2.0-flash-exp)...`);
+          const fallbackRes = await executeGeneration('google', 'gemini-2.0-flash-exp', googleKey);
+          return res.json(fallbackRes);
+        } catch (fallbackError: any) {
+          console.error("Fallback to Google also failed:", fallbackError);
+        }
+      }
+
+      const status = mapErrorToStatus(primaryError);
+      let userFriendlyMessage = primaryError.message;
+      if (primaryError.message?.includes('Key limit exceeded')) {
+        userFriendlyMessage = `Key limit exceeded for ${providerId}. Please provide your own API key in Settings or switch to Gemini.`;
+      }
+
       res.status(status).json({ 
-        error: error.message,
-        details: error.details || undefined
+        error: userFriendlyMessage,
+        details: primaryError.details || undefined
       });
     }
   });
 
   app.post("/api/stream", async (req, res) => {
+    refreshEnvKeys();
+    let { prompt, modelId, providerId, options } = req.body;
+    providerId = providerId || 'google';
+    const cleanModelId = normalizeModelId(providerId, modelId);
+    let apiKey = serverKeys[providerId];
+    const googleKey = serverKeys['google'] || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+
+    if (!apiKey && googleKey) {
+      providerId = 'google';
+      apiKey = googleKey;
+    }
+
+    if (!apiKey) {
+      return res.status(401).json({ error: `API key for ${providerId} not found on server.` });
+    }
+
     try {
-      const { prompt, modelId, providerId, options } = req.body;
-
-      if (!modelId) {
-        return res.status(400).json({ error: "Missing modelId in request." });
-      }
-
-      const apiKey = serverKeys[providerId];
-
-      if (!apiKey) {
-        return res.status(401).json({ error: `API key for ${providerId} not found on server.` });
-      }
-
       const provider = getProvider(providerId, apiKey);
-      const model = provider(modelId);
+      const model = provider(cleanModelId);
 
       const result = streamText({
         model,
@@ -264,19 +366,6 @@ async function startServer() {
       }
     }
   });
-
-  function getProvider(providerId: string, apiKey: string) {
-    switch (providerId) {
-      case "openrouter": return createOpenRouter({ apiKey });
-      case "anthropic": return createAnthropic({ apiKey });
-      case "openai": return createOpenAI({ apiKey });
-      case "google": return createGoogleGenerativeAI({ apiKey });
-      case "mistral": return createMistral({ apiKey });
-      case "groq": return createGroq({ apiKey });
-      case "ollama": return createOllama({});
-      default: throw new Error(`Unknown provider: ${providerId}`);
-    }
-  }
 
   // Final catch-all for missing API routes
   app.all("/api/*", (req, res) => {

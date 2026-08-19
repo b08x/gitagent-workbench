@@ -48,8 +48,8 @@ const SettingsContext = createContext<{
 } | undefined>(undefined);
 
 const DEFAULTS: AppConfig = {
-  providerId: 'openrouter',
-  modelId: '',
+  providerId: 'google',
+  modelId: 'gemini-2.0-flash-exp',
   parameters: {
     temperature: 0.7,
     topP: 1,
@@ -61,12 +61,12 @@ const DEFAULTS: AppConfig = {
   theme: 'light',
   debugLogging: false,
   taskModels: {
-    scripts: { providerId: 'openrouter', modelId: '' },
-    knowledge: { providerId: 'openrouter', modelId: '' },
+    scripts: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
+    knowledge: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
     embeddings: { providerId: 'openai', modelId: 'text-embedding-3-small' },
-    chatTests: { providerId: 'openrouter', modelId: '' },
-    memorySeeding: { providerId: 'openrouter', modelId: '' },
-    documentation: { providerId: 'openrouter', modelId: '' },
+    chatTests: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
+    memorySeeding: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
+    documentation: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
     architect: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
   }
 };
