@@ -49,7 +49,7 @@ const SettingsContext = createContext<{
 
 const DEFAULTS: AppConfig = {
   providerId: 'google',
-  modelId: 'gemini-2.0-flash-exp',
+  modelId: 'gemini-3.7-flash',
   parameters: {
     temperature: 0.7,
     topP: 1,
@@ -61,13 +61,13 @@ const DEFAULTS: AppConfig = {
   theme: 'light',
   debugLogging: false,
   taskModels: {
-    scripts: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
-    knowledge: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
-    embeddings: { providerId: 'openai', modelId: 'text-embedding-3-small' },
-    chatTests: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
-    memorySeeding: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
-    documentation: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
-    architect: { providerId: 'google', modelId: 'gemini-2.0-flash-exp' },
+    scripts: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    knowledge: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    embeddings: { providerId: 'google', modelId: 'gemini-embedding-2-preview' },
+    chatTests: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    memorySeeding: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    documentation: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    architect: { providerId: 'google', modelId: 'gemini-3.7-flash' },
   }
 };
 

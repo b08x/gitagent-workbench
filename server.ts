@@ -132,11 +132,61 @@ async function startServer() {
         return res.json(json);
       }
       if (providerId === 'google') {
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+          if (response.ok) {
+            const json = await response.json();
+            if (Array.isArray(json.models)) {
+              const liveModels = json.models
+                .filter((m: any) => {
+                  const id = m.name ? m.name.replace(/^models\//, '') : '';
+                  const methods = m.supportedGenerationMethods || [];
+                  return methods.includes('generateContent') && !id.includes('deprecated');
+                })
+                .map((m: any) => {
+                  const id = m.name.replace(/^models\//, '');
+                  return {
+                    id,
+                    name: m.displayName ? `${m.displayName}` : id
+                  };
+                });
+              
+              if (liveModels.length > 0) {
+                liveModels.sort((a: any, b: any) => {
+                  const getWeight = (id: string) => {
+                    if (id.includes('3.7')) return 100;
+                    if (id.includes('3.1-pro')) return 95;
+                    if (id.includes('3.1-flash')) return 90;
+                    if (id.includes('3.1')) return 85;
+                    if (id.includes('flash-latest')) return 80;
+                    if (id.includes('2.5')) return 70;
+                    if (id.includes('2.0')) return 60;
+                    if (id.includes('1.5')) return 40;
+                    return 10;
+                  };
+                  return getWeight(b.id) - getWeight(a.id);
+                });
+                return res.json({ data: liveModels });
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to fetch live Google models:", err);
+        }
+
         return res.json({ 
           data: [
-            { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
-            { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-            { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' }
+            { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash (Recommended)' },
+            { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview (Advanced Reasoning)' },
+            { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' },
+            { id: 'gemini-flash-latest', name: 'Gemini Flash Latest' },
+            { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+            { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+            { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+            { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Experimental' },
+            { id: 'gemini-3.1-flash-image', name: 'Gemini 3.1 Flash Image' },
+            { id: 'gemini-3.1-flash-lite-image', name: 'Gemini 3.1 Flash Lite Image' },
+            { id: 'gemini-embedding-2-preview', name: 'Gemini Embedding 2' },
           ]
         });
       }
@@ -184,7 +234,7 @@ async function startServer() {
 
   function normalizeModelId(providerId: string, modelId: string): string {
     if (!modelId) {
-      if (providerId === 'google') return 'gemini-2.0-flash-exp';
+      if (providerId === 'google') return 'gemini-3.7-flash';
       if (providerId === 'openai') return 'gpt-4o-mini';
       if (providerId === 'anthropic') return 'claude-3-5-haiku-20241022';
       if (providerId === 'groq') return 'llama-3.3-70b-versatile';
@@ -271,7 +321,7 @@ async function startServer() {
       if (!apiKey) {
         if (googleKey && providerId !== 'google') {
           console.warn(`No key for ${providerId}, falling back to google/gemini`);
-          const fallbackRes = await executeGeneration('google', 'gemini-2.0-flash-exp', googleKey);
+          const fallbackRes = await executeGeneration('google', 'gemini-3.7-flash', googleKey);
           return res.json(fallbackRes);
         }
         return res.status(401).json({ 
@@ -297,8 +347,8 @@ async function startServer() {
 
       if (isQuotaOrAuth && googleKey && providerId !== 'google') {
         try {
-          console.log(`Attempting fallback to Google Gemini (gemini-2.0-flash-exp)...`);
-          const fallbackRes = await executeGeneration('google', 'gemini-2.0-flash-exp', googleKey);
+          console.log(`Attempting fallback to Google Gemini (gemini-3.7-flash)...`);
+          const fallbackRes = await executeGeneration('google', 'gemini-3.7-flash', googleKey);
           return res.json(fallbackRes);
         } catch (fallbackError: any) {
           console.error("Fallback to Google also failed:", fallbackError);
