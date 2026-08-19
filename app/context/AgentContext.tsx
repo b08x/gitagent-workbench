@@ -146,6 +146,8 @@ interface ExtendedWorkspace extends AgentWorkspace {
   history: {
     snapshots: { timestamp: number; label: string; workspace: ExtendedWorkspace }[];
   };
+  snapshots?: Array<{ id: number; label: string; timestamp: Date; state: any }>;
+  evals?: { goodOutputs?: string[] };
   runtimeProviderId: string;
 }
 

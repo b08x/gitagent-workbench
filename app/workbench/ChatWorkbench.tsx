@@ -279,7 +279,7 @@ export function ChatWorkbench() {
                 <SelectValue placeholder="Provider" />
               </SelectTrigger>
               <SelectContent>
-                {providers.map(p => (
+                {Object.values(providers).map(p => (
                   <SelectItem key={p.id} value={p.id} className="text-xs font-mono">{p.name}</SelectItem>
                 ))}
               </SelectContent>

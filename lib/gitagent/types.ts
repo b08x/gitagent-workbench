@@ -70,6 +70,7 @@ export interface AgentManifest {
     };
   };
   runtime?: { max_turns?: number; temperature?: number; timeout?: number };
+  memory?: { strategy?: 'ephemeral' | 'buffer' | 'vector' | 'summary'; max_tokens?: number };
   a2a?: Record<string, unknown>;
   compliance?: AgentCompliance;
   deployment_targets?: string[];
@@ -124,6 +125,7 @@ export interface ParsedSkill {
   instructions: string | null;
   allowedTools: string[];
   category: string;
+  tags?: string[];
   license?: string;
   compatibility?: string;
   metadata?: Record<string, any>;

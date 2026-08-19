@@ -10,7 +10,7 @@ export const googleProvider: ModelProvider = {
   async generate<T extends z.ZodTypeAny = any>(prompt: GenerationPrompt<T>, apiKey: string, modelId: string): Promise<GenerationResult<z.infer<T>>> {
     const google = createGoogleGenerativeAI({ apiKey });
     const { text, experimental_output } = await generateText({
-      model: google(modelId),
+      model: google(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -20,7 +20,7 @@ export const googleProvider: ModelProvider = {
   async *stream(prompt, apiKey, modelId) {
     const google = createGoogleGenerativeAI({ apiKey });
     const { textStream } = streamText({
-      model: google(modelId),
+      model: google(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
     });

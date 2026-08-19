@@ -3,7 +3,8 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { generateText, generateObject, streamText, APICallError, InvalidArgumentError, TypeValidationError, jsonSchema } from "ai";
+import { GoogleGenAI } from "@google/genai";
+import { generateText, generateObject, streamText, jsonSchema } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -33,8 +34,7 @@ async function startServer() {
     next();
   });
 
-  // In-memory key storage for this session (demo purposes as requested)
-  // Maps providerId to key. Pre-fill from environment variables.
+  // Maps providerId to env var names
   const PROVIDER_MAP: Record<string, string> = {
     'openai': 'OPENAI_API_KEY',
     'anthropic': 'ANTHROPIC_API_KEY',
@@ -63,17 +63,6 @@ async function startServer() {
 
   // Initialize from env
   refreshEnvKeys();
-
-  function mapErrorToStatus(error: any): number {
-    if (error instanceof InvalidArgumentError || error instanceof TypeValidationError) return 400;
-    if (error instanceof APICallError) {
-      if (error.statusCode === 429) return 429;
-      if (error.statusCode === 401) return 401;
-      if (error.statusCode === 403) return 403;
-      return 502; // Bad Gateway for downstream LLM errors
-    }
-    return 500;
-  }
 
   app.get("/api/health", (req, res) => {
     refreshEnvKeys();
@@ -114,8 +103,12 @@ async function startServer() {
         const json = await response.json();
         return res.json(json);
       }
-      if (providerId === 'anthropic') {
-        return res.json({ data: [] });
+      if (providerId === 'openrouter') {
+        const response = await fetch('https://openrouter.ai/api/v1/models', {
+          headers: { Authorization: `Bearer ${apiKey}` }
+        });
+        const json = await response.json();
+        return res.json(json);
       }
       if (providerId === 'groq') {
         const response = await fetch('https://api.groq.com/openai/v1/models', {
@@ -152,20 +145,6 @@ async function startServer() {
                 });
               
               if (liveModels.length > 0) {
-                liveModels.sort((a: any, b: any) => {
-                  const getWeight = (id: string) => {
-                    if (id.includes('3.7')) return 100;
-                    if (id.includes('3.1-pro')) return 95;
-                    if (id.includes('3.1-flash')) return 90;
-                    if (id.includes('3.1')) return 85;
-                    if (id.includes('flash-latest')) return 80;
-                    if (id.includes('2.5')) return 70;
-                    if (id.includes('2.0')) return 60;
-                    if (id.includes('1.5')) return 40;
-                    return 10;
-                  };
-                  return getWeight(b.id) - getWeight(a.id);
-                });
                 return res.json({ data: liveModels });
               }
             }
@@ -177,16 +156,11 @@ async function startServer() {
         return res.json({ 
           data: [
             { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash (Recommended)' },
-            { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview (Advanced Reasoning)' },
+            { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview' },
             { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' },
-            { id: 'gemini-flash-latest', name: 'Gemini Flash Latest' },
             { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
             { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
             { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
-            { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Experimental' },
-            { id: 'gemini-3.1-flash-image', name: 'Gemini 3.1 Flash Image' },
-            { id: 'gemini-3.1-flash-lite-image', name: 'Gemini 3.1 Flash Lite Image' },
-            { id: 'gemini-embedding-2-preview', name: 'Gemini Embedding 2' },
           ]
         });
       }
@@ -219,7 +193,7 @@ async function startServer() {
     }
   });
 
-  // Decoding helper for WAF-evasive payloads
+  // Decoding helper for base64 / escaped prompt payloads
   const decodePrompt = (prompt: any) => {
     if (typeof prompt === 'string' && (prompt.startsWith('base64:') || /^[A-Za-z0-9+/]*={0,2}$/.test(prompt))) {
       try {
@@ -257,20 +231,193 @@ async function startServer() {
     if (providerId === 'mistral' && modelId.startsWith('mistral/')) {
       return modelId.slice(8);
     }
+    if (providerId === 'openrouter' && modelId.startsWith('openrouter/')) {
+      return modelId.slice(11);
+    }
     return modelId;
   }
 
-  function getProvider(providerId: string, apiKey: string) {
-    switch (providerId) {
-      case "openrouter": return createOpenRouter({ apiKey });
-      case "anthropic": return createAnthropic({ apiKey });
-      case "openai": return createOpenAI({ apiKey });
-      case "google": return createGoogleGenerativeAI({ apiKey });
-      case "mistral": return createMistral({ apiKey });
-      case "groq": return createGroq({ apiKey });
-      case "ollama": return createOllama({});
-      default: throw new Error(`Unknown provider: ${providerId}`);
+  // Direct generation using Google Gen AI SDK
+  async function generateWithGoogle(modelId: string, apiKey: string, prompt: any, options: any) {
+    const ai = new GoogleGenAI({ apiKey });
+    let contents: any = [];
+
+    if (prompt.messages && Array.isArray(prompt.messages) && prompt.messages.length > 0) {
+      contents = prompt.messages.map((m: any) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }]
+      }));
+    } else if (prompt.user) {
+      contents = [{ role: 'user', parts: [{ text: prompt.user }] }];
+    } else if (typeof prompt === 'string') {
+      contents = [{ role: 'user', parts: [{ text: prompt }] }];
     }
+
+    const config: any = {};
+    if (prompt.system) {
+      config.systemInstruction = prompt.system;
+    }
+    if (options?.temperature !== undefined) {
+      config.temperature = options.temperature;
+    }
+    if (options?.maxTokens) {
+      config.maxOutputTokens = options.maxTokens;
+    }
+    if (options?.topP !== undefined) {
+      config.topP = options.topP;
+    }
+    if (options?.topK !== undefined) {
+      config.topK = options.topK;
+    }
+
+    if (prompt.schema) {
+      config.responseMimeType = "application/json";
+      config.responseSchema = prompt.schema;
+    }
+
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents,
+      config
+    });
+
+    const text = response.text || '';
+    if (prompt.schema) {
+      try {
+        const object = JSON.parse(text);
+        return { object };
+      } catch {
+        // Fallback cleanup if model wrapped in markdown
+        const match = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/{[\s\S]*}/);
+        if (match) {
+          const object = JSON.parse(match[1] || match[0]);
+          return { object };
+        }
+      }
+    }
+
+    return { text };
+  }
+
+  // Direct OpenAI-compatible generation (OpenRouter, OpenAI, Groq, Mistral)
+  async function generateWithOpenAICompatible(baseUrl: string, modelId: string, apiKey: string, prompt: any, options: any, extraHeaders: Record<string, string> = {}) {
+    const messages: any[] = [];
+
+    if (prompt.system) {
+      messages.push({ role: "system", content: prompt.system });
+    }
+
+    if (prompt.messages && Array.isArray(prompt.messages)) {
+      messages.push(...prompt.messages);
+    } else if (prompt.user) {
+      messages.push({ role: "user", content: prompt.user });
+    }
+
+    const body: any = {
+      model: modelId,
+      messages,
+      temperature: options?.temperature ?? 0.7,
+      max_tokens: options?.maxTokens || undefined,
+      top_p: options?.topP ?? 1,
+    };
+
+    if (prompt.schema) {
+      body.response_format = { type: "json_object" };
+      // Include schema instruction in system prompt if not present
+      if (!prompt.system?.includes('JSON')) {
+        messages.unshift({
+          role: "system",
+          content: `You must respond with valid JSON matching schema: ${JSON.stringify(prompt.schema)}`
+        });
+      }
+    }
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        ...extraHeaders
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`API error (${response.status}): ${errText}`);
+    }
+
+    const json = await response.json();
+    const text = json.choices?.[0]?.message?.content || "";
+
+    if (prompt.schema) {
+      try {
+        const object = JSON.parse(text);
+        return { object };
+      } catch {
+        const match = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/{[\s\S]*}/);
+        if (match) {
+          const object = JSON.parse(match[1] || match[0]);
+          return { object };
+        }
+      }
+    }
+
+    return { text };
+  }
+
+  // Universal generation dispatcher that handles all providers smoothly
+  async function executeUniversalGeneration(pid: string, mid: string, key: string, prompt: any, options: any) {
+    const cleanMid = normalizeModelId(pid, mid);
+
+    if (pid === 'google') {
+      return await generateWithGoogle(cleanMid, key, prompt, options);
+    }
+
+    if (pid === 'openrouter') {
+      return await generateWithOpenAICompatible(
+        'https://openrouter.ai/api/v1',
+        cleanMid,
+        key,
+        prompt,
+        options,
+        {
+          'HTTP-Referer': 'https://gitagent.dev',
+          'X-Title': 'GitAgent Workbench'
+        }
+      );
+    }
+
+    if (pid === 'openai') {
+      return await generateWithOpenAICompatible('https://api.openai.com/v1', cleanMid, key, prompt, options);
+    }
+
+    if (pid === 'groq') {
+      return await generateWithOpenAICompatible('https://api.groq.com/openai/v1', cleanMid, key, prompt, options);
+    }
+
+    if (pid === 'mistral') {
+      return await generateWithOpenAICompatible('https://api.mistral.ai/v1', cleanMid, key, prompt, options);
+    }
+
+    if (pid === 'ollama') {
+      const baseUrl = key || 'http://localhost:11434/v1';
+      return await generateWithOpenAICompatible(baseUrl, cleanMid, 'ollama', prompt, options);
+    }
+
+    if (pid === 'anthropic') {
+      const anthropic = createAnthropic({ apiKey: key });
+      const model = anthropic(cleanMid);
+      const res = await generateText({
+        model,
+        system: prompt.system,
+        prompt: prompt.user || (prompt.messages?.[0]?.content ?? ''),
+        ...options
+      });
+      return { text: res.text };
+    }
+
+    throw new Error(`Unsupported provider: ${pid}`);
   }
 
   app.post("/api/compute/v1", async (req, res) => {
@@ -287,41 +434,11 @@ async function startServer() {
     // If chosen provider has no key or is invalid, check if we have a working google key
     const googleKey = serverKeys['google'] || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
-    const executeGeneration = async (pid: string, mid: string, key: string) => {
-      const normalizedMid = normalizeModelId(pid, mid);
-      const provider = getProvider(pid, key);
-      const model = provider(normalizedMid);
-
-      const generateOptions: any = {
-        model,
-        system: prompt.system,
-        ...options
-      };
-
-      if (prompt.messages && prompt.messages.length > 0) {
-        generateOptions.messages = prompt.messages;
-      } else if (prompt.user) {
-        generateOptions.prompt = prompt.user;
-      }
-
-      if (prompt.schema) {
-        const result = await generateObject({
-          ...generateOptions,
-          output: 'object',
-          schema: jsonSchema(prompt.schema),
-        });
-        return { object: result.object };
-      } else {
-        const result = await generateText(generateOptions);
-        return { text: result.text };
-      }
-    };
-
     try {
       if (!apiKey) {
         if (googleKey && providerId !== 'google') {
-          console.warn(`No key for ${providerId}, falling back to google/gemini`);
-          const fallbackRes = await executeGeneration('google', 'gemini-3.7-flash', googleKey);
+          console.warn(`No key for ${providerId}, falling back to google/gemini-3.7-flash`);
+          const fallbackRes = await executeUniversalGeneration('google', 'gemini-3.7-flash', googleKey, prompt, options);
           return res.json(fallbackRes);
         }
         return res.status(401).json({ 
@@ -329,39 +446,39 @@ async function startServer() {
         });
       }
 
-      const result = await executeGeneration(providerId, cleanModelId, apiKey);
+      const result = await executeUniversalGeneration(providerId, cleanModelId, apiKey, prompt, options);
       return res.json(result);
     } catch (primaryError: any) {
       console.warn(`Primary generation with ${providerId}/${cleanModelId} failed:`, primaryError.message);
 
-      // Check if this error is a quota / key limit / auth error and we have a Google key fallback
-      const isQuotaOrAuth = 
+      // Check if this error can fallback to Google Gemini
+      const isRecoverable = 
         primaryError.message?.toLowerCase().includes('limit') ||
         primaryError.message?.toLowerCase().includes('quota') ||
         primaryError.message?.toLowerCase().includes('unauthorized') ||
         primaryError.message?.toLowerCase().includes('forbidden') ||
         primaryError.message?.toLowerCase().includes('api key') ||
+        primaryError.message?.toLowerCase().includes('specification version') ||
         primaryError.statusCode === 429 ||
         primaryError.statusCode === 401 ||
         primaryError.statusCode === 403;
 
-      if (isQuotaOrAuth && googleKey && providerId !== 'google') {
+      if (isRecoverable && googleKey && providerId !== 'google') {
         try {
           console.log(`Attempting fallback to Google Gemini (gemini-3.7-flash)...`);
-          const fallbackRes = await executeGeneration('google', 'gemini-3.7-flash', googleKey);
+          const fallbackRes = await executeUniversalGeneration('google', 'gemini-3.7-flash', googleKey, prompt, options);
           return res.json(fallbackRes);
         } catch (fallbackError: any) {
           console.error("Fallback to Google also failed:", fallbackError);
         }
       }
 
-      const status = mapErrorToStatus(primaryError);
-      let userFriendlyMessage = primaryError.message;
-      if (primaryError.message?.includes('Key limit exceeded')) {
+      let userFriendlyMessage = primaryError.message || "Model generation failed";
+      if (userFriendlyMessage.includes('Key limit exceeded')) {
         userFriendlyMessage = `Key limit exceeded for ${providerId}. Please provide your own API key in Settings or switch to Gemini.`;
       }
 
-      res.status(status).json({ 
+      res.status(500).json({ 
         error: userFriendlyMessage,
         details: primaryError.details || undefined
       });
@@ -386,30 +503,44 @@ async function startServer() {
     }
 
     try {
-      const provider = getProvider(providerId, apiKey);
-      const model = provider(cleanModelId);
-
-      const result = streamText({
-        model,
-        system: prompt.system,
-        prompt: prompt.user,
-        ...options
-      });
-
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      for await (const chunk of result.textStream) {
-        res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+      if (providerId === 'google') {
+        const ai = new GoogleGenAI({ apiKey });
+        const responseStream = await ai.models.generateContentStream({
+          model: cleanModelId,
+          contents: prompt.user || prompt.messages,
+          config: {
+            systemInstruction: prompt.system,
+            temperature: options?.temperature,
+            maxOutputTokens: options?.maxTokens,
+            topP: options?.topP,
+            topK: options?.topK,
+          }
+        });
+
+        for await (const chunk of responseStream) {
+          const chunkText = chunk.text || '';
+          if (chunkText) {
+            res.write(`data: ${JSON.stringify({ chunk: chunkText })}\n\n`);
+          }
+        }
+      } else {
+        // Use universal generation for other endpoints
+        const result = await executeUniversalGeneration(providerId, cleanModelId, apiKey, prompt, options);
+        if (result.text) {
+          res.write(`data: ${JSON.stringify({ chunk: result.text })}\n\n`);
+        }
       }
+
       res.write("data: [DONE]\n\n");
       res.end();
     } catch (error: any) {
       console.error("Proxy Stream Error:", error);
       if (!res.headersSent) {
-        const status = mapErrorToStatus(error);
-        res.status(status).json({ error: error.message });
+        res.status(500).json({ error: error.message });
       } else {
         res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
         res.end();
@@ -422,7 +553,7 @@ async function startServer() {
     res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
   });
 
-  // ENG-106: Global Error Handler
+  // Global Error Handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error("Global Server Error:", err);
     if (!res.headersSent) {
@@ -458,4 +589,3 @@ async function startServer() {
 startServer().catch(err => {
   console.error("CRITICAL: Failed to start server:", err);
 });
-
