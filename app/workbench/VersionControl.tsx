@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { History, Save, RotateCcw, Trash2, Clock, Check } from 'lucide-react';
+import { History, Save, RotateCcw, Trash2, Clock, Check, Sparkles, CheckCircle2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 export function VersionControl() {
@@ -30,81 +30,110 @@ export function VersionControl() {
     dispatch({ type: 'DELETE_SNAPSHOT', payload: timestamp });
   };
 
+  const snapshots = state.history?.snapshots || [];
+
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Version Control</h2>
-        <p className="text-muted-foreground">Save snapshots of your agent configuration and revert to them anytime.</p>
+    <div className="h-full w-full overflow-y-auto bg-background text-foreground p-6 md:p-8 space-y-6 select-text">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border/80 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="size-8 rounded-sm bg-primary/10 text-primary flex items-center justify-center terracotta-glow-sm">
+            <History className="size-4.5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold tracking-tight text-foreground">Version Control & Snapshots</h1>
+              <Badge variant="outline" className="text-[10px] font-mono uppercase text-primary border-primary/30">
+                {snapshots.length} Snapshots
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">Capture point-in-time states of your agent repository and roll back on demand</p>
+          </div>
+        </div>
       </div>
 
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader>
-          <CardTitle className="text-sm">Create Snapshot</CardTitle>
-          <CardDescription>Capture the current state of all files, skills, and settings.</CardDescription>
+      {/* Create Snapshot Card */}
+      <Card className="border-border/80 bg-card rounded-sm shadow-xs">
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+            <Save className="size-3 text-primary" /> Capture Point-in-Time Snapshot
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Saves all current prompts, skills, workflows, and settings into workspace history.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-2">
           <div className="flex gap-2">
             <Input 
-              placeholder="e.g., Before adding research skill" 
+              placeholder="e.g., v1.1 - Added data cleaning workflow & guardrails" 
               value={label}
               onChange={e => setLabel(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSave()}
+              className="h-8.5 text-xs font-sans rounded-sm bg-background border-border/80"
             />
-            <Button onClick={handleSave} disabled={!label.trim()} className="gap-2">
-              {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-              {saved ? 'Saved' : 'Save Snapshot'}
+            <Button 
+              onClick={handleSave} 
+              disabled={!label.trim()} 
+              className="bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs gap-1.5 rounded-sm shadow-xs shrink-0"
+            >
+              {saved ? <Check className="size-3.5" /> : <Save className="size-3.5" />}
+              {saved ? 'Saved!' : 'Save Snapshot'}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold flex items-center gap-2">
-          <History className="h-4 w-4" />
-          Snapshot History
-        </h3>
+      {/* Snapshot History Stream */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+            <Clock className="size-3 text-primary" /> Repository History Log
+          </span>
+        </div>
         
-        <div className="grid gap-3">
-          {state.history.snapshots.length === 0 ? (
-            <div className="text-center py-12 border rounded-xl border-dashed bg-muted/30">
-              <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-20" />
-              <p className="text-sm text-muted-foreground italic">No snapshots saved yet.</p>
+        <div className="grid gap-2.5">
+          {snapshots.length === 0 ? (
+            <div className="text-center py-12 border border-dashed rounded-sm bg-card/40">
+              <Clock className="size-8 text-muted-foreground mx-auto mb-2 opacity-30" />
+              <p className="text-xs text-muted-foreground italic">No manual snapshots recorded yet. Click "Save Snapshot" above to create one.</p>
             </div>
           ) : (
-            state.history.snapshots.map((snapshot) => (
-              <Card key={snapshot.timestamp} className="group hover:border-primary/50 transition-colors">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="bg-muted p-2 rounded-full">
-                      <History className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">{snapshot.label}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {formatDistanceToNow(snapshot.timestamp)} ago • {new Date(snapshot.timestamp).toLocaleString()}
-                      </p>
-                    </div>
+            snapshots.map((snapshot) => (
+              <div 
+                key={snapshot.timestamp} 
+                className="p-3.5 bg-card border border-border/80 hover:border-primary/50 rounded-sm shadow-xs flex items-center justify-between transition-colors group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="size-8 rounded-sm bg-muted/60 flex items-center justify-center text-primary shrink-0">
+                    <CheckCircle2 className="size-4" />
                   </div>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-8 gap-1.5"
-                      onClick={() => handleRestore(snapshot.timestamp)}
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" /> Restore
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDelete(snapshot.timestamp)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                  <div className="min-w-0">
+                    <p className="font-bold text-xs text-foreground truncate">{snapshot.label}</p>
+                    <p className="text-[10px] font-mono text-muted-foreground">
+                      {formatDistanceToNow(snapshot.timestamp)} ago • {new Date(snapshot.timestamp).toLocaleString()}
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button 
+                    variant="outline" 
+                    size="xs" 
+                    className="text-[10px] font-mono gap-1"
+                    onClick={() => handleRestore(snapshot.timestamp)}
+                  >
+                    <RotateCcw className="size-3" /> Revert
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon-xs" 
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => handleDelete(snapshot.timestamp)}
+                  >
+                    <Trash2 className="size-3" />
+                  </Button>
+                </div>
+              </div>
             ))
           )}
         </div>

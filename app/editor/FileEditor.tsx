@@ -4,7 +4,7 @@ import { useAgentWorkspace } from '../context/AgentContext';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { FileText, Folder, ChevronRight, ChevronDown, AlertTriangle, AlertCircle, ArrowRight, MessageSquare, X } from 'lucide-react';
+import { FileText, Folder, ChevronRight, ChevronDown, AlertTriangle, AlertCircle, ArrowRight, MessageSquare, X, Code2, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ChatEditorSidebar } from './ChatEditorSidebar';
 
@@ -22,7 +22,7 @@ export function FileEditor() {
     if (path === 'DUTIES.md') return state.duties || '';
     if (path.startsWith('skills/')) {
       const name = path.split('/')[1];
-      return state.skills[name]?.instructions || '';
+      return (state.skills as any)[name]?.instructions || '';
     }
     return '';
   };
@@ -44,7 +44,7 @@ export function FileEditor() {
       dispatch({ type: 'UPDATE_WORKSPACE', payload: { duties: content } });
     } else if (selectedFile.startsWith('skills/')) {
       const name = selectedFile.split('/')[1];
-      const updatedSkills = { ...state.skills };
+      const updatedSkills = { ...(state.skills as any) };
       if (updatedSkills[name]) {
         updatedSkills[name] = { ...updatedSkills[name], instructions: content };
         dispatch({ type: 'UPDATE_WORKSPACE', payload: { skills: updatedSkills } });
@@ -53,41 +53,51 @@ export function FileEditor() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden border-t">
-      {/* Sidebar */}
-      <div className="w-64 border-r bg-muted/30 overflow-y-auto">
-        <div className="p-4 font-semibold text-xs uppercase tracking-wider text-muted-foreground">Files</div>
-        <FileTree selectedFile={selectedFile} onSelect={setSelectedFile} />
+    <div className="h-full w-full overflow-hidden flex flex-row bg-background text-foreground select-text">
+      {/* File Tree Sidebar */}
+      <div className="w-64 shrink-0 border-r border-border/80 bg-sidebar/50 flex flex-col overflow-hidden select-none">
+        <div className="h-11 px-4 border-b border-border/80 bg-muted/30 flex items-center justify-between shrink-0">
+          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+            <Code2 className="size-3 text-primary" /> Repository Tree
+          </span>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          <FileTree selectedFile={selectedFile} onSelect={setSelectedFile} />
+        </div>
       </div>
 
-      {/* Editor */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="h-10 border-b bg-background flex items-center px-4 justify-between">
-          <span className="text-sm font-mono text-muted-foreground">{selectedFile}</span>
+      {/* Editor & Validation Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="h-11 border-b border-border/80 bg-card/60 px-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <FileText className="size-3.5 text-primary" />
+            <span className="text-xs font-mono font-bold text-foreground">{selectedFile}</span>
+          </div>
           <div className="flex gap-2 items-center">
             {state.validationResult?.errors.some(e => e.file === selectedFile) && (
-              <Badge variant="destructive" className="h-6">Error</Badge>
+              <Badge variant="destructive" className="h-6 text-[10px] font-mono">Syntax Error</Badge>
             )}
             <Button 
               variant="ghost"
-              size="sm"
-              className={cn("h-7 px-2 text-xs", showChat && "bg-accent")}
+              size="xs"
+              className={cn("text-xs font-mono", showChat && "bg-muted/80 text-foreground")}
               onClick={() => setShowChat(!showChat)}
             >
-              <MessageSquare className="mr-1 h-3 w-3" />
-              {showChat ? 'Hide Assistant' : 'AI Assistant'}
+              <MessageSquare className="mr-1 size-3 text-primary" />
+              {showChat ? 'Hide AI Assistant' : 'AI Assistant'}
             </Button>
             <Button 
-              size="sm" 
-              className="h-7 px-2 text-xs" 
+              size="xs" 
+              className="bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs rounded-sm shadow-xs" 
               onClick={() => navigate('/export')}
             >
-              Continue to Export <ArrowRight className="ml-1 h-3 w-3" />
+              <Download className="mr-1 size-3" /> Export ZIP
             </Button>
           </div>
         </div>
+
         <textarea
-          className="flex-1 p-6 font-mono text-sm resize-none focus:outline-none bg-background"
+          className="flex-1 p-5 font-mono text-xs leading-relaxed resize-none focus:outline-none bg-background text-foreground selection:bg-primary/20"
           value={selectedFile ? getFileContent(selectedFile) : ''}
           onChange={e => updateFileContent(e.target.value)}
           spellCheck={false}
@@ -112,33 +122,33 @@ function FileTree({ selectedFile, onSelect }: { selectedFile: string | null, onS
   const FileItem = ({ path, label }: { path: string, label: string }) => (
     <div 
       className={cn(
-        "flex items-center gap-2 px-4 py-1.5 text-sm cursor-pointer hover:bg-accent transition-colors",
-        selectedFile === path ? "bg-accent text-accent-foreground border-r-2 border-primary" : "text-muted-foreground"
+        "flex items-center gap-2 px-3 py-1.5 text-xs font-mono rounded-sm cursor-pointer transition-colors",
+        selectedFile === path ? "bg-muted/90 text-foreground font-bold border-l-2 border-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
       )}
       onClick={() => onSelect(path)}
     >
-      <FileText className="h-4 w-4 shrink-0" />
+      <FileText className="size-3.5 shrink-0 text-primary" />
       <span className="truncate">{label}</span>
     </div>
   );
 
   return (
-    <div className="py-2">
+    <div className="space-y-0.5">
       <FileItem path="agent.yaml" label="agent.yaml" />
       <FileItem path="SOUL.md" label="SOUL.md" />
       {state.rules && <FileItem path="RULES.md" label="RULES.md" />}
       {state.prompt_md && <FileItem path="PROMPT.md" label="PROMPT.md" />}
       {state.duties && <FileItem path="DUTIES.md" label="DUTIES.md" />}
 
-      {Object.keys(state.skills).length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 px-4 py-1.5 text-sm cursor-pointer hover:bg-accent" onClick={() => toggle('skills')}>
-            {expanded.skills ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            <Folder className="h-4 w-4" />
-            <span>skills</span>
+      {Object.keys(state.skills || {}).length > 0 && (
+        <div className="pt-1">
+          <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-mono cursor-pointer hover:bg-muted/40 rounded-sm" onClick={() => toggle('skills')}>
+            {expanded.skills ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}
+            <Folder className="size-3.5 text-warning" />
+            <span className="font-semibold text-foreground">skills</span>
           </div>
           {expanded.skills && Object.keys(state.skills).map(s => (
-            <div key={s} className="pl-6">
+            <div key={s} className="pl-4">
               <FileItem path={`skills/${s}`} label={`${s}/SKILL.md`} />
             </div>
           ))}
@@ -156,23 +166,22 @@ function ValidationPanel() {
   if (errors.length === 0 && warnings.length === 0) return null;
 
   return (
-    <div className="h-48 border-t bg-muted/50 overflow-y-auto">
-      <div className="p-4 space-y-2">
-        {errors.map((err, i) => (
-          <div key={i} className="flex gap-2 text-sm text-destructive">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span className="font-semibold shrink-0">{err.file}:</span>
-            <span>{err.message}</span>
-          </div>
-        ))}
-        {warnings.map((warn, i) => (
-          <div key={i} className="flex gap-2 text-sm text-amber-600">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span className="font-semibold shrink-0">{warn.file}:</span>
-            <span>{warn.message}</span>
-          </div>
-        ))}
-      </div>
+    <div className="h-44 border-t border-border/80 bg-muted/40 overflow-y-auto p-3 space-y-2">
+      <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">Diagnostics</span>
+      {errors.map((err, i) => (
+        <div key={i} className="flex gap-2 text-xs font-mono text-destructive">
+          <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+          <span className="font-bold shrink-0">{err.file}:</span>
+          <span>{err.message}</span>
+        </div>
+      ))}
+      {warnings.map((warn, i) => (
+        <div key={i} className="flex gap-2 text-xs font-mono text-warning">
+          <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
+          <span className="font-bold shrink-0">{warn.file}:</span>
+          <span>{warn.message}</span>
+        </div>
+      ))}
     </div>
   );
 }

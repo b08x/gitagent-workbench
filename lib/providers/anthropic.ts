@@ -10,7 +10,7 @@ export const anthropicProvider: ModelProvider = {
   async generate<T extends z.ZodTypeAny = any>(prompt: GenerationPrompt<T>, apiKey: string, modelId: string): Promise<GenerationResult<z.infer<T>>> {
     const anthropic = createAnthropic({ apiKey });
     const { text, experimental_output } = await generateText({
-      model: anthropic(modelId) as any,
+      model: anthropic(modelId),
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -20,7 +20,7 @@ export const anthropicProvider: ModelProvider = {
   async *stream(prompt, apiKey, modelId) {
     const anthropic = createAnthropic({ apiKey });
     const { textStream } = streamText({
-      model: anthropic(modelId) as any,
+      model: anthropic(modelId),
       system: prompt.system,
       prompt: prompt.user,
     });

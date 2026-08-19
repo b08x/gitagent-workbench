@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
-import { Download, CheckCircle, Terminal, Copy, Check, ArrowLeft, Wand2, AlertTriangle, Info } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Download, CheckCircle, Terminal, Copy, Check, ArrowLeft, Wand2, AlertTriangle, Info, Package, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function ExportView() {
@@ -82,223 +83,154 @@ export function ExportView() {
     if (state.prompt_md) count++;
     if (state.duties) count++;
     if (state.agents_md) count++;
-    count += Object.keys(state.skills).length;
-    count += Object.keys(state.tools).length;
-    count += Object.keys(state.workflows).length;
+    count += Object.keys(state.skills || {}).length;
+    count += Object.keys(state.tools || {}).length;
+    count += Object.keys(state.workflows || {}).length;
     if (state.knowledge) count++;
     if (state.memory) count++;
-    if (state.examples.goodOutputs) count++;
-    if (state.examples.badOutputs) count++;
-    if (state.config.default) count++;
-    if (state.config.production) count++;
+    if (state.examples?.goodOutputs) count++;
+    if (state.examples?.badOutputs) count++;
+    if (state.config?.default) count++;
+    if (state.config?.production) count++;
     return count;
   };
 
   return (
-    <div className="max-w-3xl mx-auto py-12 px-6">
-      <div className="mb-8 flex justify-between items-start">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Export Agent</h2>
-          <p className="text-muted-foreground">Your gitagent is ready for deployment.</p>
+    <div className="h-full w-full overflow-y-auto bg-background text-foreground p-6 md:p-8 select-text">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex justify-between items-center border-b border-border/80 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="size-8 rounded-sm bg-primary/10 text-primary flex items-center justify-center terracotta-glow-sm">
+              <Package className="size-4.5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight">Export & Target Adapters</h2>
+              <p className="text-xs text-muted-foreground">Synthesize your agent into standalone packages or tool adapters</p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/editor')} className="text-xs">
+            <ArrowLeft className="mr-1.5 size-3.5" /> Back to Editor
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate('/editor')}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Editor
-        </Button>
-      </div>
 
-      <Tabs defaultValue="zip" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-8">
-          <TabsTrigger value="zip">ZIP Package</TabsTrigger>
-          <TabsTrigger value="claude">Claude Code</TabsTrigger>
-          <TabsTrigger value="gemini">Gemini CLI</TabsTrigger>
-          <TabsTrigger value="python">Hermes Python</TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="zip" className="w-full">
+          <TabsList className="grid w-full grid-cols-4 mb-6">
+            <TabsTrigger value="zip" className="text-xs font-mono">ZIP Package</TabsTrigger>
+            <TabsTrigger value="claude" className="text-xs font-mono">Claude Code</TabsTrigger>
+            <TabsTrigger value="gemini" className="text-xs font-mono">Gemini CLI</TabsTrigger>
+            <TabsTrigger value="python" className="text-xs font-mono">Hermes Python</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="zip" className="space-y-6">
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-primary" />
-                Generation Complete
-              </CardTitle>
-              <CardDescription>
-                All files have been synthesized and validated.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">ZIP Filename:</span>
-                <span className="font-mono font-medium">
-                  {state.manifest.name || 'agent'}-v{state.manifest.version || '1.0.0'}.zip
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Files Generated:</span>
-                <span className="font-medium">{calculateFileCount()}</span>
-              </div>
-              <Button className="w-full h-12" onClick={handleDownload}>
-                <Download className="mr-2 h-5 w-5" /> Download ZIP
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Terminal className="h-4 w-4" />
-                Next Steps
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="bg-muted p-4 rounded-lg font-mono text-xs space-y-4">
-                <div className="flex items-center justify-between group">
-                  <div>
-                    <p className="text-muted-foreground mb-1"># Validate your agent</p>
-                    <code className="text-primary">gitagent validate .</code>
+          <TabsContent value="zip" className="space-y-4">
+            <Card className="border-border/80 bg-card rounded-sm shadow-xs">
+              <CardHeader className="p-5 pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-bold">
+                  <CheckCircle className="size-4 text-emerald-500" />
+                  Specification Compliant (v1.0.0)
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  All workspace files synthesized into a GitAgent compliant bundle.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 pt-0 space-y-4">
+                <div className="p-3 bg-muted/40 rounded-sm border border-border/60 space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground font-mono">ZIP PACKAGE:</span>
+                    <span className="font-mono font-bold text-foreground">
+                      {state.manifest.name || 'agent'}-v{state.manifest.version || '1.0.0'}.zip
+                    </span>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => copyToClipboard('gitagent validate .', 'val')}
-                  >
-                    {copied === 'val' ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                  </Button>
-                </div>
-                <div className="flex items-center justify-between group">
-                  <div>
-                    <p className="text-muted-foreground mb-1"># Export as system prompt</p>
-                    <code className="text-primary">gitagent export --format system-prompt</code>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground font-mono">TOTAL FILES:</span>
+                    <span className="font-mono font-bold text-primary">{calculateFileCount()} files</span>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => copyToClipboard('gitagent export --format system-prompt', 'exp')}
-                  >
-                    {copied === 'exp' ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                  </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="claude">
-          <Card>
-            <CardHeader>
-              <CardTitle>Claude Code Export</CardTitle>
-              <CardDescription>
-                Download a single CLAUDE.md file optimized for Claude Code and Cursor.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                This format uses progressive disclosure to keep the main file token-efficient while providing full instructions for each skill.
-              </p>
-              <Button onClick={handleExportClaude} className="w-full">
-                <Download className="mr-2 h-4 w-4" /> Download CLAUDE.md
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="gemini">
-          <Card>
-            <CardHeader>
-              <CardTitle>Gemini CLI Export</CardTitle>
-              <CardDescription>
-                Download a ZIP containing GEMINI.md and .gemini/settings.json.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Compatible with the Google Gemini CLI. Includes model preferences and tool permissions.
-              </p>
-              <Button onClick={handleExportGemini} className="w-full">
-                <Download className="mr-2 h-4 w-4" /> Download Gemini ZIP
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="python" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Python Library Export</CardTitle>
-              <CardDescription>
-                Instantiate this agent via the Hermes Python library.
-                Ideal for FastAPI, Discord bots, CI pipelines.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {!state.soul && (
-                <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-900">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <AlertTitle>Incomplete Agent</AlertTitle>
-                  <AlertDescription>
-                    SOUL.md not generated yet — run generation first for a complete export.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase text-muted-foreground">Installation</Label>
-                <div className="bg-muted p-3 rounded-md font-mono text-xs flex items-center justify-between group">
-                  <code>pip install git+https://github.com/NousResearch/hermes-agent.git</code>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => copyToClipboard('pip install git+https://github.com/NousResearch/hermes-agent.git', 'pip')}
-                  >
-                    {copied === 'pip' ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <Button onClick={handleGeneratePython} className="flex-1">
-                  <Wand2 className="mr-2 h-4 w-4" /> Generate Python Bootstrap
+                <Button 
+                  className="w-full h-10 bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs rounded-sm shadow-xs" 
+                  onClick={handleDownload}
+                >
+                  <Download className="mr-2 size-4" /> Download Complete ZIP Bundle
                 </Button>
-                {pythonExport && (
-                  <Button variant="outline" onClick={handleDownloadPython} className="flex-1">
-                    <Download className="mr-2 h-4 w-4" /> Download {pythonExport.filename}
-                  </Button>
-                )}
-              </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-              {pythonExport && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-bold uppercase text-muted-foreground">Code Preview</Label>
-                    <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setShowFullPython(!showFullPython)}>
-                      {showFullPython ? 'Show Less' : 'Show Full File'}
+          <TabsContent value="claude" className="space-y-4">
+            <Card className="border-border/80 bg-card rounded-sm shadow-xs">
+              <CardHeader className="p-5 pb-3">
+                <CardTitle className="text-sm font-bold">Export for Claude Code (CLAUDE.md)</CardTitle>
+                <CardDescription className="text-xs">
+                  Flattens your soul, rules, duties, and skills into a standardized CLAUDE.md memory file.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 pt-0 space-y-4">
+                <Button 
+                  onClick={handleExportClaude} 
+                  className="w-full h-10 bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs rounded-sm shadow-xs"
+                >
+                  <Download className="mr-2 size-4" /> Download CLAUDE.md
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="gemini" className="space-y-4">
+            <Card className="border-border/80 bg-card rounded-sm shadow-xs">
+              <CardHeader className="p-5 pb-3">
+                <CardTitle className="text-sm font-bold">Export for Gemini CLI</CardTitle>
+                <CardDescription className="text-xs">
+                  Converts agent instructions into GEMINI.md and bundle configuration.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 pt-0 space-y-4">
+                <Button 
+                  onClick={handleExportGemini} 
+                  className="w-full h-10 bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs rounded-sm shadow-xs"
+                >
+                  <Download className="mr-2 size-4" /> Download Gemini CLI Bundle
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="python" className="space-y-4">
+            <Card className="border-border/80 bg-card rounded-sm shadow-xs">
+              <CardHeader className="p-5 pb-3">
+                <CardTitle className="text-sm font-bold">Hermes Python Adapter</CardTitle>
+                <CardDescription className="text-xs">
+                  Compile agent specification into runnable Python class code.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 pt-0 space-y-4">
+                <Button 
+                  onClick={handleGeneratePython} 
+                  className="w-full h-10 bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs rounded-sm shadow-xs"
+                >
+                  <Wand2 className="mr-2 size-4" /> Generate Python Script
+                </Button>
+
+                {pythonExport && (
+                  <div className="space-y-3 pt-2">
+                    <div className="p-3 bg-muted/40 border border-border/60 rounded-sm overflow-x-auto">
+                      <pre className="text-xs font-mono text-foreground leading-relaxed max-h-60 overflow-y-auto">
+                        {pythonExport.source}
+                      </pre>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={handleDownloadPython}
+                      className="w-full text-xs font-mono"
+                    >
+                      <Download className="mr-2 size-3.5" /> Download {pythonExport.filename}
                     </Button>
                   </div>
-                  <div className={cn(
-                    "bg-muted p-4 rounded-lg font-mono text-xs overflow-x-auto relative",
-                    !showFullPython && "max-h-[400px] overflow-hidden"
-                  )}>
-                    <pre><code>{pythonExport.source}</code></pre>
-                    {!showFullPython && (
-                      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-muted to-transparent pointer-events-none" />
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <Alert className="bg-blue-50 border-blue-200 text-blue-900">
-                <Info className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-xs">
-                  The <code>ephemeral_system_prompt</code> contains your full SOUL.md.
-                  It is not saved to trajectory files, keeping training data clean.
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

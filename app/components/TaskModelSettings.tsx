@@ -37,7 +37,7 @@ const TASKS = [
 function getModelCapabilities(modelId: string, providerId: string) {
   const isReasoning = modelId.includes('o1') || modelId.includes('o3') || modelId.includes('reasoner') || modelId.includes('r1');
   const supportsTopK = providerId === 'google' || providerId === 'anthropic' || providerId === 'groq';
-  const hasSchema = !modelId.includes('llama-2') && !modelId.includes('mistral-7b'); // most modern models do
+  const hasSchema = !modelId.includes('llama-2') && !modelId.includes('mistral-7b');
 
   return {
     reasoning: isReasoning,
@@ -82,18 +82,18 @@ export function TaskModelSettings() {
   };
 
   return (
-    <div className="space-y-6 border-t pt-8">
+    <div className="flex flex-col gap-6 w-full border-t border-border/80 pt-6">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <Settings2 className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-bold tracking-tight">Task-Specific Models</h2>
+            <Settings2 className="size-4.5 text-primary" />
+            <h2 className="text-lg font-bold tracking-tight text-foreground">Task-Specific LLM Overrides</h2>
           </div>
-          <p className="text-sm text-muted-foreground">Override models and parameters for specific generation tasks.</p>
+          <p className="text-xs text-muted-foreground">Override provider, model, and sampling parameters on a per-task basis.</p>
         </div>
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 xl:grid-cols-2 w-full">
         {TASKS.map(task => {
           const config = settings.taskModels[task.id as keyof AppConfig['taskModels']];
           const Icon = task.icon;
@@ -102,23 +102,23 @@ export function TaskModelSettings() {
           const capabilities = getModelCapabilities(config.modelId, config.providerId);
 
           return (
-            <Card key={task.id} className="bg-muted/30 border-none shadow-none ring-1 ring-border/50">
+            <Card key={task.id} className="bg-card border border-border/80 rounded-sm shadow-xs flex flex-col justify-between">
               <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-primary" />
+                <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+                  <Icon className="size-3.5 text-primary" />
                   {task.name}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-4 pt-2 space-y-5">
-                <div className="space-y-3">
-                  <div className="grid gap-2">
+              <CardContent className="p-4 pt-2 flex flex-col gap-4 w-full">
+                <div className="flex flex-col gap-3 w-full">
+                  <div className="flex flex-col gap-1.5 w-full">
                     <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Provider</Label>
                     <Tabs 
                       value={config.providerId} 
                       onValueChange={v => updateTaskModel(task.id as any, { providerId: v })}
                       className="w-full"
                     >
-                      <TabsList className="grid grid-cols-4 md:grid-cols-7 h-9 w-full bg-background/50 p-1">
+                      <TabsList className="grid grid-cols-4 md:grid-cols-7 h-9 w-full bg-muted/40 p-1">
                         {Object.values(providers).map(p => {
                           return (
                             <TabsTrigger 
@@ -130,7 +130,7 @@ export function TaskModelSettings() {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <div className="flex items-center justify-center w-full h-full">
-                                      <ProviderIcon provider={p.id} size={20} />
+                                      <ProviderIcon provider={p.id} size={18} />
                                     </div>
                                   </TooltipTrigger>
                                   <TooltipContent>
@@ -145,31 +145,32 @@ export function TaskModelSettings() {
                     </Tabs>
                   </div>
 
-                  <div className="grid gap-2">
+                  <div className="flex flex-col gap-1.5 w-full">
                     <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Model</Label>
                     <Select 
                       value={config.modelId} 
                       onValueChange={v => updateTaskModel(task.id as any, { modelId: v })}
                     >
-                      <SelectTrigger className="h-9 text-xs bg-background/50 border-none">
-                        {loading[config.providerId] ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : null}
+                      <SelectTrigger className="h-8 text-xs font-mono bg-background border border-border/80 w-full">
+                        {loading[config.providerId] ? <Loader2 className="size-3 animate-spin mr-2" /> : null}
                         <SelectValue placeholder="Select a model..." />
                       </SelectTrigger>
                       <SelectContent>
                         {providerModels.map(m => (
-                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                          <SelectItem key={m.id} value={m.id} className="text-xs font-mono">{m.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                  <div className="space-y-3">
-                    <div className="space-y-2">
+                {/* Vertical parameter stack */}
+                <div className="flex flex-col gap-3 pt-3 border-t border-border/60 w-full">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                    <div className="flex flex-col gap-1.5 w-full min-w-0 bg-muted/20 p-2.5 rounded-sm border border-border/50">
                       <div className="flex items-center justify-between">
-                        <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Temperature</Label>
-                        <span className="text-[10px] font-mono text-muted-foreground">{params.temperature ?? 0.7}</span>
+                        <Label className="text-xs font-semibold text-foreground">Temperature</Label>
+                        <span className="text-xs font-mono font-bold text-primary">{params.temperature ?? 0.7}</span>
                       </div>
                       <Slider
                         value={[params.temperature ?? 0.7]}
@@ -180,23 +181,11 @@ export function TaskModelSettings() {
                         className="py-1"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Max Tokens</Label>
-                      <Input 
-                        type="number"
-                        value={params.maxTokens ?? ''}
-                        placeholder="Default"
-                        className="h-7 text-xs bg-background/50 border-none"
-                        onChange={(e) => handleParamChange(task.id, 'maxTokens', e.target.value ? parseInt(e.target.value) : undefined)}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="space-y-3">
-                    <div className="space-y-2">
+                    <div className="flex flex-col gap-1.5 w-full min-w-0 bg-muted/20 p-2.5 rounded-sm border border-border/50">
                       <div className="flex items-center justify-between">
-                        <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Top P</Label>
-                        <span className="text-[10px] font-mono text-muted-foreground">{params.topP ?? 1}</span>
+                        <Label className="text-xs font-semibold text-foreground">Top P</Label>
+                        <span className="text-xs font-mono font-bold text-primary">{params.topP ?? 1}</span>
                       </div>
                       <Slider
                         value={[params.topP ?? 1]}
@@ -207,53 +196,31 @@ export function TaskModelSettings() {
                         className="py-1"
                       />
                     </div>
-                    
-                    <div className={cn("space-y-2", !capabilities.topK && "opacity-40 grayscale pointer-events-none")}>
+
+                    <div className="flex flex-col gap-1.5 w-full min-w-0 bg-muted/20 p-2.5 rounded-sm border border-border/50">
+                      <Label className="text-xs font-semibold text-foreground">Max Tokens</Label>
+                      <Input 
+                        type="number"
+                        value={params.maxTokens ?? ''}
+                        placeholder="Default"
+                        className="h-7 text-xs font-mono bg-background border-border/80 w-full"
+                        onChange={(e) => handleParamChange(task.id, 'maxTokens', e.target.value ? parseInt(e.target.value) : undefined)}
+                      />
+                    </div>
+
+                    <div className={cn("flex flex-col gap-1.5 w-full min-w-0 bg-muted/20 p-2.5 rounded-sm border border-border/50", !capabilities.topK && "opacity-40 grayscale pointer-events-none")}>
                       <div className="flex items-center gap-1">
-                        <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Top K</Label>
-                        {!capabilities.topK && <Info className="h-3 w-3 text-muted-foreground" />}
+                        <Label className="text-xs font-semibold text-foreground">Top K</Label>
+                        {!capabilities.topK && <Info className="size-3 text-muted-foreground" />}
                       </div>
                       <Input 
                         type="number"
                         value={params.topK ?? ''}
                         disabled={!capabilities.topK}
                         placeholder={capabilities.topK ? "Default" : "N/A"}
-                        className="h-7 text-xs bg-background/50 border-none"
+                        className="h-7 text-xs font-mono bg-background border-border/80 w-full"
                         onChange={(e) => handleParamChange(task.id, 'topK', e.target.value ? parseInt(e.target.value) : undefined)}
                       />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                  <div className={cn("space-y-2", !capabilities.reasoning && "opacity-40 grayscale pointer-events-none text-muted-foreground/50")}>
-                    <div className="flex items-center gap-1">
-                      <Label className="text-[10px] uppercase font-semibold">Reasoning Effort</Label>
-                      {!capabilities.reasoning && <Info className="h-3 w-3" />}
-                    </div>
-                    <Select 
-                      value={params.reasoningEffort || 'medium'} 
-                      disabled={!capabilities.reasoning}
-                      onValueChange={v => handleParamChange(task.id, 'reasoningEffort', v)}
-                    >
-                      <SelectTrigger className="h-7 text-[10px] bg-background/50 border-none">
-                        <SelectValue placeholder="Effort" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className={cn("space-y-2", !capabilities.schema && "opacity-40 grayscale pointer-events-none text-muted-foreground/50")}>
-                    <div className="flex items-center gap-1">
-                      <Label className="text-[10px] uppercase font-semibold">Structured Output</Label>
-                      {!capabilities.schema && <Info className="h-3 w-3" />}
-                    </div>
-                    <div className="h-7 flex items-center px-2 text-[10px] italic text-muted-foreground">
-                      {capabilities.schema ? "Supported" : "Not supported"}
                     </div>
                   </div>
                 </div>

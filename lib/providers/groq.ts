@@ -6,11 +6,11 @@ import { z } from 'zod';
 export const groqProvider: ModelProvider = {
   id: 'groq',
   name: 'Groq',
-  supportsDirectBrowser: true,
+  supportsDirectBrowser: false,
   async generate<T extends z.ZodTypeAny = any>(prompt: GenerationPrompt<T>, apiKey: string, modelId: string): Promise<GenerationResult<z.infer<T>>> {
     const groq = createGroq({ apiKey });
     const { text, experimental_output } = await generateText({
-      model: groq(modelId) as any,
+      model: groq(modelId),
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -20,7 +20,7 @@ export const groqProvider: ModelProvider = {
   async *stream(prompt, apiKey, modelId) {
     const groq = createGroq({ apiKey });
     const { textStream } = streamText({
-      model: groq(modelId) as any,
+      model: groq(modelId),
       system: prompt.system,
       prompt: prompt.user,
     });

@@ -7,9 +7,7 @@ import { providers } from '../../lib/providers';
 import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
-import { Separator } from '../../components/ui/separator';
 import { 
   Send, 
   Square, 
@@ -24,7 +22,9 @@ import {
   Bot,
   User,
   ShieldAlert,
-  Terminal
+  Terminal,
+  Sliders,
+  Check
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -50,7 +50,7 @@ export function ChatWorkbench() {
   const { settings } = useSettings();
 
   const [chatModel, setChatModel] = useState<ChatModelState>({
-    providerId: settings.providerId ?? 'anthropic',
+    providerId: settings.providerId ?? 'google',
     modelId: '',
     availableModels: [],
     fetchStatus: 'idle',
@@ -60,374 +60,340 @@ export function ChatWorkbench() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [abortController, setAbortController] = useState<AbortController | null>(null);
-  const [showSystemPrompt, setShowSystemPrompt] = useState(true);
+  const [showSystemPrompt, setShowSystemPrompt] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const assembledPrompt = useMemo(() => assembleSystemPrompt(state), [state]);
 
-  const fetchModelsForProvider = useCallback(async (providerId: string) => {
-    setChatModel(s => ({ ...s, fetchStatus: 'fetching', fetchError: null }));
-    const apiKey = settings.apiKeys?.[providerId];
+  const loadModels = useCallback(async (providerId: string) => {
+    setChatModel(prev => ({
+      ...prev,
+      providerId,
+      fetchStatus: 'fetching',
+      fetchError: null,
+    }));
+
     try {
-      const models = await fetchChatModels(providerId, apiKey);
-      setChatModel(s => ({
-        ...s,
+      const models = await fetchChatModels(providerId);
+      const defaultModel = models.length > 0 ? models[0].id : '';
+      setChatModel({
+        providerId,
+        modelId: defaultModel,
         availableModels: models,
-        modelId: s.modelId || models[0]?.id || '',
         fetchStatus: 'success',
-      }));
-    } catch (err) {
-      const fallback = CURATED_MODELS[providerId] ?? [];
-      setChatModel(s => ({
-        ...s,
-        availableModels: fallback,
-        modelId: s.modelId || fallback[0]?.id || '',
+        fetchError: null,
+      });
+    } catch (err: any) {
+      console.error(err);
+      const curated = CURATED_MODELS[providerId] || [];
+      setChatModel({
+        providerId,
+        modelId: curated[0]?.id || '',
+        availableModels: curated,
         fetchStatus: 'error',
-        fetchError: err instanceof Error ? err.message : 'Could not fetch model list',
-      }));
+        fetchError: err.message || 'Failed to fetch dynamic models',
+      });
     }
-  }, [settings.apiKeys]);
+  }, []);
 
   useEffect(() => {
-    fetchModelsForProvider(chatModel.providerId);
-  }, []);
+    loadModels(chatModel.providerId);
+  }, [chatModel.providerId, loadModels]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isStreaming]);
 
   const handleProviderChange = (newProviderId: string) => {
-    setChatModel(s => ({
-      ...s,
-      providerId: newProviderId,
-      modelId: '',
-      availableModels: [],
-      fetchStatus: 'idle',
-      fetchError: null,
-    }));
-    fetchModelsForProvider(newProviderId);
+    setChatModel(prev => ({ ...prev, providerId: newProviderId }));
+  };
+
+  const handleModelChange = (newModelId: string) => {
+    setChatModel(prev => ({ ...prev, modelId: newModelId }));
+  };
+
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setIsStreaming(false);
+    }
   };
 
   const handleReset = () => {
+    handleStop();
     setMessages([]);
-    setInput('');
   };
 
-  const handleExport = () => {
-    const sessionMd = messages.map(m => {
-      const role = m.role === 'user' ? 'User' : 'Assistant';
-      return `### ${role} (${m.timestamp.toISOString()})\n\n${m.content}`;
-    }).join('\n\n---\n\n');
-
-    const exportContent = `## Test Session - ${new Date().toLocaleDateString()}\n\n${sessionMd}`;
-    
-    dispatch({
-      type: 'SET_FILE',
-      payload: {
-        path: 'examples/test-session.md',
-        content: exportContent
-      }
-    });
-
-    // Also append to goodOutputs as requested
-    const currentGood = state.examples.goodOutputs || '';
-    dispatch({
-      type: 'UPDATE_WORKSPACE',
-      payload: {
-        examples: {
-          ...state.examples,
-          goodOutputs: currentGood + (currentGood ? '\n\n' : '') + exportContent
-        }
-      }
-    });
-
-    setToast('Session exported to workspace examples');
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const checkRules = (content: string, rules: string | null): { flagged: boolean; reason?: string } => {
+  const checkRuleViolations = (content: string): { flagged: boolean; reason?: string } => {
+    const rules = state.rules || '';
     if (!rules) return { flagged: false };
-    
-    const mustNeverStatements = rules.split('\n')
-      .map(line => line.trim())
-      .filter(line => {
-        const lower = line.toLowerCase();
-        return lower.includes('must not') || 
-               lower.includes('never') || 
-               lower.includes('do not') || 
-               lower.includes("don't") || 
-               lower.includes('prohibited');
-      });
 
-    for (const statement of mustNeverStatements) {
-      // Very simple heuristic: if the assistant response contains keywords from a "must never" line
-      // this is just a signal for the user to review.
-      const keywords = statement.split(' ').filter(w => w.length > 4);
-      if (keywords.some(k => content.includes(k))) {
-        return { 
-          flagged: true, 
-          reason: `Possible constraint signal — review against RULES.md: "${statement}"` 
-        };
-      }
+    const lower = content.toLowerCase();
+    if (rules.includes('MUST NEVER') && lower.includes('password') && lower.includes('reveal')) {
+      return { flagged: true, reason: 'Potentially violated: MUST NEVER reveal secrets' };
     }
-
     return { flagged: false };
   };
 
   const handleSend = async () => {
-    if (!input.trim() || !chatModel.modelId || isStreaming) return;
+    if (!input.trim() || !chatModel.modelId) return;
 
     const userMessage: Message = {
       role: 'user',
       content: input,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsStreaming(true);
 
     const assistantMessage: Message = {
       role: 'assistant',
       content: '',
       timestamp: new Date(),
-      modelId: chatModel.modelId,
+      modelId: chatModel.modelId
     };
 
-    setMessages(prev => [...prev, userMessage, assistantMessage]);
-    setInput('');
-    setIsStreaming(true);
+    setMessages(prev => [...prev, assistantMessage]);
 
-    const controller = new AbortController();
-    setAbortController(controller);
+    abortControllerRef.current = new AbortController();
 
     try {
-      const provider = providers[chatModel.providerId];
-      const apiKey = settings.apiKeys?.[chatModel.providerId];
+      const conversationHistory = [...messages, userMessage].map(m => ({
+        role: m.role,
+        content: m.content
+      }));
 
-      if (!apiKey) {
-        throw new Error(`API key missing for ${provider.name}`);
-      }
-
-      const prompt = {
+      const promptPayload = {
         system: assembledPrompt,
-        user: input,
+        messages: conversationHistory
       };
 
-      // Note: we don't pass the full history here because the provider.stream() 
-      // implementation in this codebase currently only takes system + user prompt.
-      // In a real app, we'd pass the full message history.
-      // For this workbench, we'll stick to the existing provider interface.
-      
-      let fullResponse = '';
-      for await (const chunk of provider.stream(prompt, apiKey, chatModel.modelId)) {
-        fullResponse += chunk;
-        setMessages(prev => {
-          const last = prev[prev.length - 1];
-          return [...prev.slice(0, -1), { ...last, content: fullResponse }];
-        });
-      }
+      const encodedPrompt = btoa(unescape(encodeURIComponent(JSON.stringify(promptPayload))));
 
-      const { flagged, reason } = checkRules(fullResponse, state.rules);
-      setMessages(prev => {
-        const last = prev[prev.length - 1];
-        return [...prev.slice(0, -1), { ...last, flagged, flagReason: reason }];
+      const response = await fetch('/api/compute/v1', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          providerId: chatModel.providerId,
+          modelId: chatModel.modelId,
+          options: {
+            temperature: 0.7
+          },
+          prompt: encodedPrompt
+        }),
+        signal: abortControllerRef.current.signal
       });
 
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        // Silent
-      } else {
-        setMessages(prev => {
-          const last = prev[prev.length - 1];
-          return [...prev.slice(0, -1), { 
-            ...last, 
-            content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}` 
-          }];
-        });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const data = await response.json();
+      const content = data.text || (typeof data.object === 'string' ? data.object : JSON.stringify(data.object, null, 2)) || 'No response content.';
+
+      const violation = checkRuleViolations(content);
+
+      setMessages(prev => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last && last.role === 'assistant') {
+          last.content = content;
+          last.flagged = violation.flagged;
+          last.flagReason = violation.reason;
+        }
+        return next;
+      });
+
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      console.error(err);
+      setMessages(prev => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last && last.role === 'assistant') {
+          last.content = `Error: ${err.message || 'Failed to complete message'}`;
+        }
+        return next;
+      });
     } finally {
       setIsStreaming(false);
-      setAbortController(null);
     }
   };
 
-  const handleStop = () => {
-    if (abortController) {
-      abortController.abort();
-    }
+  const handleExportGoodOutput = (index: number) => {
+    const msg = messages[index];
+    if (!msg || msg.role !== 'assistant') return;
+
+    const newGoodOutputs = [...(state.evals?.goodOutputs || []), msg.content];
+    dispatch({
+      type: 'UPDATE_WORKSPACE',
+      payload: {
+        evals: {
+          ...state.evals,
+          goodOutputs: newGoodOutputs
+        }
+      }
+    });
+
+    setToast('Added to evals/goodOutputs.md');
+    setTimeout(() => setToast(null), 3000);
   };
 
   const suggestionChips = [
-    "Who are you and what is your purpose?",
-    "What are the core rules you must follow?",
-    "Tell me about your available skills."
+    "Tell me about your core objective and persona.",
+    "What tools and permissions do you have access to?",
+    "Run a diagnostic check on your rules and constraints."
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden bg-background">
-      {/* Model Selector Bar */}
-      <div className="h-14 border-b flex items-center px-4 gap-4 bg-card/50 backdrop-blur shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Provider</span>
-          <Select value={chatModel.providerId} onValueChange={handleProviderChange}>
-            <SelectTrigger className="w-40 h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="anthropic">Anthropic</SelectItem>
-              <SelectItem value="openai">OpenAI</SelectItem>
-              <SelectItem value="google">Google</SelectItem>
-              <SelectItem value="mistral">Mistral</SelectItem>
-              <SelectItem value="openrouter">OpenRouter</SelectItem>
-            </SelectContent>
-          </Select>
+    <div className="h-full w-full overflow-hidden flex flex-col bg-background text-foreground select-text">
+      {/* Top Header Bar */}
+      <div className="h-14 border-b border-border/80 bg-card/60 backdrop-blur-md px-5 flex items-center justify-between shrink-0 z-20">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="size-8 rounded-sm bg-primary/10 text-primary flex items-center justify-center terracotta-glow-sm shrink-0">
+            <MessageSquare className="size-4.5" />
+          </div>
+          <div className="flex items-center gap-2 truncate">
+            <h1 className="font-bold text-sm tracking-tight text-foreground">Agent Test Lab</h1>
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-primary px-1.5 py-0.2 bg-primary/10 rounded-sm">
+              LIVE RUNTIME
+            </span>
+          </div>
         </div>
 
+        {/* Model Selector Strip */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Model</span>
-          <Select 
-            value={chatModel.modelId} 
-            onValueChange={(val) => setChatModel(s => ({ ...s, modelId: val }))}
-            disabled={chatModel.availableModels.length === 0 || chatModel.fetchStatus === 'fetching'}
+          <div className="flex items-center gap-1.5 bg-muted/40 p-1 border border-border/60 rounded-sm">
+            <Select value={chatModel.providerId} onValueChange={handleProviderChange}>
+              <SelectTrigger className="h-7 text-xs font-mono border-none shadow-none bg-transparent w-[120px]">
+                <SelectValue placeholder="Provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {providers.map(p => (
+                  <SelectItem key={p.id} value={p.id} className="text-xs font-mono">{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <span className="text-border">/</span>
+
+            <Select value={chatModel.modelId} onValueChange={handleModelChange}>
+              <SelectTrigger className="h-7 text-xs font-mono border-none shadow-none bg-transparent w-[160px]">
+                <SelectValue placeholder={chatModel.fetchStatus === 'fetching' ? 'Loading...' : 'Select Model'} />
+              </SelectTrigger>
+              <SelectContent>
+                {chatModel.availableModels.map(m => (
+                  <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
+                    <span className="truncate">{m.name}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleReset}
+            disabled={messages.length === 0}
+            className="text-xs"
           >
-            <SelectTrigger className="w-64 h-8 text-xs">
-              <SelectValue placeholder={chatModel.fetchStatus === 'fetching' ? "Fetching..." : "Select a model"} />
-            </SelectTrigger>
-            <SelectContent>
-              {chatModel.availableModels.map(m => (
-                <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <RotateCcw className="size-3.5 mr-1" /> Reset
+          </Button>
+
           <Button 
             variant="ghost" 
-            size="icon" 
-            className="h-8 w-8" 
-            onClick={() => fetchModelsForProvider(chatModel.providerId)}
-            disabled={chatModel.fetchStatus === 'fetching'}
+            size="sm" 
+            onClick={() => setShowSystemPrompt(!showSystemPrompt)}
+            className={cn("text-xs font-mono", showSystemPrompt && "bg-muted/80 text-foreground")}
           >
-            <RefreshCw className={cn("h-4 w-4", chatModel.fetchStatus === 'fetching' && "animate-spin")} />
+            <Terminal className="size-3.5 mr-1 text-primary" />
+            Prompt ({Math.round(assembledPrompt.length / 4)} tok)
           </Button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {chatModel.fetchStatus === 'success' && (
-            <Badge variant="secondary" className="text-[10px] h-5">{chatModel.availableModels.length} models</Badge>
-          )}
-          {chatModel.fetchStatus === 'error' && (
-            <Badge variant="outline" className="text-[10px] h-5 text-amber-600 border-amber-200 bg-amber-50">Using defaults</Badge>
-          )}
-        </div>
-
-        <div className="flex-1" />
-
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="h-8 text-xs gap-2" onClick={handleReset}>
-            <RotateCcw className="h-3.5 w-3.5" /> Reset
-          </Button>
-          {messages.length > 0 && (
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-2" onClick={handleExport}>
-              <Download className="h-3.5 w-3.5" /> Export Session
-            </Button>
-          )}
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Column - System Prompt Inspector */}
-        <div className={cn(
-          "border-r bg-muted/30 transition-all duration-300 flex flex-col",
-          showSystemPrompt ? "w-[400px]" : "w-0 overflow-hidden border-r-0"
-        )}>
-          <div className="p-4 border-b flex items-center justify-between bg-card">
-            <h3 className="text-sm font-bold flex items-center gap-2">
-              <Terminal className="h-4 w-4 text-primary" />
-              System Prompt
-            </h3>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono text-muted-foreground">
-                ~{Math.round(assembledPrompt.length / 4).toLocaleString()} tokens
+      {/* Main Area */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Left Drawer: System Prompt Inspector */}
+        {showSystemPrompt && (
+          <div className="w-80 shrink-0 border-r border-border/80 bg-sidebar/50 flex flex-col overflow-hidden select-none animate-in slide-in-from-left duration-200">
+            <div className="h-11 px-4 border-b border-border/80 bg-muted/30 flex items-center justify-between shrink-0">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                <Terminal className="size-3 text-primary" /> Active System Prompt
               </span>
               <Button 
                 variant="ghost" 
-                size="icon" 
-                className="h-7 w-7" 
-                onClick={() => navigator.clipboard.writeText(assembledPrompt)}
+                size="xs"
+                onClick={() => {
+                  navigator.clipboard.writeText(assembledPrompt);
+                  setCopiedPrompt(true);
+                  setTimeout(() => setCopiedPrompt(false), 2000);
+                }}
+                className="text-[10px] font-mono uppercase"
               >
-                <Copy className="h-3.5 w-3.5" />
+                {copiedPrompt ? <Check className="size-3 text-emerald-500 mr-1" /> : <Copy className="size-3 mr-1" />}
+                {copiedPrompt ? "Copied" : "Copy"}
               </Button>
             </div>
-          </div>
-          <div className="flex-1 p-4 overflow-hidden flex flex-col gap-4">
-            {!state.soul && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-md flex gap-3">
-                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <p className="text-[10px] text-amber-800 leading-relaxed">
-                  <strong>SOUL.md missing.</strong> The agent identity will be weak. Consider generating a soul first.
-                </p>
-              </div>
-            )}
-            <div className="flex-1 border rounded-md bg-background p-3 overflow-auto">
-              <pre className="text-[10px] font-mono whitespace-pre-wrap leading-relaxed text-muted-foreground">
+
+            <div className="flex-1 overflow-y-auto p-4">
+              <pre className="font-mono text-[11px] leading-relaxed text-foreground whitespace-pre-wrap selection:bg-primary/20">
                 {assembledPrompt}
               </pre>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Toggle Button */}
-        <div className="relative">
-          <Button 
-            variant="secondary" 
-            size="icon" 
-            className="absolute top-4 -left-4 h-8 w-8 rounded-full shadow-md z-10 border"
-            onClick={() => setShowSystemPrompt(!showSystemPrompt)}
-          >
-            {showSystemPrompt ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </Button>
-        </div>
-
-        {/* Right Column - Chat Thread */}
-        <div className="flex-1 flex flex-col bg-background relative">
+        {/* Center: Chat Thread */}
+        <div className="flex-1 flex flex-col overflow-hidden bg-background min-w-0">
           {toast && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2">
-              <Badge className="px-4 py-2 shadow-lg bg-primary text-primary-foreground">
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2">
+              <Badge className="px-3 py-1.5 shadow-md bg-primary text-primary-foreground font-mono text-xs">
                 {toast}
               </Badge>
             </div>
           )}
 
-          <div 
-            ref={scrollRef}
-            className="flex-1 overflow-y-auto p-6 space-y-6"
-          >
+          {/* Messages Scroll Area */}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 md:p-6 space-y-4">
             {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center space-y-8">
-                <div className="space-y-2">
-                  <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <MessageSquare className="h-8 w-8 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-bold">Agent Test Lab</h3>
-                  <p className="text-muted-foreground max-w-md mx-auto text-sm">
-                    Test your agent's identity and constraints before exporting. 
-                    The system prompt is live-assembled from your current workspace.
+              <div className="h-full flex flex-col items-center justify-center text-center space-y-6 max-w-md mx-auto py-12">
+                <div className="size-14 rounded-sm bg-primary/10 text-primary flex items-center justify-center terracotta-glow-sm">
+                  <MessageSquare className="size-7" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-base font-bold tracking-tight text-foreground">Interactive Agent Playground</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Test your agent's instructions, tone, and guardrails live with multi-turn conversations.
                   </p>
                 </div>
-                
-                <div className="flex flex-wrap justify-center gap-2 max-w-lg">
-                  {suggestionChips.map((chip, i) => (
-                    <Button 
-                      key={i} 
-                      variant="outline" 
-                      size="sm" 
-                      className="rounded-full text-xs"
-                      onClick={() => setInput(chip)}
-                    >
-                      {chip}
-                    </Button>
-                  ))}
+
+                <div className="space-y-2 w-full">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+                    Try Asking:
+                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    {suggestionChips.map((chip, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setInput(chip)}
+                        className="text-left text-xs p-2.5 rounded-sm bg-muted/40 hover:bg-muted/80 border border-border/60 hover:border-primary/50 text-muted-foreground hover:text-foreground transition-all"
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (
@@ -439,45 +405,48 @@ export function ChatWorkbench() {
                     m.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
                   )}
                 >
-                  <div className="flex items-center gap-2 mb-1 px-1">
+                  <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] font-mono text-muted-foreground uppercase">
                     {m.role === 'user' ? (
                       <>
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">You</span>
-                        <User className="h-3 w-3 text-muted-foreground" />
+                        <span>You</span>
+                        <User className="size-3" />
                       </>
                     ) : (
                       <>
-                        <Bot className="h-3 w-3 text-primary" />
-                        <span className="text-[10px] font-bold text-primary uppercase tracking-tighter">Agent</span>
+                        <Bot className="size-3 text-primary" />
+                        <span className="text-primary font-bold">Agent</span>
+                        {m.modelId && <span className="text-muted-foreground/60">• {m.modelId}</span>}
                       </>
                     )}
                   </div>
-                  
+
                   <div className={cn(
-                    "p-4 rounded-2xl text-sm leading-relaxed shadow-sm",
+                    "p-3.5 rounded-sm text-xs leading-relaxed border shadow-xs",
                     m.role === 'user' 
-                      ? "bg-primary text-primary-foreground rounded-tr-none" 
-                      : "bg-muted rounded-tl-none border-l-4 border-transparent",
-                    m.flagged && "border-l-amber-500 bg-amber-50/50"
+                      ? "bg-primary text-primary-foreground border-primary/50 font-medium" 
+                      : "bg-card border-border/80 text-foreground",
+                    m.flagged && "border-l-4 border-l-amber-500 bg-amber-50/20"
                   )}>
-                    {m.content || (isStreaming && i === messages.length - 1 ? (
-                      <span className="inline-block w-2 h-4 bg-primary animate-pulse align-middle" />
-                    ) : null)}
-                    {m.content && isStreaming && i === messages.length - 1 && (
-                      <span className="inline-block w-2 h-4 bg-primary animate-pulse align-middle ml-1" />
+                    <div className="whitespace-pre-wrap">{m.content}</div>
+                    {isStreaming && i === messages.length - 1 && (
+                      <span className="inline-block size-2 bg-primary animate-pulse ml-1 align-middle" />
                     )}
                   </div>
 
-                  {m.role === 'assistant' && (
-                    <div className="flex flex-col mt-1 px-1 gap-1">
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        {m.modelId}
-                      </span>
+                  {m.role === 'assistant' && !isStreaming && (
+                    <div className="flex items-center gap-2 mt-1 px-1">
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => handleExportGoodOutput(i)}
+                        className="text-[9px] font-mono text-muted-foreground hover:text-primary h-5 px-1"
+                      >
+                        <Download className="size-2.5 mr-1" /> Save to Evals
+                      </Button>
                       {m.flagged && (
-                        <div className="flex items-center gap-1.5 text-amber-600">
-                          <ShieldAlert className="h-3 w-3" />
-                          <span className="text-[10px] font-medium">{m.flagReason}</span>
-                        </div>
+                        <span className="text-[9px] font-mono text-amber-600 flex items-center gap-1">
+                          <ShieldAlert className="size-3" /> {m.flagReason}
+                        </span>
                       )}
                     </div>
                   )}
@@ -486,53 +455,43 @@ export function ChatWorkbench() {
             )}
           </div>
 
-          {/* Input Area */}
-          <div className="p-6 border-t bg-card">
-            <div className="max-w-4xl mx-auto space-y-4">
-              {!chatModel.modelId && (
-                <p className="text-xs text-center text-muted-foreground animate-pulse">
-                  Select a model to start testing
-                </p>
-              )}
-              <div className="relative">
-                <Textarea 
-                  placeholder="Message your agent..."
-                  className="min-h-[100px] pr-24 resize-none shadow-inner"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  disabled={!chatModel.modelId || isStreaming}
-                />
-                <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                  {isStreaming ? (
-                    <Button 
-                      size="sm" 
-                      variant="destructive" 
-                      className="h-8 w-8 rounded-full" 
-                      onClick={handleStop}
-                    >
-                      <Square className="h-4 w-4 fill-current" />
-                    </Button>
-                  ) : (
-                    <Button 
-                      size="sm" 
-                      className="h-8 w-8 rounded-full" 
-                      onClick={handleSend}
-                      disabled={!input.trim() || !chatModel.modelId}
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+          {/* Input Box */}
+          <div className="p-4 border-t border-border/80 bg-card shrink-0">
+            <div className="max-w-4xl mx-auto flex gap-2">
+              <Textarea 
+                placeholder="Message your agent to test responses and adherence to rules..."
+                className="min-h-[60px] max-h-[140px] resize-none text-xs font-sans rounded-sm bg-background border-border/80 focus-visible:ring-primary/40 focus-visible:border-primary"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={!chatModel.modelId || isStreaming}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+              />
+              <div className="flex flex-col justify-end">
+                {isStreaming ? (
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    className="h-10 px-4 rounded-sm"
+                    onClick={handleStop}
+                  >
+                    <Square className="size-4" />
+                  </Button>
+                ) : (
+                  <Button 
+                    size="sm" 
+                    className="h-10 px-4 rounded-sm bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium shadow-xs"
+                    onClick={handleSend}
+                    disabled={!input.trim() || !chatModel.modelId}
+                  >
+                    <Send className="size-4" />
+                  </Button>
+                )}
               </div>
-              <p className="text-[10px] text-center text-muted-foreground">
-                Testing against current workspace. Changes in other tabs are reflected immediately.
-              </p>
             </div>
           </div>
         </div>
