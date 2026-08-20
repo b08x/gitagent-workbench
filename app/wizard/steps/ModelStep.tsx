@@ -6,6 +6,7 @@ import { fetchChatModels, ModelOption, CURATED_MODELS } from '../../../lib/gitag
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,12 +29,14 @@ function getModelCapabilities(modelId: string, providerId: string) {
 }
 
 export function ModelStep({ fieldErrors = {}, hideGeneration = false, hideRuntime = false }: { fieldErrors?: Record<string, string>; hideGeneration?: boolean; hideRuntime?: boolean }) {
-  const { settings, updateSettings, setApiKey } = useSettings();
+  const { settings, updateSettings, setApiKey, clearApiKey, testApiKey } = useSettings();
   const { state, dispatch } = useAgentWorkspace();
   const [genModels, setGenModels] = useState<ModelOption[]>([]);
   const [runtimeModels, setRuntimeModels] = useState<ModelOption[]>([]);
   const [loadingGen, setLoadingGen] = useState(false);
   const [loadingRuntime, setLoadingRuntime] = useState(false);
+  const [testingKey, setTestingKey] = useState(false);
+  const [keyTestResult, setKeyTestResult] = useState<{ ok: boolean; msg?: string } | null>(null);
 
   useEffect(() => {
     if (hideGeneration) return;
@@ -345,27 +348,82 @@ export function ModelStep({ fieldErrors = {}, hideGeneration = false, hideRuntim
                       PERSISTENT (ENV)
                     </Badge>
                   )}
-                  {settings.apiKeys[settings.providerId] && (
-                    <span className="text-[10px] text-green-500 flex items-center gap-1">
+                  {keyTestResult && (
+                    <span className={cn(
+                      "text-[10px] flex items-center gap-1 font-mono",
+                      keyTestResult.ok ? "text-green-500" : "text-destructive"
+                    )}>
+                      {keyTestResult.ok ? <CheckCircle2 className="h-3 w-3" /> : null}
+                      {keyTestResult.ok ? "Key Valid" : keyTestResult.msg || "Invalid Key"}
+                    </span>
+                  )}
+                  {settings.apiKeys[settings.providerId] && !keyTestResult && (
+                    <span className="text-[10px] text-green-500 flex items-center gap-1 font-mono">
                       <CheckCircle2 className="h-3 w-3" /> Key Set
                     </span>
                   )}
                 </div>
               </Label>
-              <Input 
-                type="password" 
-                placeholder={
-                  settings.providerId === 'ollama' 
-                    ? 'Not required for local Ollama' 
-                    : settings.envProviders?.includes(settings.providerId)
-                      ? 'Key provided via environment'
-                      : 'sk-...'
-                } 
-                value={settings.apiKeys[settings.providerId] === '********' ? '' : (settings.apiKeys[settings.providerId] || '')}
-                onChange={e => setApiKey(settings.providerId, e.target.value)}
-                disabled={settings.providerId === 'ollama'}
-                className="h-8 text-xs font-mono bg-background border-border/80 w-full"
-              />
+              <div className="flex gap-1.5 w-full">
+                <Input 
+                  type="password" 
+                  placeholder={
+                    settings.providerId === 'ollama' 
+                      ? 'Not required for local Ollama' 
+                      : settings.envProviders?.includes(settings.providerId)
+                        ? 'Key provided via environment'
+                        : 'sk-...'
+                  } 
+                  value={settings.apiKeys[settings.providerId] === '********' ? '' : (settings.apiKeys[settings.providerId] || '')}
+                  onChange={e => {
+                    setKeyTestResult(null);
+                    setApiKey(settings.providerId, e.target.value);
+                  }}
+                  disabled={settings.providerId === 'ollama'}
+                  className="h-8 text-xs font-mono bg-background border-border/80 flex-1"
+                />
+                {settings.providerId !== 'ollama' && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2.5 text-xs font-mono shrink-0"
+                      disabled={testingKey || (!settings.apiKeys[settings.providerId] && !settings.envProviders?.includes(settings.providerId))}
+                      onClick={async () => {
+                        setTestingKey(true);
+                        setKeyTestResult(null);
+                        try {
+                          const res = await testApiKey(settings.providerId);
+                          setKeyTestResult({ ok: res.ok, msg: res.error });
+                        } catch (e: any) {
+                          setKeyTestResult({ ok: false, msg: e.message });
+                        } finally {
+                          setTestingKey(false);
+                        }
+                      }}
+                    >
+                      {testingKey ? <Loader2 className="size-3 animate-spin mr-1" /> : null}
+                      Test Key
+                    </Button>
+                    {settings.apiKeys[settings.providerId] && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive shrink-0"
+                        title="Clear saved key"
+                        onClick={() => {
+                          clearApiKey(settings.providerId);
+                          setKeyTestResult(null);
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </section>

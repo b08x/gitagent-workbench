@@ -16,7 +16,7 @@ type Action =
   | { type: 'UPDATE_META'; payload: Partial<AgentWorkspace['meta']> }
   | { type: 'UPDATE_MANIFEST'; payload: Partial<AgentWorkspace['manifest']> }
   | { type: 'SET_FILE'; payload: { path: string; content: string } }
-  | { type: 'UPDATE_WORKSPACE'; payload: Partial<ExtendedWorkspace> }
+  | { type: 'UPDATE_WORKSPACE'; payload: Omit<Partial<ExtendedWorkspace>, 'skills'> & { skills?: Record<string, ParsedSkill> | string } }
   | { type: 'ADD_SKILL'; payload: ParsedSkill }
   | { type: 'SET_TEMPLATE'; payload: StructureType }
   | { type: 'ADD_SCAFFOLD_CONTEXT'; payload: ScaffoldContextFile }
@@ -324,10 +324,11 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
       if (payload.skills && typeof payload.skills === 'string') {
         // Special case where skills might be sent as a markdown block
         const skillsUpdates = parseMarkdownToFineGrained(payload.skills, 'skills');
+        delete (payload as any).skills;
         payload = { ...payload, ...skillsUpdates };
       }
 
-      return { ...state, ...payload };
+      return { ...state, ...payload } as ExtendedWorkspace;
     case 'SET_FILE':
       const filePayload = action.payload;
       let nextState = { ...state, [filePayload.path]: filePayload.content };

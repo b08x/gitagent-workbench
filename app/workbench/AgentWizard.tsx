@@ -3,6 +3,7 @@ import { useAgentWorkspace } from '../context/AgentContext';
 import { useSettings } from '../context/SettingsContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
   Select, 
@@ -27,10 +28,14 @@ import {
   Settings as SettingsIcon,
   Lightbulb,
   ArrowRight,
-  Check
+  Check,
+  Zap,
+  KeyRound,
+  Trash2
 } from 'lucide-react';
 import { cn, formatErrorMessage } from '../../lib/utils';
 import { providers } from '../../lib/providers';
+import { synthesizeAgentSpec } from '../../lib/generation/agentSynthesizer';
 
 interface ChatMessage {
   id: string;
@@ -46,7 +51,7 @@ interface ChatMessage {
 
 export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => void }) {
   const { state, dispatch } = useAgentWorkspace();
-  const { settings, updateTaskModel } = useSettings();
+  const { settings, updateTaskModel, setApiKey, clearApiKey } = useSettings();
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     { 
@@ -61,6 +66,8 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   const [isProcessing, setIsProcessing] = useState(false);
   const [contextFiles, setContextFiles] = useState<File[]>([]);
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
+  const [inlineKeyInput, setInlineKeyInput] = useState('');
+  const [showInlineKeyInput, setShowInlineKeyInput] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -83,6 +90,38 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
 
   const removeFile = (index: number) => {
     setContextFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSynthesizeLocally = (promptText: string) => {
+    setIsProcessing(true);
+    try {
+      const synth = synthesizeAgentSpec(promptText || 'Autonomous Specialist Agent');
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: {
+          manifest: {
+            ...state.manifest,
+            name: synth.manifest.name,
+            description: synth.manifest.description
+          },
+          soul: synth.soul,
+          rules: synth.rules,
+          skills: synth.skills
+        }
+      });
+
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `synth-${Date.now()}`,
+          role: 'assistant',
+          content: synth.explanation,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleCancel = () => {
@@ -401,26 +440,70 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
 
             <div className="space-y-1.5 max-w-[calc(100%-2.5rem)]">
               {m.isError ? (
-                /* Enhanced Actionable Error Card with Retry Button */
+                /* Enhanced Actionable Error Card with Retry Button and Built-in Synthesizer */
                 <div className="p-4 rounded-sm text-xs leading-relaxed bg-destructive/5 border border-destructive/30 text-foreground space-y-3 shadow-xs">
                   <div className="flex items-start gap-2 text-destructive font-medium">
                     <AlertCircle className="size-4 shrink-0 mt-0.5" />
                     <div className="space-y-1">
-                      <p className="font-semibold text-xs tracking-tight">Generation Error</p>
+                      <p className="font-semibold text-xs tracking-tight">Generation Notice</p>
                       <p className="text-xs text-foreground/90 font-normal">{m.content}</p>
                     </div>
                   </div>
+
+                  {/* Inline Key Configuration option */}
+                  {showInlineKeyInput && (
+                    <div className="p-2.5 bg-background/80 border border-border/80 rounded-sm space-y-2 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between text-[11px] font-mono">
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <KeyRound className="size-3 text-primary" /> Enter {currentProviderId.toUpperCase()} API Key:
+                        </span>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <Input
+                          type="password"
+                          placeholder="sk-..."
+                          value={inlineKeyInput}
+                          onChange={(e) => setInlineKeyInput(e.target.value)}
+                          className="h-7 text-xs font-mono bg-background"
+                        />
+                        <Button
+                          size="xs"
+                          className="h-7 px-2.5 text-xs font-mono bg-primary text-primary-foreground"
+                          disabled={!inlineKeyInput.trim()}
+                          onClick={() => {
+                            setApiKey(currentProviderId, inlineKeyInput.trim());
+                            setShowInlineKeyInput(false);
+                            if (m.failedPrompt) handleSend(m.failedPrompt, m.failedFiles);
+                          }}
+                        >
+                          Save & Retry
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-destructive/20">
                     {m.failedPrompt && (
                       <Button
                         size="xs"
                         variant="default"
-                        className="bg-primary hover:bg-[#d96b43] text-primary-foreground text-xs font-mono gap-1.5 h-7"
+                        className="bg-primary hover:bg-[#d96b43] text-primary-foreground text-xs font-mono gap-1.5 h-7 shadow-xs"
                         onClick={() => handleSend(m.failedPrompt, m.failedFiles)}
                         disabled={isProcessing}
                       >
-                        <RotateCcw className="size-3" /> Retry Generation
+                        <RotateCcw className="size-3" /> Retry LLM
+                      </Button>
+                    )}
+
+                    {m.failedPrompt && (
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        className="bg-muted hover:bg-muted/80 text-foreground text-xs font-mono gap-1.5 h-7 border border-border/80"
+                        onClick={() => handleSynthesizeLocally(m.failedPrompt!)}
+                        disabled={isProcessing}
+                      >
+                        <Zap className="size-3 text-amber-500" /> Synthesize Locally
                       </Button>
                     )}
 
@@ -428,10 +511,22 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                       size="xs"
                       variant="outline"
                       className="text-xs font-mono gap-1.5 h-7 border-border/80 hover:bg-muted"
-                      onClick={() => onTabChange ? onTabChange('settings') : window.location.href = '/settings'}
+                      onClick={() => setShowInlineKeyInput(!showInlineKeyInput)}
                     >
-                      <SettingsIcon className="size-3" /> Configure API Key
+                      <KeyRound className="size-3 text-primary" /> {showInlineKeyInput ? 'Hide Key Input' : 'Update Key'}
                     </Button>
+
+                    {settings.apiKeys[currentProviderId] && (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        className="text-xs font-mono gap-1 h-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => clearApiKey(currentProviderId)}
+                        title="Clear saved key"
+                      >
+                        <Trash2 className="size-3" /> Clear Key
+                      </Button>
+                    )}
                   </div>
                 </div>
               ) : m.isCancelled ? (
