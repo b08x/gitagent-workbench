@@ -4,11 +4,10 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
-import { generateText, generateObject, streamText, jsonSchema } from "ai";
+import { generateText, streamText } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createMistral } from "@ai-sdk/mistral";
 import { createGroq } from "@ai-sdk/groq";
 import { createOllama } from "ollama-ai-provider";
@@ -19,6 +18,27 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+function cleanErrorMessage(err: any): string {
+  if (!err) return "Internal generation error";
+  let msg = typeof err === 'string' ? err : err.message || JSON.stringify(err);
+  if (typeof msg === 'string' && msg.startsWith('{') && msg.endsWith('}')) {
+    try {
+      const p = JSON.parse(msg);
+      if (p.error?.message) msg = p.error.message;
+      else if (p.message) msg = p.message;
+    } catch {}
+  }
+  if (typeof msg === 'string') {
+    if (msg.includes('API_KEY_INVALID') || msg.toLowerCase().includes('api key not valid')) {
+      return 'Invalid API key provided. Please verify or update your API key in Settings.';
+    }
+    if (msg.includes('429') || msg.toLowerCase().includes('quota')) {
+      return 'API rate limit or quota exceeded for this provider. Please try again or switch providers in Settings.';
+    }
+  }
+  return msg;
+}
 
 async function startServer() {
   const app = express();
@@ -167,7 +187,7 @@ async function startServer() {
       
       res.status(404).json({ error: "Model fetch only supported for select providers via proxy." });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: cleanErrorMessage(e) });
     }
   });
 
@@ -193,7 +213,6 @@ async function startServer() {
     }
   });
 
-  // Decoding helper for base64 / escaped prompt payloads
   const decodePrompt = (prompt: any) => {
     if (typeof prompt === 'string' && (prompt.startsWith('base64:') || /^[A-Za-z0-9+/]*={0,2}$/.test(prompt))) {
       try {
@@ -243,12 +262,22 @@ async function startServer() {
     let contents: any = [];
 
     if (prompt.messages && Array.isArray(prompt.messages) && prompt.messages.length > 0) {
-      contents = prompt.messages.map((m: any) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }]
-      }));
+      contents = prompt.messages.map((m: any) => {
+        let text = '';
+        if (typeof m.content === 'string') {
+          text = m.content;
+        } else if (Array.isArray(m.content)) {
+          text = m.content.map((c: any) => (typeof c === 'string' ? c : (c.text || JSON.stringify(c)))).join('\n');
+        } else {
+          text = JSON.stringify(m.content);
+        }
+        return {
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text }]
+        };
+      });
     } else if (prompt.user) {
-      contents = [{ role: 'user', parts: [{ text: prompt.user }] }];
+      contents = [{ role: 'user', parts: [{ text: typeof prompt.user === 'string' ? prompt.user : JSON.stringify(prompt.user) }] }];
     } else if (typeof prompt === 'string') {
       contents = [{ role: 'user', parts: [{ text: prompt }] }];
     }
@@ -287,7 +316,6 @@ async function startServer() {
         const object = JSON.parse(text);
         return { object };
       } catch {
-        // Fallback cleanup if model wrapped in markdown
         const match = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/{[\s\S]*}/);
         if (match) {
           const object = JSON.parse(match[1] || match[0]);
@@ -299,7 +327,7 @@ async function startServer() {
     return { text };
   }
 
-  // Direct OpenAI-compatible generation (OpenRouter, OpenAI, Groq, Mistral)
+  // Direct OpenAI-compatible generation
   async function generateWithOpenAICompatible(baseUrl: string, modelId: string, apiKey: string, prompt: any, options: any, extraHeaders: Record<string, string> = {}) {
     const messages: any[] = [];
 
@@ -308,9 +336,15 @@ async function startServer() {
     }
 
     if (prompt.messages && Array.isArray(prompt.messages)) {
-      messages.push(...prompt.messages);
+      messages.push(...prompt.messages.map((m: any) => {
+        let content = m.content;
+        if (Array.isArray(content)) {
+          content = content.map((c: any) => typeof c === 'string' ? c : (c.text || JSON.stringify(c))).join('\n');
+        }
+        return { role: m.role, content };
+      }));
     } else if (prompt.user) {
-      messages.push({ role: "user", content: prompt.user });
+      messages.push({ role: "user", content: typeof prompt.user === 'string' ? prompt.user : JSON.stringify(prompt.user) });
     }
 
     const body: any = {
@@ -323,7 +357,6 @@ async function startServer() {
 
     if (prompt.schema) {
       body.response_format = { type: "json_object" };
-      // Include schema instruction in system prompt if not present
       if (!prompt.system?.includes('JSON')) {
         messages.unshift({
           role: "system",
@@ -366,7 +399,6 @@ async function startServer() {
     return { text };
   }
 
-  // Universal generation dispatcher that handles all providers smoothly
   async function executeUniversalGeneration(pid: string, mid: string, key: string, prompt: any, options: any) {
     const cleanMid = normalizeModelId(pid, mid);
 
@@ -407,7 +439,7 @@ async function startServer() {
 
     if (pid === 'anthropic') {
       const anthropic = createAnthropic({ apiKey: key });
-      const model = anthropic(cleanMid);
+      const model = anthropic(cleanMid) as any;
       const res = await generateText({
         model,
         system: prompt.system,
@@ -422,14 +454,14 @@ async function startServer() {
 
   app.post("/api/compute/v1", async (req, res) => {
     refreshEnvKeys();
-    let { prompt, modelId, providerId, options } = req.body;
+    let { prompt, modelId, providerId, options, apiKey: clientKey } = req.body;
     
     // Handle evasive encoding
     prompt = decodePrompt(prompt);
     providerId = providerId || 'google';
 
     const cleanModelId = normalizeModelId(providerId, modelId);
-    let apiKey = serverKeys[providerId];
+    let apiKey = (clientKey && clientKey !== '********' ? clientKey : null) || serverKeys[providerId];
     
     // If chosen provider has no key or is invalid, check if we have a working google key
     const googleKey = serverKeys['google'] || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -451,7 +483,6 @@ async function startServer() {
     } catch (primaryError: any) {
       console.warn(`Primary generation with ${providerId}/${cleanModelId} failed:`, primaryError.message);
 
-      // Check if this error can fallback to Google Gemini
       const isRecoverable = 
         primaryError.message?.toLowerCase().includes('limit') ||
         primaryError.message?.toLowerCase().includes('quota') ||
@@ -473,13 +504,8 @@ async function startServer() {
         }
       }
 
-      let userFriendlyMessage = primaryError.message || "Model generation failed";
-      if (userFriendlyMessage.includes('Key limit exceeded')) {
-        userFriendlyMessage = `Key limit exceeded for ${providerId}. Please provide your own API key in Settings or switch to Gemini.`;
-      }
-
       res.status(500).json({ 
-        error: userFriendlyMessage,
+        error: cleanErrorMessage(primaryError),
         details: primaryError.details || undefined
       });
     }
@@ -487,10 +513,10 @@ async function startServer() {
 
   app.post("/api/stream", async (req, res) => {
     refreshEnvKeys();
-    let { prompt, modelId, providerId, options } = req.body;
+    let { prompt, modelId, providerId, options, apiKey: clientKey } = req.body;
     providerId = providerId || 'google';
     const cleanModelId = normalizeModelId(providerId, modelId);
-    let apiKey = serverKeys[providerId];
+    let apiKey = (clientKey && clientKey !== '********' ? clientKey : null) || serverKeys[providerId];
     const googleKey = serverKeys['google'] || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
     if (!apiKey && googleKey) {
@@ -528,7 +554,6 @@ async function startServer() {
           }
         }
       } else {
-        // Use universal generation for other endpoints
         const result = await executeUniversalGeneration(providerId, cleanModelId, apiKey, prompt, options);
         if (result.text) {
           res.write(`data: ${JSON.stringify({ chunk: result.text })}\n\n`);
@@ -540,9 +565,9 @@ async function startServer() {
     } catch (error: any) {
       console.error("Proxy Stream Error:", error);
       if (!res.headersSent) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: cleanErrorMessage(error) });
       } else {
-        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ error: cleanErrorMessage(error) })}\n\n`);
         res.end();
       }
     }
@@ -559,7 +584,7 @@ async function startServer() {
     if (!res.headersSent) {
       res.status(500).json({ 
         error: "Internal Server Error", 
-        message: err.message
+        message: cleanErrorMessage(err)
       });
     } else {
       next(err);
