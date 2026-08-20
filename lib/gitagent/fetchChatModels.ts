@@ -14,7 +14,8 @@ const PROVIDER_PREFIXES: Record<string, string> = {
 
 export const CURATED_MODELS: Record<string, ModelOption[]> = {
   anthropic: [
-    { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet' },
+    { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet' },
+    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
     { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' },
     { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
   ],
@@ -22,11 +23,20 @@ export const CURATED_MODELS: Record<string, ModelOption[]> = {
     { id: 'gpt-4o', name: 'GPT-4o' },
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
     { id: 'o3-mini', name: 'o3-mini' },
+    { id: 'o1', name: 'o1' },
   ],
   google: [
-    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+    { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash (Recommended)' },
+    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview (Advanced Reasoning)' },
+    { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' },
+    { id: 'gemini-flash-latest', name: 'Gemini Flash Latest' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Experimental' },
+    { id: 'gemini-3.1-flash-image', name: 'Gemini 3.1 Flash Image' },
+    { id: 'gemini-3.1-flash-lite-image', name: 'Gemini 3.1 Flash Lite Image' },
+    { id: 'gemini-embedding-2-preview', name: 'Gemini Embedding 2' },
   ],
   mistral: [
     { id: 'mistral-large-latest', name: 'Mistral Large' },
@@ -43,9 +53,12 @@ export const CURATED_MODELS: Record<string, ModelOption[]> = {
     { id: 'codellama', name: 'CodeLlama' },
   ],
   openrouter: [
+    { id: 'google/gemini-3.7-flash', name: 'Google Gemini 3.7 Flash' },
+    { id: 'google/gemini-2.0-flash-001', name: 'Google Gemini 2.0 Flash' },
+    { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet' },
     { id: 'anthropic/claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet' },
     { id: 'openai/gpt-4o', name: 'GPT-4o' },
-    { id: 'google/gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
+    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
   ],
 };
 
@@ -59,6 +72,25 @@ export async function fetchChatModels(
 ): Promise<ModelOption[]> {
   // Deduplicate by ID before returning
   const results = await (async () => {
+    // Try server-side proxy if no local API key, masked key, or for google/openai
+    if (!apiKey || apiKey === '********' || providerId === 'openai' || providerId === 'google') {
+      try {
+        const res = await fetch(`/api/models/${providerId}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            return json.data.map((m: any) => ({
+              id: m.id,
+              name: m.name || m.id,
+              raw: m.id
+            }));
+          }
+        }
+      } catch (e) {
+        console.warn(`Server-side model fetch failed for ${providerId}, falling back to client or curated.`);
+      }
+    }
+
     if (providerId === 'openrouter') {
       const res = await fetch('https://openrouter.ai/api/v1/models');
       if (!res.ok) throw new Error(`OpenRouter models fetch failed: ${res.status}`);

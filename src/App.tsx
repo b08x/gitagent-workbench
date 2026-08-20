@@ -1,10 +1,8 @@
 import * as React from 'react';
-import { useState } from 'react';
-import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { AgentProvider, useAgentWorkspace } from '../app/context/AgentContext';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AgentProvider } from '../app/context/AgentContext';
 import { SettingsProvider, useSettings } from '../app/context/SettingsContext';
 import { SkillWorkbenchProvider } from '../app/context/SkillWorkbenchContext';
-import { WizardShell } from '../app/wizard/WizardShell';
 import { GenerationDashboard } from '../app/generation/GenerationDashboard';
 import { FileEditor } from '../app/editor/FileEditor';
 import { ExportView } from '../app/export/ExportView';
@@ -20,11 +18,7 @@ import { VersionControl } from '../app/workbench/VersionControl';
 import { GitIntegration } from '../app/workbench/GitIntegration';
 import { DocsPage } from '../app/documentation/DocsPage';
 import { SettingsView } from '../app/settings/SettingsView';
-import { Button } from '../components/ui/button';
-import { Settings, Github, Package, X, Download, BookOpen, Workflow, Database, MessageSquare } from 'lucide-react';
 import { AppLayout } from '../components/AppLayout';
-import { SettingsPanel } from '../app/components/SettingsPanel';
-import { cn } from '../lib/utils';
 
 export default function App() {
   return (
@@ -32,7 +26,7 @@ export default function App() {
       <AgentProvider>
         <SkillWorkbenchProvider>
           <BrowserRouter>
-             <AppContent />
+            <AppContent />
           </BrowserRouter>
         </SkillWorkbenchProvider>
       </AgentProvider>
@@ -53,30 +47,26 @@ function AppContent() {
   }, [settings.theme]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans antialiased transition-colors duration-300">
-      <AppLayout>
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/docs" element={<DocsPage />} />
-          <Route path="/workbench/agent" element={<AgentWorkbench />} />
-          <Route path="/workbench/prompts" element={<PromptWorkbench />} />
-          <Route path="/wizard" element={<Navigate to="/workbench/agent?tab=architect" replace />} />
-          <Route path="/generating" element={<GenerationDashboard />} />
-          <Route path="/editor" element={<FileEditor />} />
-          <Route path="/export" element={<ExportView />} />
-          <Route path="/import" element={<ImportView />} />
-          <Route path="/workbench/skills" element={<SkillWorkbench />} />
-          <Route path="/workbench/workflows" element={<WorkflowWorkbench />} />
-          <Route path="/workbench/knowledge" element={<KnowledgeWorkbench />} />
-          <Route path="/workbench/chat" element={<ChatWorkbench />} />
-          <Route path="/workbench/history" element={<VersionControl />} />
-          <Route path="/workbench/git" element={<GitIntegration />} />
-          <Route path="/settings" element={<SettingsView />} />
-        </Routes>
-      </AppLayout>
-    </div>
+    <AppLayout>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/docs" element={<DocsPage />} />
+        <Route path="/workbench/agent" element={<AgentWorkbench />} />
+        <Route path="/workbench/prompts" element={<PromptWorkbench />} />
+        <Route path="/wizard" element={<Navigate to="/workbench/agent?tab=architect" replace />} />
+        <Route path="/generating" element={<GenerationDashboard />} />
+        <Route path="/editor" element={<FileEditor />} />
+        <Route path="/export" element={<ExportView />} />
+        <Route path="/import" element={<ImportView />} />
+        <Route path="/workbench/skills" element={<SkillWorkbench />} />
+        <Route path="/workbench/workflows" element={<WorkflowWorkbench />} />
+        <Route path="/workbench/knowledge" element={<KnowledgeWorkbench />} />
+        <Route path="/workbench/chat" element={<ChatWorkbench />} />
+        <Route path="/workbench/history" element={<VersionControl />} />
+        <Route path="/workbench/git" element={<GitIntegration />} />
+        <Route path="/settings" element={<SettingsView />} />
+      </Routes>
+    </AppLayout>
   );
 }
-
-

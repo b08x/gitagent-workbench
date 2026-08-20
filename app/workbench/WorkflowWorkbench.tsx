@@ -299,15 +299,18 @@ export function WorkflowWorkbench() {
     Object.keys(stepIdErrors).length === 0;
 
   return (
-    <div className="container mx-auto py-8 px-4 flex flex-col gap-6 overflow-auto">
-      <div className="flex items-center justify-between">
+    <div className="h-full w-full overflow-y-auto bg-background text-foreground p-6 md:p-8 flex flex-col gap-6 select-text">
+      <div className="flex items-center justify-between border-b border-border/80 pb-4 shrink-0">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Workflow Workbench</h1>
-          <p className="text-muted-foreground">Manage multi-step pipelines for your agents</p>
+          <h1 className="text-2xl font-bold tracking-tight">Workflow Workbench</h1>
+          <p className="text-xs text-muted-foreground">Manage multi-step pipelines and DAG graphs for your agents</p>
         </div>
         <div className="flex items-center gap-2">
-            <Button onClick={handleNewWorkflow}>
-                <Plus className="h-4 w-4 mr-2" /> Create Workflow
+            <Button 
+              onClick={handleNewWorkflow}
+              className="bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs rounded-sm shadow-xs"
+            >
+                <Plus className="h-4 w-4 mr-1.5" /> Create Workflow
             </Button>
         </div>
       </div>
@@ -319,7 +322,7 @@ export function WorkflowWorkbench() {
                <ArrowRight className="h-4 w-4 mr-2 rotate-180" /> Back to Workflows
             </Button>
             
-            <div className="h-14 border-b flex items-center justify-between">
+            <div className="h-14 border-b border-border/80 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Workflow className="h-5 w-5 text-primary" />
                 <span className="font-semibold">{editingWorkflow.name || 'Untitled Workflow'}</span>
@@ -334,6 +337,7 @@ export function WorkflowWorkbench() {
                   size="sm" 
                   onClick={handleSave}
                   disabled={!isValid}
+                  className="bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs rounded-sm"
                 >
                   {activeWorkflowId ? 'Update Workflow' : 'Add to Agent'}
                 </Button>

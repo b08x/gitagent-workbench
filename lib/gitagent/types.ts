@@ -70,6 +70,7 @@ export interface AgentManifest {
     };
   };
   runtime?: { max_turns?: number; temperature?: number; timeout?: number };
+  memory?: { strategy?: 'ephemeral' | 'buffer' | 'vector' | 'summary'; max_tokens?: number };
   a2a?: Record<string, unknown>;
   compliance?: AgentCompliance;
   deployment_targets?: string[];
@@ -79,6 +80,16 @@ export interface AgentManifest {
 }
 
 // ─── Skills ─────────────────────────────────────────────────────────────────
+
+export type SkillCategory = 'general' | 'research' | 'code' | 'compliance' | 'communication';
+
+export interface SkillEntry {
+  name: string;
+  description: string;
+  instructions: string;
+  allowedTools?: string;
+  category: SkillCategory;
+}
 
 export interface SkillMetadata {
   author?: string;
@@ -114,6 +125,7 @@ export interface ParsedSkill {
   instructions: string | null;
   allowedTools: string[];
   category: string;
+  tags?: string[];
   license?: string;
   compatibility?: string;
   metadata?: Record<string, any>;

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAgentWorkspace, SkillEntry } from '../../context/AgentContext';
+import { useAgentWorkspace } from '../../context/AgentContext';
+import { SkillEntry } from '../../../lib/gitagent/types';
 import { useSkillWorkbench } from '../../context/SkillWorkbenchContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

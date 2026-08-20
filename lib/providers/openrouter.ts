@@ -8,15 +8,16 @@ export const openrouterProvider: ModelProvider = {
   name: 'OpenRouter',
   supportsDirectBrowser: true,
   async generate<T extends z.ZodTypeAny = any>(prompt: GenerationPrompt<T>, apiKey: string, modelId: string): Promise<GenerationResult<z.infer<T>>> {
-    const openrouter = createOpenRouter({ 
+    const openrouter = createOpenRouter({
       apiKey,
       headers: {
-        'HTTP-Referer': window.location.origin,
+        'HTTP-Referer': 'https://gitagent.dev',
         'X-Title': 'GitAgent Workbench'
       }
     });
+
     const { text, experimental_output } = await generateText({
-      model: openrouter(modelId),
+      model: openrouter(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
       experimental_output: prompt.schema ? Output.object({ schema: prompt.schema }) : undefined,
@@ -24,15 +25,16 @@ export const openrouterProvider: ModelProvider = {
     return { text, object: experimental_output as z.infer<T> };
   },
   async *stream(prompt, apiKey, modelId) {
-    const openrouter = createOpenRouter({ 
+    const openrouter = createOpenRouter({
       apiKey,
       headers: {
-        'HTTP-Referer': window.location.origin,
+        'HTTP-Referer': 'https://gitagent.dev',
         'X-Title': 'GitAgent Workbench'
       }
     });
+
     const { textStream } = streamText({
-      model: openrouter(modelId),
+      model: openrouter(modelId) as any,
       system: prompt.system,
       prompt: prompt.user,
     });

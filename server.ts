@@ -3,205 +3,588 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { generateText, streamText, Output, APICallError, InvalidArgumentError, TypeValidationError, jsonSchema } from "ai";
+import { GoogleGenAI } from "@google/genai";
+import { generateText, streamText } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createMistral } from "@ai-sdk/mistral";
 import { createGroq } from "@ai-sdk/groq";
 import { createOllama } from "ollama-ai-provider";
 import dotenv from "dotenv";
+import cors from "cors";
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function cleanErrorMessage(err: any): string {
+  if (!err) return "Internal generation error";
+  let msg = typeof err === 'string' ? err : err.message || JSON.stringify(err);
+  if (typeof msg === 'string' && msg.startsWith('{') && msg.endsWith('}')) {
+    try {
+      const p = JSON.parse(msg);
+      if (p.error?.message) msg = p.error.message;
+      else if (p.message) msg = p.message;
+    } catch {}
+  }
+  if (typeof msg === 'string') {
+    if (msg.includes('API_KEY_INVALID') || msg.toLowerCase().includes('api key not valid')) {
+      return 'Invalid API key provided. Please verify or update your API key in Settings.';
+    }
+    if (msg.includes('429') || msg.toLowerCase().includes('quota')) {
+      return 'API rate limit or quota exceeded for this provider. Please try again or switch providers in Settings.';
+    }
+  }
+  return msg;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(cors());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // In-memory key storage for this session (demo purposes as requested)
-  // Maps providerId to key. Pre-fill from environment variables.
+  // Request logger
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Size: ${req.headers['content-length'] || 0} bytes`);
+    next();
+  });
+
+  // Maps providerId to env var names
   const PROVIDER_MAP: Record<string, string> = {
     'openai': 'OPENAI_API_KEY',
     'anthropic': 'ANTHROPIC_API_KEY',
-    'google': 'GOOGLE_API_KEY',
+    'google': 'GEMINI_API_KEY',
     'mistral': 'MISTRAL_API_KEY',
     'groq': 'GROQ_API_KEY',
     'openrouter': 'OPENROUTER_API_KEY',
+    'ollama': 'OLLAMA_BASE_URL'
   };
 
   const serverKeys: Record<string, string> = {};
-
-  // ENG-105: Explicit Allowed Models List to prevent Arbitrary Model Invocation
-  const ALLOWED_MODELS = new Set([
-    // Anthropic
-    "claude-3-5-sonnet-20240620", "claude-3-5-sonnet-20241022", "claude-3-5-sonnet-latest", "claude-3-5-haiku-20241022", "claude-3-5-haiku-latest", "claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307",
-    // OpenAI
-    "gpt-4o", "gpt-4o-2024-08-06", "gpt-4o-2024-05-13", "gpt-4o-2024-11-20", "gpt-4o-mini", "gpt-4o-mini-2024-07-18", "o1-preview", "o1-mini", "o1", "o3-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo",
-    // Google
-    "gemini-2.0-flash-exp", "gemini-2.0-flash-exp:free", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-pro-002", "gemini-1.5-pro-latest", "gemini-1.5-flash", "gemini-1.5-flash-002", "gemini-1.5-flash-latest", "gemini-1.5-flash-8b", "gemini-1.5-flash-8b-latest",
-    // Mistral
-    "mistral-large-latest", "mistral-large-2407", "mistral-large-2411", "mistral-medium-latest", "mistral-small-latest", "mistral-small-2409", "codestral-latest", "mistral-embed",
-    // Groq
-    "llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant", "llama-3.2-1b-preview", "llama-3.2-3b-preview", "mixtral-8x7b-32768", "gemma2-9b-it",
-    // Ollama (Allow standard ones)
-    "llama3.2", "llama3.1", "mistral", "phi3", "codellama", "qwen2.5-coder",
-    // OpenRouter (Frequently used models with prefixes)
-    "anthropic/claude-3.5-sonnet", "anthropic/claude-3.5-sonnet:beta", "anthropic/claude-3.5-haiku", "anthropic/claude-3-opus", "openai/gpt-4o", "openai/gpt-4o-mini", "openai/o1-preview", "openai/o1-mini", "google/gemini-flash-1.5", "google/gemini-pro-1.5", "google/gemini-2.0-flash-exp:free", "google/gemini-2.0-flash-exp", "meta-llama/llama-3.1-405b-instruct", "meta-llama/llama-3.1-70b-instruct", "meta-llama/llama-3.1-8b-instruct", "meta-llama/llama-3.3-70b-instruct", "meta-llama/llama-3.2-3b-instruct", "deepseek/deepseek-chat", "deepseek/deepseek-coder", "mistralai/mistral-7b-instruct", "mistralai/mixtral-8x7b-instruct", "mistralai/mistral-large", "microsoft/phi-3-medium-128k-instruct", "cohere/command-r-plus", "qwen/qwen-2.5-72b-instruct", "qwen/qwen-2.5-coder-32b-instruct", "google/gemini-pro-1.5-exp", "google/gemini-flash-1.5-8b", "google/gemini-flash-1.5-exp", "liquid/lfm-40b"
-  ]);
-
-  function mapErrorToStatus(error: any): number {
-    if (error instanceof InvalidArgumentError || error instanceof TypeValidationError) return 400;
-    if (error instanceof APICallError) {
-      if (error.statusCode === 429) return 429;
-      if (error.statusCode === 401) return 401;
-      if (error.statusCode === 403) return 403;
-      return 502; // Bad Gateway for downstream LLM errors
-    }
-    return 500;
-  }
+  const envKeys: Set<string> = new Set();
   
+  function refreshEnvKeys() {
+    Object.entries(PROVIDER_MAP).forEach(([pid, envName]) => {
+      if (process.env[envName]) {
+        serverKeys[pid] = process.env[envName]!;
+        envKeys.add(pid);
+      }
+      if (pid === 'google' && !serverKeys[pid] && process.env['GOOGLE_API_KEY']) {
+        serverKeys[pid] = process.env['GOOGLE_API_KEY']!;
+        envKeys.add(pid);
+      }
+    });
+  }
+
   // Initialize from env
-  Object.entries(PROVIDER_MAP).forEach(([pid, envName]) => {
-    if (process.env[envName]) {
-      serverKeys[pid] = process.env[envName]!;
-    }
+  refreshEnvKeys();
+
+  app.get("/api/health", (req, res) => {
+    refreshEnvKeys();
+    res.json({ 
+      ok: true, 
+      timestamp: new Date().toISOString(), 
+      keysPresent: Object.keys(serverKeys),
+      envKeys: Array.from(envKeys)
+    });
   });
 
   app.get("/api/providers", (req, res) => {
+    refreshEnvKeys();
     const status = Object.keys(PROVIDER_MAP).reduce((acc, pid) => {
-      acc[pid] = !!serverKeys[pid];
+      acc[pid] = {
+        hasKey: !!serverKeys[pid],
+        isEnv: envKeys.has(pid)
+      };
       return acc;
-    }, {} as Record<string, boolean>);
+    }, {} as Record<string, { hasKey: boolean; isEnv: boolean }>);
     res.json(status);
   });
 
-  app.post("/api/keys", (req, res) => {
-    const { providerId, key } = req.body;
-    if (providerId && key) {
-      serverKeys[providerId] = key;
-      res.json({ success: true });
-    } else {
-      res.status(400).json({ error: "Missing providerId or key" });
+  app.get("/api/models/:providerId", async (req, res) => {
+    refreshEnvKeys();
+    const { providerId } = req.params;
+    const apiKey = serverKeys[providerId];
+
+    if (!apiKey) {
+      return res.status(401).json({ error: "No API key found for this provider on server." });
+    }
+
+    try {
+      if (providerId === 'openai') {
+        const response = await fetch('https://api.openai.com/v1/models', {
+          headers: { Authorization: `Bearer ${apiKey}` }
+        });
+        const json = await response.json();
+        return res.json(json);
+      }
+      if (providerId === 'openrouter') {
+        const response = await fetch('https://openrouter.ai/api/v1/models', {
+          headers: { Authorization: `Bearer ${apiKey}` }
+        });
+        const json = await response.json();
+        return res.json(json);
+      }
+      if (providerId === 'groq') {
+        const response = await fetch('https://api.groq.com/openai/v1/models', {
+          headers: { Authorization: `Bearer ${apiKey}` }
+        });
+        const json = await response.json();
+        return res.json(json);
+      }
+      if (providerId === 'mistral') {
+        const response = await fetch('https://api.mistral.ai/v1/models', {
+          headers: { Authorization: `Bearer ${apiKey}` }
+        });
+        const json = await response.json();
+        return res.json(json);
+      }
+      if (providerId === 'google') {
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+          if (response.ok) {
+            const json = await response.json();
+            if (Array.isArray(json.models)) {
+              const liveModels = json.models
+                .filter((m: any) => {
+                  const id = m.name ? m.name.replace(/^models\//, '') : '';
+                  const methods = m.supportedGenerationMethods || [];
+                  return methods.includes('generateContent') && !id.includes('deprecated');
+                })
+                .map((m: any) => {
+                  const id = m.name.replace(/^models\//, '');
+                  return {
+                    id,
+                    name: m.displayName ? `${m.displayName}` : id
+                  };
+                });
+              
+              if (liveModels.length > 0) {
+                return res.json({ data: liveModels });
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to fetch live Google models:", err);
+        }
+
+        return res.json({ 
+          data: [
+            { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash (Recommended)' },
+            { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview' },
+            { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' },
+            { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+            { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+            { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+          ]
+        });
+      }
+      
+      res.status(404).json({ error: "Model fetch only supported for select providers via proxy." });
+    } catch (e: any) {
+      res.status(500).json({ error: cleanErrorMessage(e) });
     }
   });
 
-  app.post("/api/generate", async (req, res) => {
+  app.post("/api/keys", (req, res) => {
     try {
-      const { prompt, modelId, providerId, options } = req.body;
-      
-      if (!modelId) {
-        return res.status(400).json({ error: "Missing modelId in request." });
+      const { providerId, key } = req.body;
+      if (providerId && typeof key === 'string') {
+        if (key === '********') {
+          return res.json({ success: true, ignored: true });
+        }
+        if (key === '') {
+          delete serverKeys[providerId];
+          envKeys.delete(providerId);
+        } else {
+          serverKeys[providerId] = key;
+        }
+        res.json({ success: true });
+      } else {
+        res.status(400).json({ error: "Missing providerId or key" });
       }
+    } catch (err: any) {
+      res.status(400).json({ error: "Invalid JSON body" });
+    }
+  });
 
-      // ENG-105: Validate modelId against allowlist
-      if (!ALLOWED_MODELS.has(modelId)) {
-        console.warn(`Blocked unauthorized model access attempt: ${modelId}`);
-        return res.status(403).json({ error: `Model ${modelId} is not on the allowed list.` });
+  const decodePrompt = (prompt: any) => {
+    if (typeof prompt === 'string' && (prompt.startsWith('base64:') || /^[A-Za-z0-9+/]*={0,2}$/.test(prompt))) {
+      try {
+        const clean = prompt.startsWith('base64:') ? prompt.slice(7) : prompt;
+        return JSON.parse(Buffer.from(clean, 'base64').toString('utf-8'));
+      } catch (e) {
+        return prompt;
       }
+    }
+    return prompt;
+  };
 
-      const apiKey = serverKeys[providerId];
-      
-      if (!apiKey) {
-        return res.status(401).json({ error: `API key for ${providerId} not found on server.` });
+  function normalizeModelId(providerId: string, modelId: string): string {
+    if (!modelId) {
+      if (providerId === 'google') return 'gemini-3.7-flash';
+      if (providerId === 'openai') return 'gpt-4o-mini';
+      if (providerId === 'anthropic') return 'claude-3-5-haiku-20241022';
+      if (providerId === 'groq') return 'llama-3.3-70b-versatile';
+      if (providerId === 'mistral') return 'mistral-small-latest';
+      if (providerId === 'ollama') return 'llama3.2';
+      return 'openai/gpt-4o-mini';
+    }
+    if (providerId === 'google' && modelId.startsWith('google/')) {
+      return modelId.slice(7);
+    }
+    if (providerId === 'openai' && modelId.startsWith('openai/')) {
+      return modelId.slice(7);
+    }
+    if (providerId === 'anthropic' && modelId.startsWith('anthropic/')) {
+      return modelId.slice(10);
+    }
+    if (providerId === 'groq' && modelId.startsWith('groq/')) {
+      return modelId.slice(5);
+    }
+    if (providerId === 'mistral' && modelId.startsWith('mistral/')) {
+      return modelId.slice(8);
+    }
+    if (providerId === 'openrouter' && modelId.startsWith('openrouter/')) {
+      return modelId.slice(11);
+    }
+    return modelId;
+  }
+
+  // Direct generation using Google Gen AI SDK
+  async function generateWithGoogle(modelId: string, apiKey: string, prompt: any, options: any) {
+    const ai = new GoogleGenAI({ apiKey });
+    let contents: any = [];
+
+    if (prompt.messages && Array.isArray(prompt.messages) && prompt.messages.length > 0) {
+      contents = prompt.messages.map((m: any) => {
+        let text = '';
+        if (typeof m.content === 'string') {
+          text = m.content;
+        } else if (Array.isArray(m.content)) {
+          text = m.content.map((c: any) => (typeof c === 'string' ? c : (c.text || JSON.stringify(c)))).join('\n');
+        } else {
+          text = JSON.stringify(m.content);
+        }
+        return {
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text }]
+        };
+      });
+    } else if (prompt.user) {
+      contents = [{ role: 'user', parts: [{ text: typeof prompt.user === 'string' ? prompt.user : JSON.stringify(prompt.user) }] }];
+    } else if (typeof prompt === 'string') {
+      contents = [{ role: 'user', parts: [{ text: prompt }] }];
+    }
+
+    const config: any = {};
+    if (prompt.system) {
+      config.systemInstruction = prompt.system;
+    }
+    if (options?.temperature !== undefined) {
+      config.temperature = options.temperature;
+    }
+    if (options?.maxTokens) {
+      config.maxOutputTokens = options.maxTokens;
+    }
+    if (options?.topP !== undefined) {
+      config.topP = options.topP;
+    }
+    if (options?.topK !== undefined) {
+      config.topK = options.topK;
+    }
+
+    if (prompt.schema) {
+      config.responseMimeType = "application/json";
+      config.responseSchema = prompt.schema;
+    }
+
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents,
+      config
+    });
+
+    const text = response.text || '';
+    if (prompt.schema) {
+      try {
+        const object = JSON.parse(text);
+        return { object };
+      } catch {
+        const match = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/{[\s\S]*}/);
+        if (match) {
+          const object = JSON.parse(match[1] || match[0]);
+          return { object };
+        }
       }
+    }
 
-      const provider = getProvider(providerId, apiKey);
-      const model = provider(modelId);
+    return { text };
+  }
 
-      const result = await generateText({
+  // Direct OpenAI-compatible generation
+  async function generateWithOpenAICompatible(baseUrl: string, modelId: string, apiKey: string, prompt: any, options: any, extraHeaders: Record<string, string> = {}) {
+    const messages: any[] = [];
+
+    if (prompt.system) {
+      messages.push({ role: "system", content: prompt.system });
+    }
+
+    if (prompt.messages && Array.isArray(prompt.messages)) {
+      messages.push(...prompt.messages.map((m: any) => {
+        let content = m.content;
+        if (Array.isArray(content)) {
+          content = content.map((c: any) => typeof c === 'string' ? c : (c.text || JSON.stringify(c))).join('\n');
+        }
+        return { role: m.role, content };
+      }));
+    } else if (prompt.user) {
+      messages.push({ role: "user", content: typeof prompt.user === 'string' ? prompt.user : JSON.stringify(prompt.user) });
+    }
+
+    const body: any = {
+      model: modelId,
+      messages,
+      temperature: options?.temperature ?? 0.7,
+      max_tokens: options?.maxTokens || undefined,
+      top_p: options?.topP ?? 1,
+    };
+
+    if (prompt.schema) {
+      body.response_format = { type: "json_object" };
+      if (!prompt.system?.includes('JSON')) {
+        messages.unshift({
+          role: "system",
+          content: `You must respond with valid JSON matching schema: ${JSON.stringify(prompt.schema)}`
+        });
+      }
+    }
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        ...extraHeaders
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`API error (${response.status}): ${errText}`);
+    }
+
+    const json = await response.json();
+    const text = json.choices?.[0]?.message?.content || "";
+
+    if (prompt.schema) {
+      try {
+        const object = JSON.parse(text);
+        return { object };
+      } catch {
+        const match = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/{[\s\S]*}/);
+        if (match) {
+          const object = JSON.parse(match[1] || match[0]);
+          return { object };
+        }
+      }
+    }
+
+    return { text };
+  }
+
+  async function executeUniversalGeneration(pid: string, mid: string, key: string, prompt: any, options: any) {
+    const cleanMid = normalizeModelId(pid, mid);
+
+    if (pid === 'google') {
+      return await generateWithGoogle(cleanMid, key, prompt, options);
+    }
+
+    if (pid === 'openrouter') {
+      return await generateWithOpenAICompatible(
+        'https://openrouter.ai/api/v1',
+        cleanMid,
+        key,
+        prompt,
+        options,
+        {
+          'HTTP-Referer': 'https://gitagent.dev',
+          'X-Title': 'GitAgent Workbench'
+        }
+      );
+    }
+
+    if (pid === 'openai') {
+      return await generateWithOpenAICompatible('https://api.openai.com/v1', cleanMid, key, prompt, options);
+    }
+
+    if (pid === 'groq') {
+      return await generateWithOpenAICompatible('https://api.groq.com/openai/v1', cleanMid, key, prompt, options);
+    }
+
+    if (pid === 'mistral') {
+      return await generateWithOpenAICompatible('https://api.mistral.ai/v1', cleanMid, key, prompt, options);
+    }
+
+    if (pid === 'ollama') {
+      const baseUrl = key || 'http://localhost:11434/v1';
+      return await generateWithOpenAICompatible(baseUrl, cleanMid, 'ollama', prompt, options);
+    }
+
+    if (pid === 'anthropic') {
+      const anthropic = createAnthropic({ apiKey: key });
+      const model = anthropic(cleanMid) as any;
+      const res = await generateText({
         model,
         system: prompt.system,
-        prompt: prompt.user,
-        experimental_output: prompt.schema ? Output.object({ schema: jsonSchema(prompt.schema) }) : undefined,
+        prompt: prompt.user || (prompt.messages?.[0]?.content ?? ''),
         ...options
       });
+      return { text: res.text };
+    }
 
-      res.json({ text: result.text, object: result.experimental_output });
-    } catch (error: any) {
-      console.error("Proxy Generate Error:", error);
-      const status = mapErrorToStatus(error);
-      res.status(status).json({ error: error.message });
+    throw new Error(`Unsupported provider: ${pid}`);
+  }
+
+  app.post("/api/compute/v1", async (req, res) => {
+    refreshEnvKeys();
+    let { prompt, modelId, providerId, options, apiKey: clientKey } = req.body;
+    
+    // Handle evasive encoding
+    prompt = decodePrompt(prompt);
+    providerId = providerId || 'google';
+
+    const cleanModelId = normalizeModelId(providerId, modelId);
+    let apiKey = (clientKey && clientKey !== '********' ? clientKey : null) || serverKeys[providerId];
+    
+    // If chosen provider has no key or is invalid, check if we have a working google key
+    const googleKey = serverKeys['google'] || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+
+    try {
+      if (!apiKey) {
+        if (googleKey && providerId !== 'google') {
+          console.warn(`No key for ${providerId}, falling back to google/gemini-3.7-flash`);
+          const fallbackRes = await executeUniversalGeneration('google', 'gemini-3.7-flash', googleKey, prompt, options);
+          return res.json(fallbackRes);
+        }
+        return res.status(401).json({ 
+          error: `API key for ${providerId} not configured. Please add an API key in Settings or switch to Gemini.` 
+        });
+      }
+
+      const result = await executeUniversalGeneration(providerId, cleanModelId, apiKey, prompt, options);
+      return res.json(result);
+    } catch (primaryError: any) {
+      console.warn(`Primary generation with ${providerId}/${cleanModelId} failed:`, primaryError.message);
+
+      const isRecoverable = 
+        primaryError.message?.toLowerCase().includes('limit') ||
+        primaryError.message?.toLowerCase().includes('quota') ||
+        primaryError.message?.toLowerCase().includes('unauthorized') ||
+        primaryError.message?.toLowerCase().includes('forbidden') ||
+        primaryError.message?.toLowerCase().includes('api key') ||
+        primaryError.message?.toLowerCase().includes('specification version') ||
+        primaryError.statusCode === 429 ||
+        primaryError.statusCode === 401 ||
+        primaryError.statusCode === 403;
+
+      if (isRecoverable && googleKey && providerId !== 'google') {
+        try {
+          console.log(`Attempting fallback to Google Gemini (gemini-3.7-flash)...`);
+          const fallbackRes = await executeUniversalGeneration('google', 'gemini-3.7-flash', googleKey, prompt, options);
+          return res.json(fallbackRes);
+        } catch (fallbackError: any) {
+          console.error("Fallback to Google also failed:", fallbackError);
+        }
+      }
+
+      res.status(500).json({ 
+        error: cleanErrorMessage(primaryError),
+        details: primaryError.details || undefined
+      });
     }
   });
 
   app.post("/api/stream", async (req, res) => {
+    refreshEnvKeys();
+    let { prompt, modelId, providerId, options, apiKey: clientKey } = req.body;
+    providerId = providerId || 'google';
+    const cleanModelId = normalizeModelId(providerId, modelId);
+    let apiKey = (clientKey && clientKey !== '********' ? clientKey : null) || serverKeys[providerId];
+    const googleKey = serverKeys['google'] || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+
+    if (!apiKey && googleKey) {
+      providerId = 'google';
+      apiKey = googleKey;
+    }
+
+    if (!apiKey) {
+      return res.status(401).json({ error: `API key for ${providerId} not found on server.` });
+    }
+
     try {
-      const { prompt, modelId, providerId, options } = req.body;
-
-      if (!modelId) {
-        return res.status(400).json({ error: "Missing modelId in request." });
-      }
-
-      // ENG-105: Validate modelId against allowlist
-      if (!ALLOWED_MODELS.has(modelId)) {
-        console.warn(`Blocked unauthorized model access attempt: ${modelId}`);
-        return res.status(403).json({ error: `Model ${modelId} is not on the allowed list.` });
-      }
-
-      const apiKey = serverKeys[providerId];
-
-      if (!apiKey) {
-        return res.status(401).json({ error: `API key for ${providerId} not found on server.` });
-      }
-
-      const provider = getProvider(providerId, apiKey);
-      const model = provider(modelId);
-
-      const result = streamText({
-        model,
-        system: prompt.system,
-        prompt: prompt.user,
-        ...options
-      });
-
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      for await (const chunk of result.textStream) {
-        res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+      if (providerId === 'google') {
+        const ai = new GoogleGenAI({ apiKey });
+        const responseStream = await ai.models.generateContentStream({
+          model: cleanModelId,
+          contents: prompt.user || prompt.messages,
+          config: {
+            systemInstruction: prompt.system,
+            temperature: options?.temperature,
+            maxOutputTokens: options?.maxTokens,
+            topP: options?.topP,
+            topK: options?.topK,
+          }
+        });
+
+        for await (const chunk of responseStream) {
+          const chunkText = chunk.text || '';
+          if (chunkText) {
+            res.write(`data: ${JSON.stringify({ chunk: chunkText })}\n\n`);
+          }
+        }
+      } else {
+        const result = await executeUniversalGeneration(providerId, cleanModelId, apiKey, prompt, options);
+        if (result.text) {
+          res.write(`data: ${JSON.stringify({ chunk: result.text })}\n\n`);
+        }
       }
+
       res.write("data: [DONE]\n\n");
       res.end();
     } catch (error: any) {
       console.error("Proxy Stream Error:", error);
       if (!res.headersSent) {
-        const status = mapErrorToStatus(error);
-        res.status(status).json({ error: error.message });
+        res.status(500).json({ error: cleanErrorMessage(error) });
       } else {
-        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ error: cleanErrorMessage(error) })}\n\n`);
         res.end();
       }
     }
   });
 
-  function getProvider(providerId: string, apiKey: string) {
-    switch (providerId) {
-      case "openrouter": return createOpenRouter({ apiKey });
-      case "anthropic": return createAnthropic({ apiKey });
-      case "openai": return createOpenAI({ apiKey });
-      case "google": return createGoogleGenerativeAI({ apiKey });
-      case "mistral": return createMistral({ apiKey });
-      case "groq": return createGroq({ apiKey });
-      case "ollama": return createOllama({});
-      default: throw new Error(`Unknown provider: ${providerId}`);
-    }
-  }
+  // Final catch-all for missing API routes
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
+  });
 
-  // ENG-106: Global Error Handler to avoid returning HTML on uncaught errors
+  // Global Error Handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error("Global Server Error:", err);
     if (!res.headersSent) {
       res.status(500).json({ 
         error: "Internal Server Error", 
-        message: err.message,
-        stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined 
+        message: cleanErrorMessage(err)
       });
     } else {
       next(err);
@@ -228,4 +611,6 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("CRITICAL: Failed to start server:", err);
+});

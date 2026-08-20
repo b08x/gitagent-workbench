@@ -21,9 +21,12 @@ export interface TaskConfig {
 export interface AppConfig {
   providerId: string;
   modelId: string;
+  parameters?: TaskConfigParameters;
   apiKeys: Record<string, string>;
+  envProviders?: string[]; // IDs of providers with keys in ENV
   mcpServers: string[];
   theme: 'light' | 'dark';
+  debugLogging: boolean;
   taskModels: {
     scripts: TaskConfig;
     knowledge: TaskConfig;
@@ -31,6 +34,7 @@ export interface AppConfig {
     chatTests: TaskConfig;
     memorySeeding: TaskConfig;
     documentation: TaskConfig;
+    architect: TaskConfig;
   };
 }
 
@@ -44,18 +48,26 @@ const SettingsContext = createContext<{
 } | undefined>(undefined);
 
 const DEFAULTS: AppConfig = {
-  providerId: 'openrouter',
-  modelId: '',
+  providerId: 'google',
+  modelId: 'gemini-3.7-flash',
+  parameters: {
+    temperature: 0.7,
+    topP: 1,
+    maxTokens: undefined
+  },
   apiKeys: {}, // Will NOT be persisted to localStorage
+  envProviders: [],
   mcpServers: [],
   theme: 'light',
+  debugLogging: false,
   taskModels: {
-    scripts: { providerId: 'openrouter', modelId: '' },
-    knowledge: { providerId: 'openrouter', modelId: '' },
-    embeddings: { providerId: 'openai', modelId: 'text-embedding-3-small' },
-    chatTests: { providerId: 'openrouter', modelId: '' },
-    memorySeeding: { providerId: 'openrouter', modelId: '' },
-    documentation: { providerId: 'openrouter', modelId: '' },
+    scripts: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    knowledge: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    embeddings: { providerId: 'google', modelId: 'gemini-embedding-2-preview' },
+    chatTests: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    memorySeeding: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    documentation: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    architect: { providerId: 'google', modelId: 'gemini-3.7-flash' },
   }
 };
 
@@ -103,15 +115,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       try {
         const res = await fetch('/api/providers');
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        const status = await res.json();
+        const status = await res.json() as Record<string, { hasKey: boolean; isEnv: boolean }>;
         
         setSettings(prev => {
           const newKeys = { ...prev.apiKeys };
-          Object.entries(status).forEach(([pid, hasKey]) => {
+          const envProviders: string[] = [];
+
+          Object.entries(status).forEach(([pid, info]) => {
+            if (info.isEnv) envProviders.push(pid);
+
             // If server has key and we don't have a placeholder, add one to indicate "present"
-            if (hasKey && !newKeys[pid]) {
+            if (info.hasKey && !newKeys[pid]) {
               newKeys[pid] = '********'; 
-            } else if (!hasKey && newKeys[pid] && newKeys[pid] !== '********') {
+            } else if (!info.hasKey && newKeys[pid] && newKeys[pid] !== '********') {
               // If we have a key in state but server doesn't (e.g. server restarted), sync it
               fetch('/api/keys', {
                 method: 'POST',
@@ -120,7 +136,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               }).catch(err => console.error(`Failed to re-sync key for ${pid}:`, err));
             }
           });
-          return { ...prev, apiKeys: newKeys };
+          return { ...prev, apiKeys: newKeys, envProviders };
         });
       } catch (err) {
         if (retries > 0) {

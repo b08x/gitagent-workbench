@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles, AlertCircle, RotateCcw } from 'lucide-react';
 import { buildGenerationPrompt } from '@/lib/generation/strategy';
 import { streamWithRetryAndFallback } from '@/lib/generation/orchestrator';
 import { AgentWorkspace } from '@/lib/gitagent/types';
 import { useSettings } from '@/app/context/SettingsContext';
 import { providers } from '@/lib/providers';
+import { formatErrorMessage } from '@/lib/utils';
 
 type FileType = 'soul-md' | 'rules-md' | 'prompt-md' | 'duties-md' | 'skill-md';
 
@@ -29,6 +30,7 @@ export function GenerateImproveButton({
   disabled 
 }: GenerateImproveButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { settings } = useSettings();
 
   const isDrafting = !fieldValue || fieldValue.trim() === '';
@@ -37,14 +39,9 @@ export function GenerateImproveButton({
 
   const handleAction = async () => {
     if (isLoading) return;
+    setErrorMessage(null);
 
-    const provider = providers[settings.providerId];
     const apiKey = settings.apiKeys[settings.providerId];
-
-    if (!apiKey) {
-      alert(`Please set the API key for ${provider?.name || settings.providerId} in Settings.`);
-      return;
-    }
 
     setIsLoading(true);
     onLoadingChange?.(true);
@@ -53,9 +50,9 @@ export function GenerateImproveButton({
       let fullText = '';
       
       const config = {
-        providerId: settings.providerId,
-        apiKey,
-        modelId: settings.modelId,
+        providerId: settings.providerId || 'google',
+        apiKey: apiKey && apiKey !== '********' ? apiKey : '',
+        modelId: settings.modelId || 'gemini-3.7-flash',
         fallbackModelIds: workspace.generationConfig?.fallbackModelIds,
         apiKeys: settings.apiKeys
       };
@@ -64,9 +61,9 @@ export function GenerateImproveButton({
         fullText += chunk;
         onResult(fullText);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Generation failed:', error);
-      alert('Generation failed. Please check your API key and connection.');
+      setErrorMessage(formatErrorMessage(error));
     } finally {
       setIsLoading(false);
       onLoadingChange?.(false);
@@ -74,19 +71,28 @@ export function GenerateImproveButton({
   };
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      className="gap-2 h-8 text-xs font-medium"
-      onClick={handleAction}
-      disabled={isLoading || disabled}
-    >
-      {isLoading ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : (
-        <Sparkles className="h-3 w-3" />
+    <div className="flex items-center gap-2">
+      {errorMessage && (
+        <span className="text-[10px] text-destructive flex items-center gap-1 font-mono max-w-[200px] truncate" title={errorMessage}>
+          <AlertCircle className="size-3 shrink-0" /> Failed
+        </span>
       )}
-      {label}
-    </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-2 h-8 text-xs font-medium"
+        onClick={handleAction}
+        disabled={isLoading || disabled}
+      >
+        {isLoading ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : errorMessage ? (
+          <RotateCcw className="h-3 w-3 text-destructive" />
+        ) : (
+          <Sparkles className="h-3 w-3 text-primary" />
+        )}
+        {errorMessage ? 'Retry' : label}
+      </Button>
+    </div>
   );
 }

@@ -6,11 +6,12 @@ export async function generateWithRetryAndFallback<T extends z.ZodTypeAny = any>
   prompt: GenerationPrompt<T>,
   config: OrchestratorConfig
 ): Promise<GenerationResult<z.infer<T>>> {
-  const models = [config.modelId, ...(config.fallbackModelIds || [])];
+  const primaryModel = config.modelId || (config.providerId === 'google' ? 'gemini-3.7-flash' : 'openai/gpt-4o-mini');
+  const models = [primaryModel, ...(config.fallbackModelIds || [])].filter(Boolean);
   let lastError: any;
 
   for (const modelSpec of models) {
-    let providerId = config.providerId;
+    let providerId = config.providerId || 'google';
     let modelId = modelSpec;
     
     // Only split if NOT openrouter, as openrouter IDs naturally contain slashes
@@ -21,7 +22,7 @@ export async function generateWithRetryAndFallback<T extends z.ZodTypeAny = any>
     }
 
     try {
-      const response = await fetch('/api/generate', {
+      const response = await fetch('/api/compute/v1', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -75,11 +76,12 @@ export async function* streamWithRetryAndFallback(
   prompt: GenerationPrompt,
   config: OrchestratorConfig
 ): AsyncGenerator<string> {
-  const models = [config.modelId, ...(config.fallbackModelIds || [])];
+  const primaryModel = config.modelId || (config.providerId === 'google' ? 'gemini-3.7-flash' : 'openai/gpt-4o-mini');
+  const models = [primaryModel, ...(config.fallbackModelIds || [])].filter(Boolean);
   let lastError: any;
 
   for (const modelSpec of models) {
-    let providerId = config.providerId;
+    let providerId = config.providerId || 'google';
     let modelId = modelSpec;
     
     // Only split if NOT openrouter

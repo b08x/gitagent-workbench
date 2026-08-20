@@ -145,13 +145,19 @@ export function ImportView() {
   };
 
   return (
-    <div className="container mx-auto py-12 px-4 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Import Workspace</h1>
-        <p className="text-muted-foreground mt-2">
-          Bootstrap your agent from existing documentation or other platforms.
-        </p>
-      </div>
+    <div className="h-full w-full overflow-y-auto bg-background text-foreground p-6 md:p-8 select-text">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex items-center justify-between border-b border-border/80 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="size-8 rounded-sm bg-primary/10 text-primary flex items-center justify-center terracotta-glow-sm">
+              <FileUp className="size-4.5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight">Import Workspace</h1>
+              <p className="text-xs text-muted-foreground">Bootstrap your agent from existing CLAUDE.md or Gemini configurations</p>
+            </div>
+          </div>
+        </div>
 
       <Tabs defaultValue="claude" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 max-w-md">
@@ -400,6 +406,7 @@ export function ImportView() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }
