@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAgentWorkspace } from '../../context/AgentContext';
-import { SkillEntry } from '../../../lib/gitagent/types';
+import { SkillEntry, AgentFramework } from '../../../lib/gitagent/types';
 import { useSkillWorkbench } from '../../context/SkillWorkbenchContext';
+import { 
+  AGENT_FRAMEWORK_TOOLS, 
+  AGENT_FRAMEWORK_OPTIONS, 
+  ALL_CANONICAL_TOOLS, 
+  TOOL_DESCRIPTIONS 
+} from '../../../lib/gitagent/constants';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, AlertCircle, Info, Brain, BookOpen, Zap, Settings2, ExternalLink, Library } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, Info, Brain, BookOpen, Zap, Settings2, ExternalLink, Library, Cpu, Check, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -26,17 +32,6 @@ const toKebabCase = (str: string) => {
     .replace(/^-+|-+$/g, '');
 };
 
-const isValidKebabCase = (str: string) => {
-  return /^[a-z][a-z0-9-]*$/.test(str);
-};
-
-const CANONICAL_TOOLS = [
-  'web_search', 'web_extract', 'terminal', 'process', 'read_file', 'patch', 
-  'browser_navigate', 'browser_snapshot', 'browser_vision', 'vision_analyze', 
-  'image_generate', 'text_to_speech', 'todo', 'clarify', 'execute_code', 
-  'delegate_task', 'memory', 'session_search', 'cronjob', 'send_message'
-];
-
 export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
   const { state: workbenchState } = useSkillWorkbench();
@@ -44,6 +39,25 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
 
   const [loadingSkills, setLoadingSkills] = useState<Record<number, boolean>>({});
   const [memorySeedingEnabled, setMemorySeedingEnabled] = useState(state.memoryBootstrap !== null);
+  const [showAllTools, setShowAllTools] = useState(false);
+
+  const activeFramework: AgentFramework = (state.targetFramework as AgentFramework) || 'hermes_agent';
+  const frameworkAllowedTools = AGENT_FRAMEWORK_TOOLS[activeFramework] || AGENT_FRAMEWORK_TOOLS['hermes_agent'];
+  const activeFrameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === activeFramework) || AGENT_FRAMEWORK_OPTIONS[0];
+
+  const handleFrameworkChange = (frameworkId: AgentFramework) => {
+    dispatch({ type: 'UPDATE_WORKSPACE', payload: { targetFramework: frameworkId } });
+    dispatch({ 
+      type: 'UPDATE_MANIFEST', 
+      payload: { 
+        metadata: { 
+          ...(state.manifest.metadata || {}), 
+          harness: frameworkId,
+          targetFramework: frameworkId
+        } 
+      } 
+    });
+  };
 
   const setSkillLoading = (index: number, loading: boolean) => {
     setLoadingSkills(prev => ({ ...prev, [index]: loading }));
@@ -88,6 +102,24 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
       ? currentTools.filter(t => t !== tool)
       : [...currentTools, tool];
     handleSkillChange(index, 'allowedTools', nextTools.join(' '));
+  };
+
+  const selectAllFrameworkTools = (index: number) => {
+    const skill = state.skillsList[index];
+    const currentTools = new Set((skill.allowedTools || '').split(' ').filter(Boolean));
+    frameworkAllowedTools.forEach(t => currentTools.add(t));
+    handleSkillChange(index, 'allowedTools', Array.from(currentTools).join(' '));
+  };
+
+  const clearSkillTools = (index: number) => {
+    handleSkillChange(index, 'allowedTools', '');
+  };
+
+  const pruneUnsupportedTools = (index: number) => {
+    const skill = state.skillsList[index];
+    const currentTools = (skill.allowedTools || '').split(' ').filter(Boolean);
+    const filtered = currentTools.filter(t => frameworkAllowedTools.includes(t));
+    handleSkillChange(index, 'allowedTools', filtered.join(' '));
   };
 
   const importFromWorkbench = (skillId: string) => {
@@ -171,13 +203,68 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
 
         {/* ── SKILLS TAB ────────────────────────────────────────────────────── */}
         <TabsContent value="skills" className="space-y-6">
+          {/* Harness / Framework Selector Banner */}
+          <Card className="border-primary/20 bg-primary/[0.03] overflow-hidden">
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Cpu className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-primary">Target Agent Harness / Framework</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Allowed tools for your skills are strictly aligned to the execution capabilities of your selected harness.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {AGENT_FRAMEWORK_OPTIONS.map((f) => {
+                    const isSelected = activeFramework === f.id;
+                    const toolCount = AGENT_FRAMEWORK_TOOLS[f.id]?.length || 0;
+                    return (
+                      <Button
+                        key={f.id}
+                        type="button"
+                        variant={isSelected ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => handleFrameworkChange(f.id)}
+                        className={cn(
+                          "h-8 text-xs font-medium transition-all",
+                          isSelected 
+                            ? "bg-primary text-primary-foreground shadow-xs" 
+                            : "bg-background hover:bg-muted"
+                        )}
+                      >
+                        {isSelected && <Check className="h-3.5 w-3.5 mr-1" />}
+                        {f.shortLabel}
+                        <Badge 
+                          variant={isSelected ? "secondary" : "outline"} 
+                          className={cn(
+                            "ml-1.5 px-1.5 py-0 text-[10px] h-4",
+                            isSelected ? "bg-primary-foreground/20 text-primary-foreground border-transparent" : "text-muted-foreground"
+                          )}
+                        >
+                          {toolCount}
+                        </Badge>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-start gap-4 p-4 bg-primary/5 border border-primary/10 rounded-lg flex-1">
+            <div className="flex items-start gap-4 p-4 bg-muted/40 border rounded-lg flex-1">
               <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                <strong className="text-foreground">Skills</strong> are procedural knowledge. <strong className="text-foreground">HOW</strong> to do things.
-                Loaded on demand, only when relevant. Zero token cost until triggered.
-              </p>
+              <div className="space-y-0.5">
+                <p className="text-sm text-foreground font-medium">
+                  Active Harness: <span className="text-primary font-bold">{activeFrameworkMeta.label}</span>
+                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {activeFrameworkMeta.description}. Only tools supported by this harness are permitted during runtime.
+                </p>
+              </div>
             </div>
             <Button variant="outline" onClick={() => navigate('/workbench/skills')}>
               <ExternalLink className="mr-2 h-4 w-4" /> Skill Workbench
@@ -221,7 +308,18 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
             </div>
 
             <div className="lg:col-span-2 space-y-4">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Agent Capabilities</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Agent Capabilities</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Show all tools:</span>
+                  <Switch 
+                    checked={showAllTools} 
+                    onCheckedChange={setShowAllTools} 
+                    className="scale-75" 
+                  />
+                </div>
+              </div>
+
               {state.skillsList.length === 0 && (
                 <div className="border-2 border-dashed rounded-xl p-12 text-center space-y-4">
                   <Zap className="h-12 w-12 text-muted-foreground/20 mx-auto" />
@@ -236,101 +334,196 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
               )}
               
               <div className="space-y-4">
-                {state.skillsList.map((skill, index) => (
-                  <Card key={index} className="relative overflow-hidden group">
-                    <CardContent className="pt-6 space-y-4">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="absolute top-2 right-2 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removeSkill(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                {state.skillsList.map((skill, index) => {
+                  const currentSkillTools = (skill.allowedTools || '').split(' ').filter(Boolean);
+                  const unsupportedTools = currentSkillTools.filter(t => !frameworkAllowedTools.includes(t));
+                  const displayTools = showAllTools ? ALL_CANONICAL_TOOLS : frameworkAllowedTools;
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  return (
+                    <Card key={index} className="relative overflow-hidden group">
+                      <CardContent className="pt-6 space-y-4">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="absolute top-2 right-2 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeSkill(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor={`skill-name-${index}`}>Skill Name (kebab-case)</Label>
+                            <Input 
+                              id={`skill-name-${index}`}
+                              placeholder="research-expert"
+                              value={skill.name}
+                              onChange={e => handleSkillChange(index, 'name', e.target.value)}
+                              className={cn((fieldErrors[`skillsList.${index}.name`]) && "border-destructive")}
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor={`skill-category-${index}`}>Category</Label>
+                            <Select 
+                              value={skill.category} 
+                              onValueChange={v => handleSkillChange(index, 'category' as any, v)}
+                            >
+                              <SelectTrigger id={`skill-category-${index}`}>
+                                <SelectValue placeholder="Select category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="general">General</SelectItem>
+                                <SelectItem value="research">Research</SelectItem>
+                                <SelectItem value="code">Code</SelectItem>
+                                <SelectItem value="compliance">Compliance</SelectItem>
+                                <SelectItem value="communication">Communication</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
                         <div className="grid gap-2">
-                          <Label htmlFor={`skill-name-${index}`}>Skill Name (kebab-case)</Label>
+                          <Label htmlFor={`skill-desc-${index}`}>Description</Label>
                           <Input 
-                            id={`skill-name-${index}`}
-                            placeholder="research-expert"
-                            value={skill.name}
-                            onChange={e => handleSkillChange(index, 'name', e.target.value)}
-                            className={cn((fieldErrors[`skillsList.${index}.name`]) && "border-destructive")}
+                            id={`skill-desc-${index}`}
+                            placeholder="Expert at searching and synthesizing information..."
+                            value={skill.description}
+                            onChange={e => handleSkillChange(index, 'description', e.target.value)}
                           />
                         </div>
+
+                        {/* Allowed Tools Filtered by Selected Framework */}
                         <div className="grid gap-2">
-                          <Label htmlFor={`skill-category-${index}`}>Category</Label>
-                          <Select 
-                            value={skill.category} 
-                            onValueChange={v => handleSkillChange(index, 'category' as any, v)}
-                          >
-                            <SelectTrigger id={`skill-category-${index}`}>
-                              <SelectValue placeholder="Select category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="general">General</SelectItem>
-                              <SelectItem value="research">Research</SelectItem>
-                              <SelectItem value="code">Code</SelectItem>
-                              <SelectItem value="compliance">Compliance</SelectItem>
-                              <SelectItem value="communication">Communication</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="grid gap-2">
-                        <Label htmlFor={`skill-desc-${index}`}>Description</Label>
-                        <Input 
-                          id={`skill-desc-${index}`}
-                          placeholder="Expert at searching and synthesizing information..."
-                          value={skill.description}
-                          onChange={e => handleSkillChange(index, 'description', e.target.value)}
-                        />
-                      </div>
-
-                      <div className="grid gap-2">
-                        <Label className="text-xs">Allowed Tools</Label>
-                        <div className="flex flex-wrap gap-2 p-3 border rounded-md bg-muted/30">
-                          {CANONICAL_TOOLS.map(tool => (
-                            <div key={tool} className="flex items-center space-x-2">
-                              <Checkbox 
-                                id={`skill-${index}-tool-${tool}`}
-                                checked={(skill.allowedTools || '').split(' ').includes(tool)}
-                                onCheckedChange={() => toggleSkillTool(index, tool)}
-                              />
-                              <label htmlFor={`skill-${index}-tool-${tool}`} className="text-[10px] cursor-pointer select-none">
-                                {tool}
-                              </label>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs font-semibold">Allowed Tools</Label>
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 font-mono">
+                                {activeFrameworkMeta.shortLabel} ({frameworkAllowedTools.length})
+                              </Badge>
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                            
+                            <div className="flex items-center gap-1 text-xs">
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="xs" 
+                                onClick={() => selectAllFrameworkTools(index)}
+                                className="h-6 text-[10px] px-2 text-primary hover:text-primary/80"
+                              >
+                                Select All for {activeFrameworkMeta.shortLabel}
+                              </Button>
+                              <span className="text-muted-foreground/40">•</span>
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="xs" 
+                                onClick={() => clearSkillTools(index)}
+                                className="h-6 text-[10px] px-2 text-muted-foreground hover:text-foreground"
+                              >
+                                Clear
+                              </Button>
+                            </div>
+                          </div>
 
-                      <div className="grid gap-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor={`skill-instructions-${index}`}>Instructions</Label>
-                          <GenerateImproveButton 
-                            fieldValue={skill.instructions || ''}
-                            fileType="skill-md"
-                            fieldName={`Skill: ${skill.name} Instructions`}
-                            workspace={state}
-                            onLoadingChange={(loading) => setSkillLoading(index, loading)}
-                            onResult={(val) => handleSkillChange(index, 'instructions', val)}
+                          {unsupportedTools.length > 0 && !showAllTools && (
+                            <div className="flex items-center justify-between p-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs">
+                              <span className="flex items-center gap-1.5">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                {unsupportedTools.length} tool(s) selected that are not in {activeFrameworkMeta.shortLabel}: {unsupportedTools.join(', ')}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="xs"
+                                onClick={() => pruneUnsupportedTools(index)}
+                                className="h-5 text-[10px] border-amber-500/30 text-amber-700 dark:text-amber-300"
+                              >
+                                Prune
+                              </Button>
+                            </div>
+                          )}
+
+                          <TooltipProvider delayDuration={300}>
+                            <div className="flex flex-wrap gap-1.5 p-3 border rounded-md bg-muted/30 max-h-48 overflow-y-auto">
+                              {displayTools.map(tool => {
+                                const isSupportedByHarness = frameworkAllowedTools.includes(tool);
+                                const isChecked = currentSkillTools.includes(tool);
+                                const toolDesc = TOOL_DESCRIPTIONS[tool] || 'Framework tool capability';
+
+                                return (
+                                  <Tooltip key={tool}>
+                                    <TooltipTrigger asChild>
+                                      <div 
+                                        className={cn(
+                                          "flex items-center space-x-1.5 px-2 py-1 rounded-sm border transition-colors cursor-pointer select-none text-xs",
+                                          isChecked 
+                                            ? "bg-primary/10 border-primary/40 text-foreground font-medium" 
+                                            : "bg-background border-border/60 text-muted-foreground hover:bg-muted/60",
+                                          !isSupportedByHarness && "opacity-60 border-dashed"
+                                        )}
+                                        onClick={() => toggleSkillTool(index, tool)}
+                                      >
+                                        <Checkbox 
+                                          id={`skill-${index}-tool-${tool}`}
+                                          checked={isChecked}
+                                          onCheckedChange={() => toggleSkillTool(index, tool)}
+                                          className="h-3.5 w-3.5"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <label 
+                                          htmlFor={`skill-${index}-tool-${tool}`} 
+                                          className="text-[11px] font-mono cursor-pointer select-none leading-none"
+                                        >
+                                          {tool}
+                                        </label>
+                                        {!isSupportedByHarness && (
+                                          <span className="text-[9px] text-amber-500 font-sans ml-1">
+                                            (external)
+                                          </span>
+                                        )}
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs text-xs">
+                                      <p className="font-semibold font-mono">{tool}</p>
+                                      <p className="text-muted-foreground">{toolDesc}</p>
+                                      {!isSupportedByHarness && (
+                                        <p className="text-amber-500 text-[10px] mt-1 font-semibold">
+                                          Not part of default {activeFrameworkMeta.label} toolset.
+                                        </p>
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                );
+                              })}
+                            </div>
+                          </TooltipProvider>
+                        </div>
+
+                        <div className="grid gap-2">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor={`skill-instructions-${index}`}>Instructions</Label>
+                            <GenerateImproveButton 
+                              fieldValue={skill.instructions || ''}
+                              fileType="skill-md"
+                              fieldName={`Skill: ${skill.name} Instructions`}
+                              workspace={state}
+                              onLoadingChange={(loading) => setSkillLoading(index, loading)}
+                              onResult={(val) => handleSkillChange(index, 'instructions', val)}
+                            />
+                          </div>
+                          <Textarea 
+                            id={`skill-instructions-${index}`}
+                            placeholder="1. Step one...&#10;2. Step two..."
+                            value={skill.instructions || ''}
+                            disabled={loadingSkills[index]}
+                            onChange={e => handleSkillChange(index, 'instructions', e.target.value)}
+                            className="min-h-[100px] text-xs font-mono"
                           />
                         </div>
-                        <Textarea 
-                          id={`skill-instructions-${index}`}
-                          placeholder="1. Step one...&#10;2. Step two..."
-                          value={skill.instructions || ''}
-                          disabled={loadingSkills[index]}
-                          onChange={e => handleSkillChange(index, 'instructions', e.target.value)}
-                          className="min-h-[100px] text-xs font-mono"
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
 
                 {state.skillsList.length > 0 && (
                   <Button variant="outline" className="w-full border-dashed" onClick={addSkill}>
