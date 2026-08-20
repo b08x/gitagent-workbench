@@ -1,29 +1,47 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAgentWorkspace } from '../../context/AgentContext';
-import { SkillEntry, AgentFramework } from '../../../lib/gitagent/types';
 import { useSkillWorkbench } from '../../context/SkillWorkbenchContext';
+import { SkillEntry, AgentFramework } from '../../../lib/gitagent/types';
 import { 
   AGENT_FRAMEWORK_TOOLS, 
   AGENT_FRAMEWORK_OPTIONS, 
   ALL_CANONICAL_TOOLS, 
-  TOOL_DESCRIPTIONS 
+  TOOL_DESCRIPTIONS,
+  TOOL_MATRIX
 } from '../../../lib/gitagent/constants';
+import { inferFrameworkTools } from '../../../lib/gitagent/contextToolInference';
+import { ToolMatrixModal } from '../../workbench/skills/ToolMatrixModal';
+import { GenerateImproveButton } from '../components/GenerateImproveButton';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, AlertCircle, Info, Brain, BookOpen, Zap, Settings2, ExternalLink, Library, Cpu, Check, Filter } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { GenerateImproveButton } from '../components/GenerateImproveButton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Plus, 
+  Trash2, 
+  AlertCircle, 
+  ExternalLink, 
+  Zap, 
+  BookOpen, 
+  Brain, 
+  Info, 
+  Library, 
+  Cpu, 
+  Check, 
+  Sparkles, 
+  Shield, 
+  RefreshCw 
+} from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 const toKebabCase = (str: string) => {
   return str
@@ -40,6 +58,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
   const [loadingSkills, setLoadingSkills] = useState<Record<number, boolean>>({});
   const [memorySeedingEnabled, setMemorySeedingEnabled] = useState(state.memoryBootstrap !== null);
   const [showAllTools, setShowAllTools] = useState(false);
+  const [showMatrixModal, setShowMatrixModal] = useState(false);
 
   const activeFramework: AgentFramework = (state.targetFramework as AgentFramework) || 'hermes_agent';
   const frameworkAllowedTools = AGENT_FRAMEWORK_TOOLS[activeFramework] || AGENT_FRAMEWORK_TOOLS['hermes_agent'];
@@ -80,7 +99,23 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
   };
 
   const addSkill = () => {
-    updateSkills([...state.skillsList, { name: '', description: '', instructions: '', category: 'general', allowedTools: '' }]);
+    const initialTools = inferFrameworkTools({
+      name: 'new-skill',
+      description: '',
+      category: 'general',
+      targetFramework: activeFramework
+    });
+    
+    updateSkills([
+      ...state.skillsList, 
+      { 
+        name: '', 
+        description: '', 
+        instructions: '', 
+        category: 'general', 
+        allowedTools: initialTools.tools.join(' ') 
+      }
+    ]);
   };
 
   const removeSkill = (index: number) => {
@@ -93,6 +128,35 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
     const newSkills = [...state.skillsList];
     newSkills[index] = { ...newSkills[index], [field]: value };
     updateSkills(newSkills);
+  };
+
+  const autoInferToolsForSkill = (index: number) => {
+    const skill = state.skillsList[index];
+    const inferred = inferFrameworkTools({
+      name: skill.name,
+      description: skill.description,
+      category: skill.category,
+      instructions: skill.instructions,
+      targetFramework: activeFramework
+    });
+    handleSkillChange(index, 'allowedTools', inferred.tools.join(' '));
+  };
+
+  const reassignAllSkillsToCurrentFramework = () => {
+    const nextSkills = state.skillsList.map(skill => {
+      const inferred = inferFrameworkTools({
+        name: skill.name,
+        description: skill.description,
+        category: skill.category,
+        instructions: skill.instructions,
+        targetFramework: activeFramework
+      });
+      return {
+        ...skill,
+        allowedTools: inferred.tools.join(' ')
+      };
+    });
+    updateSkills(nextSkills);
   };
 
   const toggleSkillTool = (index: number, tool: string) => {
@@ -129,12 +193,24 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
     const existingIndex = state.skillsList.findIndex(s => s.name === workbenchSkill.name);
     if (existingIndex !== -1) return;
 
+    // Filter tools or infer for active framework
+    let tools = workbenchSkill.allowedTools || [];
+    if (tools.length === 0) {
+      tools = inferFrameworkTools({
+        name: workbenchSkill.name,
+        description: workbenchSkill.description,
+        category: workbenchSkill.metadata?.category,
+        instructions: workbenchSkill.instructions,
+        targetFramework: activeFramework
+      }).tools;
+    }
+
     const newSkill: SkillEntry = {
       name: workbenchSkill.name,
       description: workbenchSkill.description,
       instructions: workbenchSkill.instructions,
       category: (workbenchSkill.metadata?.category as any) || 'general',
-      allowedTools: workbenchSkill.allowedTools.join(' ')
+      allowedTools: tools.join(' ')
     };
 
     updateSkills([...state.skillsList, newSkill]);
@@ -183,9 +259,6 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
     }
   };
 
-  // ── Tools & Deployment ─────────────────────────────────────────────────────
-  // Moved to DeploymentStep and ToolsStep
-
   return (
     <div className="space-y-8">
       <Tabs defaultValue="skills" className="w-full">
@@ -213,7 +286,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                     <span className="text-xs font-bold uppercase tracking-wider text-primary">Target Agent Harness / Framework</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Allowed tools for your skills are strictly aligned to the execution capabilities of your selected harness.
+                    Skills contextually auto-assign canonical tools according to your active execution harness.
                   </p>
                 </div>
 
@@ -258,17 +331,41 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
             <div className="flex items-start gap-4 p-4 bg-muted/40 border rounded-lg flex-1">
               <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <div className="space-y-0.5">
-                <p className="text-sm text-foreground font-medium">
-                  Active Harness: <span className="text-primary font-bold">{activeFrameworkMeta.label}</span>
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-foreground font-medium">
+                    Active Harness: <span className="text-primary font-bold">{activeFrameworkMeta.label}</span>
+                  </p>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="xs"
+                    onClick={() => setShowMatrixModal(true)}
+                    className="h-5 text-xs text-primary p-0 gap-1"
+                  >
+                    <BookOpen className="h-3 w-3" /> View Tool Matrix
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  {activeFrameworkMeta.description}. Only tools supported by this harness are permitted during runtime.
+                  {activeFrameworkMeta.description}. Tools are automatically inferred from skill context and mapped to permissions.
                 </p>
               </div>
             </div>
-            <Button variant="outline" onClick={() => navigate('/workbench/skills')}>
-              <ExternalLink className="mr-2 h-4 w-4" /> Skill Workbench
-            </Button>
+
+            <div className="flex items-center gap-2">
+              {state.skillsList.length > 1 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={reassignAllSkillsToCurrentFramework}
+                  className="h-8 text-xs gap-1.5"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Re-infer All ({activeFrameworkMeta.shortLabel})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => navigate('/workbench/skills')} className="h-8 text-xs">
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Skill Workbench
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -339,6 +436,14 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                   const unsupportedTools = currentSkillTools.filter(t => !frameworkAllowedTools.includes(t));
                   const displayTools = showAllTools ? ALL_CANONICAL_TOOLS : frameworkAllowedTools;
 
+                  const inferred = inferFrameworkTools({
+                    name: skill.name,
+                    description: skill.description,
+                    category: skill.category,
+                    instructions: skill.instructions,
+                    targetFramework: activeFramework
+                  });
+
                   return (
                     <Card key={index} className="relative overflow-hidden group">
                       <CardContent className="pt-6 space-y-4">
@@ -356,7 +461,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                             <Label htmlFor={`skill-name-${index}`}>Skill Name (kebab-case)</Label>
                             <Input 
                               id={`skill-name-${index}`}
-                              placeholder="research-expert"
+                              placeholder="artifact-removal"
                               value={skill.name}
                               onChange={e => handleSkillChange(index, 'name', e.target.value)}
                               className={cn((fieldErrors[`skillsList.${index}.name`]) && "border-destructive")}
@@ -386,7 +491,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                           <Label htmlFor={`skill-desc-${index}`}>Description</Label>
                           <Input 
                             id={`skill-desc-${index}`}
-                            placeholder="Expert at searching and synthesizing information..."
+                            placeholder="Detect and delete copy/paste artifacts such as $1..."
                             value={skill.description}
                             onChange={e => handleSkillChange(index, 'description', e.target.value)}
                           />
@@ -400,25 +505,39 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                               <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 font-mono">
                                 {activeFrameworkMeta.shortLabel} ({frameworkAllowedTools.length})
                               </Badge>
+                              {currentSkillTools.length > 0 && (
+                                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4 font-mono text-primary">
+                                  {currentSkillTools.length} enabled
+                                </Badge>
+                              )}
                             </div>
                             
-                            <div className="flex items-center gap-1 text-xs">
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="xs"
+                                onClick={() => autoInferToolsForSkill(index)}
+                                className="h-6 text-[10px] px-2 text-primary border-primary/30 hover:bg-primary/10 gap-1"
+                              >
+                                <Sparkles className="h-3 w-3" /> Auto-Assign ({inferred.tools.length})
+                              </Button>
+                              <span className="text-muted-foreground/30">•</span>
                               <Button 
                                 type="button" 
                                 variant="ghost" 
                                 size="xs" 
                                 onClick={() => selectAllFrameworkTools(index)}
-                                className="h-6 text-[10px] px-2 text-primary hover:text-primary/80"
+                                className="h-6 text-[10px] px-1.5 text-muted-foreground hover:text-foreground"
                               >
-                                Select All for {activeFrameworkMeta.shortLabel}
+                                All {activeFrameworkMeta.shortLabel}
                               </Button>
-                              <span className="text-muted-foreground/40">•</span>
                               <Button 
                                 type="button" 
                                 variant="ghost" 
                                 size="xs" 
                                 onClick={() => clearSkillTools(index)}
-                                className="h-6 text-[10px] px-2 text-muted-foreground hover:text-foreground"
+                                className="h-6 text-[10px] px-1.5 text-muted-foreground hover:text-destructive"
                               >
                                 Clear
                               </Button>
@@ -429,7 +548,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                             <div className="flex items-center justify-between p-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs">
                               <span className="flex items-center gap-1.5">
                                 <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                {unsupportedTools.length} tool(s) selected that are not in {activeFrameworkMeta.shortLabel}: {unsupportedTools.join(', ')}
+                                {unsupportedTools.length} tool(s) not in {activeFrameworkMeta.shortLabel}: {unsupportedTools.join(', ')}
                               </span>
                               <Button
                                 type="button"
@@ -443,12 +562,13 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                             </div>
                           )}
 
-                          <TooltipProvider delayDuration={300}>
+                          <TooltipProvider delayDuration={200}>
                             <div className="flex flex-wrap gap-1.5 p-3 border rounded-md bg-muted/30 max-h-48 overflow-y-auto">
                               {displayTools.map(tool => {
                                 const isSupportedByHarness = frameworkAllowedTools.includes(tool);
                                 const isChecked = currentSkillTools.includes(tool);
-                                const toolDesc = TOOL_DESCRIPTIONS[tool] || 'Framework tool capability';
+                                const toolEntry = TOOL_MATRIX.find(t => t.framework === activeFramework && t.name === tool);
+                                const toolDesc = toolEntry?.functionDesc || TOOL_DESCRIPTIONS[tool] || 'Framework tool capability';
 
                                 return (
                                   <Tooltip key={tool}>
@@ -483,12 +603,18 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                                         )}
                                       </div>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" className="max-w-xs text-xs">
-                                      <p className="font-semibold font-mono">{tool}</p>
-                                      <p className="text-muted-foreground">{toolDesc}</p>
-                                      {!isSupportedByHarness && (
-                                        <p className="text-amber-500 text-[10px] mt-1 font-semibold">
-                                          Not part of default {activeFrameworkMeta.label} toolset.
+                                    <TooltipContent side="top" className="max-w-xs text-xs space-y-1">
+                                      <p className="font-semibold font-mono text-primary">{tool}</p>
+                                      <p className="text-foreground/90">{toolDesc}</p>
+                                      {toolEntry?.permissions && (
+                                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground pt-1 border-t">
+                                          <Shield className="h-3 w-3 text-amber-500" />
+                                          <span>{toolEntry.permissions}</span>
+                                        </div>
+                                      )}
+                                      {toolEntry?.circumstances && (
+                                        <p className="text-[10px] text-muted-foreground italic">
+                                          Used: {toolEntry.circumstances}
                                         </p>
                                       )}
                                     </TooltipContent>
@@ -505,10 +631,23 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                             <GenerateImproveButton 
                               fieldValue={skill.instructions || ''}
                               fileType="skill-md"
-                              fieldName={`Skill: ${skill.name} Instructions`}
+                              fieldName={`Skill: ${skill.name || 'Skill'} Instructions`}
                               workspace={state}
                               onLoadingChange={(loading) => setSkillLoading(index, loading)}
-                              onResult={(val) => handleSkillChange(index, 'instructions', val)}
+                              onResult={(val) => {
+                                handleSkillChange(index, 'instructions', val);
+                                // If allowedTools was empty, auto-assign contextually inferred tools
+                                if (!skill.allowedTools || skill.allowedTools.trim() === '') {
+                                  const inf = inferFrameworkTools({
+                                    name: skill.name,
+                                    description: skill.description,
+                                    category: skill.category,
+                                    instructions: val,
+                                    targetFramework: activeFramework
+                                  });
+                                  handleSkillChange(index, 'allowedTools', inf.tools.join(' '));
+                                }
+                              }}
                             />
                           </div>
                           <Textarea 
@@ -669,6 +808,12 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
       </Tabs>
 
       <Separator className="my-8" />
+
+      <ToolMatrixModal
+        open={showMatrixModal}
+        onOpenChange={setShowMatrixModal}
+        defaultFramework={activeFramework}
+      />
     </div>
   );
 }

@@ -5,16 +5,18 @@ import { SkillDefinition, AgentFramework } from '../../../lib/gitagent/types';
 import { 
   AGENT_FRAMEWORK_TOOLS, 
   AGENT_FRAMEWORK_OPTIONS, 
-  ALL_CANONICAL_TOOLS,
-  TOOL_DESCRIPTIONS 
+  TOOL_DESCRIPTIONS,
+  TOOL_MATRIX
 } from '../../../lib/gitagent/constants';
+import { inferFrameworkTools, detectContextIntents } from '../../../lib/gitagent/contextToolInference';
+import { ToolMatrixModal } from './ToolMatrixModal';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, X, Search, Wrench, Cpu, Check, AlertCircle } from 'lucide-react';
+import { Plus, X, Wrench, Cpu, Check, Sparkles, BookOpen, Shield, HelpCircle, ArrowRight } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -26,6 +28,8 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
   const { updateSkill } = useSkillWorkbench();
   const { state: agentState, dispatch: agentDispatch } = useAgentWorkspace();
   const [newTool, setNewTool] = useState('');
+  const [showMatrixModal, setShowMatrixModal] = useState(false);
+  const [lastInferenceReason, setLastInferenceReason] = useState<string[] | null>(null);
   
   const initialFramework: AgentFramework = (agentState.targetFramework as AgentFramework) || 'hermes_agent';
   const [selectedFramework, setSelectedFramework] = useState<AgentFramework>(initialFramework);
@@ -33,6 +37,15 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
   const frameworkTools = AGENT_FRAMEWORK_TOOLS[selectedFramework] || AGENT_FRAMEWORK_TOOLS['hermes_agent'];
   const frameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === selectedFramework) || AGENT_FRAMEWORK_OPTIONS[0];
   const selectedTools = skill.allowedTools || [];
+
+  // Compute live inference preview
+  const inference = inferFrameworkTools({
+    name: skill.name,
+    description: skill.description,
+    category: skill.metadata?.category,
+    instructions: skill.instructions,
+    targetFramework: selectedFramework
+  });
 
   const toggleTool = (toolName: string) => {
     const newTools = selectedTools.includes(toolName)
@@ -48,6 +61,12 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
 
   const clearTools = () => {
     updateSkill(skill.id, { allowedTools: [] });
+    setLastInferenceReason(null);
+  };
+
+  const applyAutoInferredTools = () => {
+    updateSkill(skill.id, { allowedTools: inference.tools });
+    setLastInferenceReason(inference.reasoning);
   };
 
   const addExternalTool = () => {
@@ -69,38 +88,87 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Wrench className="h-5 w-5 text-primary" />
-              Allowed Tools
+              Allowed Tools & Permissions
             </CardTitle>
             <CardDescription>
-              Specify which tools this skill is allowed to invoke. Filtered by execution harness.
+              Specify which tools this skill is allowed to invoke. Automatically aligned to execution harness.
             </CardDescription>
           </div>
 
           <div className="flex items-center gap-2">
-            <Cpu className="h-4 w-4 text-muted-foreground" />
-            <Select 
-              value={selectedFramework} 
-              onValueChange={(val: AgentFramework) => handleFrameworkChange(val)}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMatrixModal(true)}
+              className="h-8 text-xs gap-1.5"
             >
-              <SelectTrigger className="h-8 text-xs w-[160px]">
-                <SelectValue placeholder="Select harness" />
-              </SelectTrigger>
-              <SelectContent>
-                {AGENT_FRAMEWORK_OPTIONS.map(opt => (
-                  <SelectItem key={opt.id} value={opt.id} className="text-xs">
-                    {opt.shortLabel} ({AGENT_FRAMEWORK_TOOLS[opt.id]?.length || 0})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <BookOpen className="h-3.5 w-3.5 text-primary" />
+              Tool Matrix
+            </Button>
+
+            <div className="flex items-center gap-1.5 border rounded-md px-2 py-1 bg-muted/20">
+              <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
+              <Select 
+                value={selectedFramework} 
+                onValueChange={(val: AgentFramework) => handleFrameworkChange(val)}
+              >
+                <SelectTrigger className="h-6 text-xs border-0 p-0 shadow-none font-medium focus:ring-0">
+                  <SelectValue placeholder="Select harness" />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGENT_FRAMEWORK_OPTIONS.map(opt => (
+                    <SelectItem key={opt.id} value={opt.id} className="text-xs">
+                      {opt.shortLabel} ({AGENT_FRAMEWORK_TOOLS[opt.id]?.length || 0} tools)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </CardHeader>
+
       <CardContent className="space-y-6">
+        {/* Context Inference Smart Action Banner */}
+        <div className="p-3.5 rounded-lg border bg-gradient-to-r from-primary/5 via-primary/[0.02] to-transparent flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="text-xs font-semibold text-foreground">
+                Context-Inferred Tools for {frameworkMeta.shortLabel}
+              </span>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                {inference.tools.length} recommended
+              </Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Inferred from skill definition ({inference.matchedIntents.join(', ')}): <span className="font-mono text-foreground/80">{inference.tools.join(', ') || 'none'}</span>
+            </p>
+          </div>
+
+          <Button
+            type="button"
+            size="sm"
+            onClick={applyAutoInferredTools}
+            className="h-8 text-xs shrink-0 gap-1.5 shadow-xs"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Auto-Assign ({inference.tools.length})
+          </Button>
+        </div>
+
         {/* Selected Tools Chips */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label className="text-xs font-semibold">Selected Tools ({selectedTools.length})</Label>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs font-semibold">Selected Tools ({selectedTools.length})</Label>
+              {selectedTools.length === 0 && (
+                <span className="text-[11px] text-amber-500 flex items-center gap-1">
+                  (No tools selected — skill cannot invoke tools)
+                </span>
+              )}
+            </div>
             {selectedTools.length > 0 && (
               <Button 
                 variant="ghost" 
@@ -116,6 +184,8 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
           <div className="flex flex-wrap gap-1.5 min-h-[2.5rem] p-2.5 rounded-md border bg-muted/30">
             {selectedTools.map(tool => {
               const isHarnessTool = frameworkTools.includes(tool);
+              const toolEntry = TOOL_MATRIX.find(t => t.framework === selectedFramework && t.name === tool);
+              
               return (
                 <Badge 
                   key={tool} 
@@ -126,9 +196,11 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
                   )}
                 >
                   {tool}
-                  {!isHarnessTool && (
+                  {!isHarnessTool ? (
                     <span className="text-[9px] font-sans opacity-70">(non-harness)</span>
-                  )}
+                  ) : toolEntry?.permissions ? (
+                    <span className="text-[9px] font-sans opacity-60">({toolEntry.permissions.split(' ')[0]})</span>
+                  ) : null}
                   <X 
                     className="h-3 w-3 cursor-pointer hover:text-destructive transition-colors ml-0.5" 
                     onClick={() => toggleTool(tool)}
@@ -146,7 +218,7 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Label className="text-xs font-semibold">{frameworkMeta.label} Tools</Label>
+              <Label className="text-xs font-semibold">{frameworkMeta.label} Harness Catalog</Label>
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono">
                 {frameworkTools.length} tools
               </Badge>
@@ -166,6 +238,7 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
               {frameworkTools.map(tool => {
                 const isSelected = selectedTools.includes(tool);
                 const desc = TOOL_DESCRIPTIONS[tool] || 'Framework tool';
+                const toolEntry = TOOL_MATRIX.find(t => t.framework === selectedFramework && t.name === tool);
 
                 return (
                   <Tooltip key={tool}>
@@ -177,18 +250,29 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
                         className={cn(
                           "justify-between text-left font-mono text-xs h-8 px-2.5 transition-all",
                           isSelected 
-                            ? "bg-primary text-primary-foreground shadow-xs" 
+                            ? "bg-primary text-primary-foreground shadow-xs font-semibold" 
                             : "bg-background hover:bg-muted text-foreground"
                         )}
                         onClick={() => toggleTool(tool)}
                       >
                         <span className="truncate">{tool}</span>
-                        {isSelected && <Check className="h-3 w-3 ml-1 shrink-0" />}
+                        {isSelected && <Check className="h-3.5 w-3.5 ml-1 shrink-0" />}
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs text-xs">
-                      <p className="font-semibold font-mono">{tool}</p>
-                      <p className="text-muted-foreground">{desc}</p>
+                    <TooltipContent side="top" className="max-w-xs text-xs space-y-1">
+                      <p className="font-semibold font-mono text-primary">{tool}</p>
+                      <p className="text-foreground/90">{toolEntry?.functionDesc || desc}</p>
+                      {toolEntry?.permissions && (
+                        <div className="flex items-center gap-1 text-muted-foreground text-[10px] pt-1 border-t">
+                          <Shield className="h-3 w-3 text-amber-500" />
+                          <span>{toolEntry.permissions}</span>
+                        </div>
+                      )}
+                      {toolEntry?.circumstances && (
+                        <p className="text-muted-foreground text-[10px] italic">
+                          Used: {toolEntry.circumstances}
+                        </p>
+                      )}
                     </TooltipContent>
                   </Tooltip>
                 );
@@ -218,6 +302,12 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
           </p>
         </div>
       </CardContent>
+
+      <ToolMatrixModal
+        open={showMatrixModal}
+        onOpenChange={setShowMatrixModal}
+        defaultFramework={selectedFramework}
+      />
     </Card>
   );
 }

@@ -3,6 +3,8 @@
  * Used when cloud LLM providers are unavailable, rate-limited, or when API keys are invalid.
  * Produces structured, fully compliant GitAgent specifications with manifest, soul, rules, and skills.
  */
+import { AgentFramework } from '../gitagent/types';
+import { inferFrameworkTools } from '../gitagent/contextToolInference';
 
 export interface SynthesizedAgentResult {
   manifest: {
@@ -15,7 +17,7 @@ export interface SynthesizedAgentResult {
   explanation: string;
 }
 
-export function synthesizeAgentSpec(promptText: string, contextSummary: string = ''): SynthesizedAgentResult {
+export function synthesizeAgentSpec(promptText: string, contextSummary: string = '', framework: AgentFramework = 'hermes_agent'): SynthesizedAgentResult {
   const cleanPrompt = promptText.trim();
   const lower = cleanPrompt.toLowerCase();
 
@@ -54,6 +56,24 @@ export function synthesizeAgentSpec(promptText: string, contextSummary: string =
 
   // Sanitize kebab-case name
   const name = domain.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+  // Automatically infer framework tools for primary skills
+  const coreSkillInference = inferFrameworkTools({
+    name: `${name}-core-operations`,
+    description: `Executes the primary domain tasks: ${description}`,
+    category: 'code',
+    targetFramework: framework
+  });
+
+  const auditSkillInference = inferFrameworkTools({
+    name: `${name}-verification-audit`,
+    description: 'Inspects output consistency, checks syntax, and executes validation tests.',
+    category: 'compliance',
+    targetFramework: framework
+  });
+
+  const coreToolsStr = coreSkillInference.tools.map(t => `\`${t}\``).join(', ');
+  const auditToolsStr = auditSkillInference.tools.map(t => `\`${t}\``).join(', ');
 
   const soul = `## Core Identity
 You are **${title}**, an autonomous AI specialist purpose-built to execute high-precision workflows based on user specifications: "${cleanPrompt}".
@@ -98,16 +118,16 @@ You are **${title}**, an autonomous AI specialist purpose-built to execute high-
 - Delegate sub-tasks to specialized companion agents when operations exceed primary domain scope.`;
 
   const skills = `## Skill: Core Operations & Workflow Execution
-- **Description**: Executes the primary domain tasks, analyzes user context, and synthesizes structured artifacts.
-- **Allowed Tools**: \`read_file\`, \`write_file\`, \`search_workspace\`, \`execute_command\`
+- **Description**: Executes primary domain operations, inspects workspace context, and executes targeted actions.
+- **Allowed Tools**: ${coreToolsStr}
 - **Preconditions**: Target files and inputs must be validated.
 
 ## Skill: Verification & Diagnostic Audit
 - **Description**: Inspects output consistency, checks syntax, and executes validation test suites.
-- **Allowed Tools**: \`lint_workspace\`, \`run_tests\`, \`audit_manifest\`
+- **Allowed Tools**: ${auditToolsStr}
 - **Postconditions**: Produces a structured pass/fail audit report with remedial suggestions.`;
 
-  const explanation = `Configured complete agent workspace "${name}" (${title}) tailored to your prompt specifications using the built-in architecture synthesis engine. All core files (manifest, soul, rules, skills) have been initialized.`;
+  const explanation = `Configured complete agent workspace "${name}" (${title}) for harness "${framework}". Allowed tools for all generated skills have been contextually aligned with the framework matrix.`;
 
   return {
     manifest: {

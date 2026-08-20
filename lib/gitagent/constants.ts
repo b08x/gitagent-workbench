@@ -1,56 +1,89 @@
-export type AgentFramework = 'hermes_agent' | 'claude_code' | 'google_antigravity' | 'mistral_vibe';
+import { AgentFramework } from './types';
+import { TOOL_MATRIX, FRAMEWORK_TOOL_ENTRIES, FRAMEWORK_CANONICAL_NAMES, ToolMatrixEntry } from './toolMatrix';
+
+export type { AgentFramework };
+export { TOOL_MATRIX, FRAMEWORK_TOOL_ENTRIES, FRAMEWORK_CANONICAL_NAMES };
+export type { ToolMatrixEntry };
 
 export const AGENT_FRAMEWORK_TOOLS: Record<string, string[]> = {
   "claude_code": [
-    "web_search",
-    "web_extract",
-    "terminal",
-    "process",
-    "read_file",
-    "patch",
-    "todo",
-    "delegate_task"
+    "Read",
+    "Write",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Bash",
+    "Task",
+    "WebFetch",
+    "WebSearch",
+    "TodoWrite",
+    "AskUserQuestion",
+    "NotebookEdit",
+    "BashOutput",
+    "KillShell",
+    "EnterPlanMode",
+    "ExitPlanMode",
+    "LSP",
+    "CronCreate",
+    "CronDelete",
+    "CronList",
+    "EnterWorktree",
+    "ExitWorktree",
+    "Monitor",
+    "PushNotification"
   ],
   "hermes_agent": [
     "web_search",
     "web_extract",
     "terminal",
+    "process",
     "read_file",
+    "write_file",
     "patch",
+    "search_files",
     "browser_navigate",
     "browser_snapshot",
     "browser_vision",
     "vision_analyze",
     "image_generate",
     "text_to_speech",
+    "todo",
+    "clarify",
+    "execute_code",
     "delegate_task",
     "memory",
     "session_search",
     "cronjob",
-    "send_message"
+    "x_search",
+    "computer_use",
+    "tool_search",
+    "tool_describe",
+    "tool_call"
   ],
   "google_antigravity": [
-    "web_search",
-    "terminal",
-    "process",
-    "read_file",
-    "patch",
-    "browser_navigate",
-    "browser_snapshot",
-    "browser_vision",
-    "vision_analyze",
-    "execute_code",
-    "delegate_task",
-    "todo"
+    "list_directory",
+    "search_directory",
+    "find_file",
+    "view_file",
+    "create_file",
+    "edit_file",
+    "run_command",
+    "ask_question",
+    "start_subagent",
+    "generate_image",
+    "search_web",
+    "read_url_content",
+    "finish"
   ],
   "mistral_vibe": [
-    "terminal",
-    "process",
-    "read_file",
-    "patch",
-    "execute_code",
-    "clarify",
-    "delegate_task"
+    "read",
+    "write_file",
+    "edit",
+    "grep",
+    "bash",
+    "todo",
+    "ask_user_question",
+    "explore"
   ]
 };
 
@@ -63,47 +96,28 @@ export const AGENT_FRAMEWORK_OPTIONS: { id: AgentFramework; label: string; short
     id: 'hermes_agent',
     label: 'Hermes Agent',
     shortLabel: 'Hermes',
-    description: 'Autonomous runtime with browser vision, media gen, persistent memory, and scheduled tasks (16 tools)'
+    description: 'Autonomous runtime with browser vision, media gen, persistent memory, and scheduled tasks (26 tools)'
   },
   {
     id: 'claude_code',
     label: 'Claude Code',
     shortLabel: 'Claude Code',
-    description: 'Terminal-first coding agent harness with search, patching, and task delegation (8 tools)'
+    description: 'Terminal-first coding agent harness with git worktrees, LSP, planning modes, and subagents (24 tools)'
   },
   {
     id: 'google_antigravity',
     label: 'Google Antigravity',
     shortLabel: 'Antigravity',
-    description: 'Multimodal harness with code execution, browser vision, processes, and subtasks (12 tools)'
+    description: 'Multimodal harness with workspace search, code execution, image generation, and subtasks (13 tools)'
   },
   {
     id: 'mistral_vibe',
     label: 'Mistral Vibe',
     shortLabel: 'Mistral Vibe',
-    description: 'Code-first CLI runtime with terminal, execution, clarification loops, and patch dispatch (7 tools)'
+    description: 'Code-first CLI runtime with terminal, exploration subagents, clarification loops, and patch dispatch (8 tools)'
   }
 ];
 
-export const TOOL_DESCRIPTIONS: Record<string, string> = {
-  web_search: 'Query the web for real-time information and documentation',
-  web_extract: 'Fetch and parse content directly from web URLs',
-  terminal: 'Execute shell commands in the host environment',
-  process: 'Manage background and long-running subprocesses',
-  read_file: 'Read file contents from the workspace filesystem',
-  patch: 'Apply targeted unified diffs and edits to workspace files',
-  browser_navigate: 'Navigate headless browser to arbitrary URLs',
-  browser_snapshot: 'Capture DOM snapshots and accessibility trees',
-  browser_vision: 'Take high-resolution screenshots for visual inspection',
-  vision_analyze: 'Perform multimodal visual analysis on images/diagrams',
-  image_generate: 'Generate image assets from descriptive prompts',
-  text_to_speech: 'Synthesize spoken audio output from text',
-  todo: 'Manage structured subtask checklists and progress tracking',
-  clarify: 'Prompt the user with interactive clarification requests',
-  execute_code: 'Execute isolated code snippets in python/node sandbox',
-  delegate_task: 'Spawn and delegate subtasks to auxiliary sub-agents',
-  memory: 'Query and update persistent cross-session memory',
-  session_search: 'Search historical conversation sessions and context',
-  cronjob: 'Schedule recurring background cron tasks and reminders',
-  send_message: 'Dispatch outbound notifications to communication channels'
-};
+export const TOOL_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
+  TOOL_MATRIX.map(t => [t.name, `${t.functionDesc} (${t.permissions})`])
+);

@@ -16,6 +16,7 @@ import { toolYamlPrompt } from '../prompts/tool-yaml';
 import { generateHermesConfig } from '../../gitagent/config-generator';
 import { validateWorkspace } from '../validator';
 import { buildGenerationPrompt } from '../strategy';
+import { inferFrameworkTools } from '../../gitagent/contextToolInference';
 import { z } from 'zod';
 
 export const SanitizeInputsHandler: GenerationStepHandler = {
@@ -137,11 +138,35 @@ export const GenSkillsHandler: GenerationStepHandler = {
   id: 'GEN_SKILLS',
   async *handle({ workspace, config }) {
     const skillNames = workspace.manifest.skills || [];
+    const targetFramework = (workspace.targetFramework || (workspace.manifest.metadata as any)?.harness || 'hermes_agent') as any;
     // ENG-102: Atomic staging
     const stagedSkills = { ...workspace.skills };
 
     for (const name of skillNames) {
-      const skill = stagedSkills[name];
+      let skill = stagedSkills[name] || {
+        name,
+        description: '',
+        instructions: '',
+        category: 'general',
+        allowedTools: [],
+        references: []
+      };
+
+      // If allowedTools is empty, contextually infer tools based on skill and target framework
+      if (!skill.allowedTools || skill.allowedTools.length === 0) {
+        const inferred = inferFrameworkTools({
+          name: skill.name,
+          description: skill.description,
+          category: skill.category,
+          instructions: skill.instructions,
+          targetFramework
+        });
+        skill = {
+          ...skill,
+          allowedTools: inferred.tools
+        };
+        stagedSkills[name] = skill;
+      }
       
       // a. Generate references/README.md catalogue
       yield { step: this.id, substep: `${name}/references`, status: 'start' };
