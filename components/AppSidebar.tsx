@@ -92,35 +92,35 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "h-screen shrink-0 border-r border-border/80 bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-200 z-30 select-none",
+        "h-screen shrink-0 border-r border-[#A0D2EB]/15 bg-gradient-to-b from-[#232323] to-[#1A2630] text-sidebar-foreground flex flex-col transition-all duration-200 z-30 select-none shadow-md",
         collapsed ? "w-16" : "w-64"
       )}
     >
       {/* Brand & Collapse Header */}
       <div className={cn(
-        "h-14 border-b border-border/80 flex items-center px-3 gap-2.5",
+        "h-14 border-b border-[#A0D2EB]/15 flex items-center px-3 gap-2.5",
         collapsed ? "justify-center" : "justify-between"
       )}>
         {!collapsed ? (
           <Link to="/dashboard" className="flex items-center gap-2.5 group overflow-hidden">
-            <div className="size-8 rounded-sm bg-primary flex items-center justify-center text-primary-foreground font-mono font-black text-sm tracking-tighter terracotta-glow-sm shrink-0">
+            <div className="size-8 rounded-sm bg-gradient-to-r from-[#E76F51] to-[#E9C46A] flex items-center justify-center text-[#141A20] font-mono font-black text-sm tracking-tighter warm-glow-sm shrink-0">
               GA
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-sm tracking-tight text-foreground">GitAgent</span>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-primary px-1 py-0.2 bg-primary/10 rounded-sm">
+                <span className="font-bold text-sm tracking-tight text-foreground font-sans">GitAgent</span>
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#E76F51] px-1 py-0.2 bg-[#E76F51]/15 border border-[#E76F51]/30 rounded-sm">
                   OS
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-muted-foreground truncate">
+              <span className="text-[10px] font-mono text-[#A0D2EB]/60 truncate">
                 Workbench v1.4
               </span>
             </div>
           </Link>
         ) : (
           <Link to="/dashboard" title="GitAgent Workbench">
-            <div className="size-8 rounded-sm bg-primary flex items-center justify-center text-primary-foreground font-mono font-black text-sm tracking-tighter terracotta-glow-sm">
+            <div className="size-8 rounded-sm bg-gradient-to-r from-[#E76F51] to-[#E9C46A] flex items-center justify-center text-[#141A20] font-mono font-black text-sm tracking-tighter warm-glow-sm">
               GA
             </div>
           </Link>
@@ -130,7 +130,7 @@ export function AppSidebar({
           onClick={() => setCollapsed(prev => !prev)}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className={cn(
-            "size-7 rounded-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0",
+            "size-7 rounded-sm flex items-center justify-center text-[#A0D2EB]/60 hover:text-foreground hover:bg-[#A0D2EB]/10 transition-colors shrink-0",
             collapsed && "hidden"
           )}
         >
@@ -140,11 +140,11 @@ export function AppSidebar({
 
       {/* When collapsed, a tiny uncollapse button strip */}
       {collapsed && (
-        <div className="py-1 flex justify-center border-b border-border/50">
+        <div className="py-1 flex justify-center border-b border-[#A0D2EB]/10">
           <button
             onClick={() => setCollapsed(false)}
             title="Expand sidebar"
-            className="size-6 rounded-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+            className="size-6 rounded-sm flex items-center justify-center text-[#A0D2EB]/60 hover:text-foreground hover:bg-[#A0D2EB]/10 transition-colors"
           >
             <ChevronRight className="size-3.5" />
           </button>
@@ -153,11 +153,12 @@ export function AppSidebar({
 
       {/* Navigation List */}
       <div className="flex-1 overflow-y-auto px-2 py-3 space-y-5">
-        {navSections.map((section, idx) => (
+        {navSections.map((section) => (
           <div key={section.title} className="space-y-1">
             {!collapsed && (
-              <div className="px-2 pb-1 text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
-                {section.title}
+              <div className="px-2 pb-1 text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/50 flex items-center gap-1.5">
+                <span className="text-[#A0D2EB]/40">$</span>
+                <span>{section.title}</span>
               </div>
             )}
 
@@ -172,16 +173,16 @@ export function AppSidebar({
                     to={item.url}
                     title={collapsed ? item.title : undefined}
                     className={cn(
-                      "flex items-center gap-3 rounded-sm text-xs font-medium transition-all group relative",
+                      "flex items-center gap-3 rounded-sm text-xs font-medium transition-all group relative font-sans",
                       collapsed ? "justify-center h-9 px-0" : "h-8.5 px-2.5",
                       isActive
-                        ? "bg-muted/80 text-foreground border-l-2 border-primary font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                        ? "bg-[#A0D2EB]/10 text-foreground border-l-2 border-[#E76F51] font-semibold shadow-xs"
+                        : "text-[#A0D2EB]/70 hover:text-foreground hover:bg-[#A0D2EB]/5"
                     )}
                   >
                     <Icon className={cn(
                       "size-4 shrink-0 transition-colors",
-                      isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                      isActive ? "text-[#E76F51]" : "text-[#A0D2EB]/60 group-hover:text-foreground"
                     )} />
                     
                     {!collapsed && (
@@ -192,8 +193,8 @@ export function AppSidebar({
                       <span className={cn(
                         "text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-sm shrink-0",
                         isActive 
-                          ? "bg-primary/15 text-primary" 
-                          : "bg-muted text-muted-foreground group-hover:text-foreground"
+                          ? "bg-gradient-to-r from-[#E76F51]/20 to-[#E9C46A]/20 text-[#E76F51] border border-[#E76F51]/30" 
+                          : "bg-[#A0D2EB]/10 text-[#A0D2EB]/80 border border-[#A0D2EB]/15 group-hover:text-foreground"
                       )}>
                         {item.badge}
                       </span>
@@ -207,20 +208,20 @@ export function AppSidebar({
       </div>
 
       {/* Bottom Pinned Utilities */}
-      <div className="mt-auto border-t border-border/80 p-2 space-y-1.5 bg-sidebar/50">
+      <div className="mt-auto border-t border-[#A0D2EB]/15 p-2 space-y-1.5 bg-[#172129]/60">
         {/* Active Agent Status Pill */}
         {!collapsed && (
-          <div className="px-2 py-1.5 rounded-sm bg-muted/40 border border-border/60 flex items-center justify-between">
+          <div className="px-2.5 py-1.5 rounded-sm bg-[#1A2630]/90 border border-[#A0D2EB]/20 flex items-center justify-between shadow-xs">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="size-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
               <div className="truncate">
-                <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground">Active Agent</p>
+                <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#A0D2EB]/60">Active Agent</p>
                 <p className="text-xs font-mono font-semibold text-foreground truncate">
                   {state.manifest.name || "untitled-agent"}
                 </p>
               </div>
             </div>
-            <Badge variant="outline" className="text-[9px] font-mono font-bold text-primary border-primary/20 px-1 py-0 uppercase">
+            <Badge variant="outline" className="text-[9px] font-mono font-bold text-[#E76F51] bg-[#E76F51]/10 border-[#E76F51]/30 px-1 py-0 uppercase">
               {state.manifest.compliance?.risk_tier || "T1"}
             </Badge>
           </div>
@@ -234,18 +235,18 @@ export function AppSidebar({
             onClick={toggleTheme}
             title={settings.theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
             className={cn(
-              "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+              "text-[#A0D2EB]/70 hover:text-foreground hover:bg-[#A0D2EB]/10",
               !collapsed && "flex-1 justify-start gap-2 text-xs"
             )}
           >
             {settings.theme === 'dark' ? (
               <>
-                <Sun className="size-4 text-warning" />
+                <Sun className="size-4 text-[#E9C46A]" />
                 {!collapsed && <span>Light Mode</span>}
               </>
             ) : (
               <>
-                <Moon className="size-4 text-primary" />
+                <Moon className="size-4 text-[#E76F51]" />
                 {!collapsed && <span>Dark Mode</span>}
               </>
             )}
@@ -257,8 +258,8 @@ export function AppSidebar({
             onClick={() => navigate('/settings')}
             title="Settings"
             className={cn(
-              "text-muted-foreground hover:text-foreground hover:bg-muted/60",
-              location.pathname === '/settings' && "bg-muted/80 text-foreground border-l-2 border-primary",
+              "text-[#A0D2EB]/70 hover:text-foreground hover:bg-[#A0D2EB]/10",
+              location.pathname === '/settings' && "bg-[#A0D2EB]/10 text-foreground border-l-2 border-[#E76F51]",
               !collapsed && "flex-1 justify-start gap-2 text-xs"
             )}
           >

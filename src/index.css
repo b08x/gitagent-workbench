@@ -1,11 +1,18 @@
 @import "tailwindcss";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: "Geist Variable", "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-ice-blue: #A0D2EB;
+  --color-burnt-orange: #E76F51;
+  --color-soft-gold: #E9C46A;
+  --color-slate-dark: #1A2630;
+  --color-soft-black: #232323;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -55,75 +62,92 @@
 
 @layer base {
   :root {
-    /* Industrial Warm Terracotta / Sand Light Mode */
-    --background: hsl(30, 20%, 96%); /* #f7f5f2 */
-    --foreground: hsl(20, 14%, 10%); /* #1c1917 */
-    --card: #ffffff;
-    --card-foreground: hsl(20, 14%, 10%);
-    --popover: #ffffff;
-    --popover-foreground: hsl(20, 14%, 10%);
-    --primary: #e67e5f; /* hsl(14, 75%, 64%) Warm Terracotta */
-    --primary-foreground: #ffffff;
-    --primary-hover: #d96b43;
-    --secondary: hsl(30, 15%, 92%); /* #ede8e1 */
-    --secondary-foreground: hsl(20, 14%, 10%);
-    --muted: hsl(30, 15%, 92%); /* #ede8e1 */
-    --muted-foreground: hsl(20, 6%, 45%); /* #79716b */
-    --accent: hsl(30, 15%, 90%);
-    --accent-foreground: hsl(20, 14%, 10%);
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
-    --success: #4ade80;
-    --warning: #f59e0b;
-    --border: hsl(30, 10%, 88%); /* #e7e4df */
-    --input: hsl(30, 10%, 88%);
-    --ring: #e67e5f;
+    /* Default: Sophisticated Command-Line Theme */
+    /* Structural Cool Background: Soft Black (#232323) to Deep Slate Blue (#1A2630) */
+    --background: #1A2630;
+    --foreground: #F2F7FA;
+    --card: #1E2833;
+    --card-foreground: #F2F7FA;
+    --popover: #1E2833;
+    --popover-foreground: #F2F7FA;
+
+    /* Accent Warm: Burnt Orange (#E76F51) to Soft Gold (#E9C46A) */
+    --primary: #E76F51;
+    --primary-foreground: #141A20;
+    --primary-hover: #E9C46A;
+
+    --secondary: #222E39;
+    --secondary-foreground: #E0EEF5;
+
+    /* Ice Blue (#A0D2EB) low-opacity text overlays */
+    --muted: rgba(26, 38, 48, 0.70);
+    --muted-foreground: rgba(160, 210, 235, 0.70);
+
+    --accent: rgba(160, 210, 235, 0.08);
+    --accent-foreground: #A0D2EB;
+
+    --destructive: #F87171;
+    --destructive-foreground: #FFFFFF;
+
+    --success: #34D399;
+    --warning: #E9C46A;
+
+    /* Command-line precision borders: low-opacity Ice Blue overlay */
+    --border: rgba(160, 210, 235, 0.15);
+    --input: rgba(160, 210, 235, 0.14);
+    --ring: #E76F51;
     --radius: 0.25rem;
 
-    --sidebar: hsl(30, 18%, 94%);
-    --sidebar-foreground: hsl(20, 14%, 10%);
-    --sidebar-primary: #e67e5f;
-    --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: hsl(30, 15%, 90%);
-    --sidebar-accent-foreground: hsl(20, 14%, 10%);
-    --sidebar-border: hsl(30, 10%, 88%);
-    --sidebar-ring: #e67e5f;
+    --sidebar: #1B242D;
+    --sidebar-foreground: #E2EFF5;
+    --sidebar-primary: #E76F51;
+    --sidebar-primary-foreground: #141A20;
+    --sidebar-accent: rgba(160, 210, 235, 0.08);
+    --sidebar-accent-foreground: #A0D2EB;
+    --sidebar-border: rgba(160, 210, 235, 0.15);
+    --sidebar-ring: #E76F51;
   }
 
   .dark {
-    /* Dark Obsidian / Basalt Dark Mode */
-    --background: hsl(20, 14%, 6%); /* #110f0e */
-    --foreground: hsl(30, 20%, 96%); /* #f5f2eb */
-    --card: hsl(20, 10%, 10%); /* #1c1917 */
-    --card-foreground: hsl(30, 20%, 96%);
-    --popover: hsl(20, 10%, 10%);
-    --popover-foreground: hsl(30, 20%, 96%);
-    --primary: #e67e5f; /* hsl(14, 75%, 64%) Warm Terracotta */
-    --primary-foreground: #ffffff;
-    --primary-hover: #d96b43;
-    --secondary: hsl(20, 8%, 14%); /* #24201e */
-    --secondary-foreground: hsl(30, 20%, 96%);
-    --muted: hsl(20, 8%, 14%); /* #24201e */
-    --muted-foreground: hsl(20, 6%, 60%); /* #9c948e */
-    --accent: hsl(20, 8%, 16%);
-    --accent-foreground: hsl(30, 20%, 96%);
-    --destructive: #ef4444;
-    --destructive-foreground: #fafafa;
-    --success: #4ade80;
-    --warning: #f59e0b;
-    --border: hsl(20, 8%, 18%); /* #2e2926 */
-    --input: hsl(20, 8%, 18%);
-    --ring: #e67e5f;
+    --background: #1A2630;
+    --foreground: #F2F7FA;
+    --card: #1E2833;
+    --card-foreground: #F2F7FA;
+    --popover: #1E2833;
+    --popover-foreground: #F2F7FA;
+
+    --primary: #E76F51;
+    --primary-foreground: #141A20;
+    --primary-hover: #E9C46A;
+
+    --secondary: #222E39;
+    --secondary-foreground: #E0EEF5;
+
+    --muted: rgba(26, 38, 48, 0.70);
+    --muted-foreground: rgba(160, 210, 235, 0.70);
+
+    --accent: rgba(160, 210, 235, 0.08);
+    --accent-foreground: #A0D2EB;
+
+    --destructive: #F87171;
+    --destructive-foreground: #FFFFFF;
+
+    --success: #34D399;
+    --warning: #E9C46A;
+
+    --border: rgba(160, 210, 235, 0.15);
+    --input: rgba(160, 210, 235, 0.14);
+    --ring: #E76F51;
     --radius: 0.25rem;
 
-    --sidebar: hsl(20, 12%, 8%);
-    --sidebar-foreground: hsl(30, 20%, 96%);
-    --sidebar-primary: #e67e5f;
-    --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: hsl(20, 8%, 14%);
-    --sidebar-accent-foreground: hsl(30, 20%, 96%);
-    --sidebar-border: hsl(20, 8%, 18%);
-    --sidebar-ring: #e67e5f;
+    --sidebar: #1B242D;
+    --sidebar-foreground: #E2EFF5;
+    --sidebar-primary: #E76F51;
+    --sidebar-primary-foreground: #141A20;
+    --sidebar-accent: rgba(160, 210, 235, 0.08);
+    --sidebar-accent-foreground: #A0D2EB;
+    --sidebar-border: rgba(160, 210, 235, 0.15);
+    --sidebar-ring: #E76F51;
   }
 
   * {
@@ -134,6 +158,8 @@
     @apply h-full w-full overflow-hidden bg-background text-foreground font-sans antialiased;
     margin: 0;
     padding: 0;
+    background: linear-gradient(180deg, #232323 0%, #1A2630 100%);
+    background-attachment: fixed;
   }
 
   /* Custom subtle scrollbars */
@@ -145,19 +171,109 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--border);
+    background: rgba(160, 210, 235, 0.18);
     border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--muted-foreground);
+    background: rgba(160, 210, 235, 0.35);
   }
 }
 
-/* Accent Glow Utility */
-.terracotta-glow {
-  box-shadow: 0 0 10px rgba(230, 126, 95, 0.35);
+/* ==========================================================================
+   Structural Cool Gradient, Geometric Mesh & Accent Warm Utilities
+   ========================================================================== */
+
+/* Structural Cool Gradient: linear-gradient(180deg, #232323 0%, #1A2630 100%) */
+.bg-structural-cool {
+  background: linear-gradient(180deg, #232323 0%, #1A2630 100%) !important;
 }
 
-.terracotta-glow-sm {
-  box-shadow: 0 0 6px rgba(230, 126, 95, 0.25);
+/* Geometric Mesh Gradient: Mathematical depth with subtle mesh nodes */
+.bg-geometric-mesh {
+  background-color: #1A2630;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(35, 35, 35, 0.95) 0px, transparent 55%),
+    radial-gradient(at 100% 0%, rgba(231, 111, 81, 0.08) 0px, transparent 40%),
+    radial-gradient(at 75% 45%, rgba(233, 196, 106, 0.05) 0px, transparent 45%),
+    radial-gradient(at 0% 100%, rgba(160, 210, 235, 0.06) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(26, 38, 48, 1) 0px, transparent 55%),
+    linear-gradient(180deg, #232323 0%, #1A2630 100%);
+  background-attachment: fixed;
 }
+
+/* Command-line precision grid */
+.bg-cli-grid {
+  background-image: 
+    linear-gradient(to right, rgba(160, 210, 235, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(160, 210, 235, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Accent Warm Gradient: linear-gradient(90deg, #E76F51 0%, #E9C46A 100%) */
+.bg-accent-warm {
+  background: linear-gradient(90deg, #E76F51 0%, #E9C46A 100%) !important;
+}
+
+.text-accent-warm {
+  background: linear-gradient(90deg, #E76F51 0%, #E9C46A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Warm Glow Effects for critical eye-catching action sparks */
+.warm-glow {
+  box-shadow: 0 0 16px -2px rgba(231, 111, 81, 0.40), 0 0 8px -1px rgba(233, 196, 106, 0.25);
+}
+
+.warm-glow-sm {
+  box-shadow: 0 0 8px -1px rgba(231, 111, 81, 0.35);
+}
+
+/* Primary Button with Warm Accent Gradient */
+.btn-warm-action {
+  background: linear-gradient(90deg, #E76F51 0%, #E9C46A 100%);
+  color: #141A20 !important;
+  font-weight: 600;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 14px -2px rgba(231, 111, 81, 0.4);
+}
+
+.btn-warm-action:hover {
+  box-shadow: 0 0 20px -1px rgba(231, 111, 81, 0.6), 0 0 10px rgba(233, 196, 106, 0.4);
+  filter: brightness(1.05);
+}
+
+/* Ice Blue (#A0D2EB) low-opacity text overlays */
+.text-ice-blue {
+  color: #A0D2EB;
+}
+
+.text-ice-overlay {
+  color: rgba(160, 210, 235, 0.70);
+}
+
+.text-ice-muted {
+  color: rgba(160, 210, 235, 0.50);
+}
+
+.text-ice-subtle {
+  color: rgba(160, 210, 235, 0.35);
+}
+
+.border-ice-overlay {
+  border-color: rgba(160, 210, 235, 0.15);
+}
+
+.bg-ice-overlay {
+  background-color: rgba(160, 210, 235, 0.06);
+}
+
+/* Command-line prompt clarity markers */
+.cli-prompt::before {
+  content: "$ ";
+  color: #A0D2EB;
+  opacity: 0.6;
+  font-family: var(--font-mono);
+  font-weight: bold;
+}
+

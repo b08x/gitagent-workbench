@@ -188,17 +188,17 @@ export function AgentWorkbench() {
   };
 
   return (
-    <div className="h-full w-full overflow-hidden flex flex-col bg-background text-foreground select-text">
+    <div className="h-full w-full overflow-hidden flex flex-col bg-transparent text-foreground select-text">
       {/* Top Action & Breadcrumb Bar */}
-      <div className="h-14 border-b border-border/80 bg-card/60 backdrop-blur-md px-5 flex items-center justify-between shrink-0 z-20">
+      <div className="h-14 border-b border-[#A0D2EB]/15 bg-[#172129]/85 backdrop-blur-md px-5 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="size-8 rounded-sm bg-primary/10 text-primary flex items-center justify-center terracotta-glow-sm shrink-0">
+          <div className="size-8 rounded-sm bg-[#E76F51]/15 text-[#E76F51] border border-[#E76F51]/30 flex items-center justify-center warm-glow-sm shrink-0">
             <Cpu className="size-4.5" />
           </div>
           <div className="flex items-center gap-2 truncate">
-            <span className="font-bold text-sm tracking-tight text-foreground">Agent Workbench</span>
-            <span className="text-muted-foreground/60 text-xs">/</span>
-            <span className="font-mono text-xs font-bold text-primary truncate">
+            <span className="font-bold text-sm tracking-tight text-foreground font-sans">Agent Workbench</span>
+            <span className="text-[#A0D2EB]/40 text-xs">/</span>
+            <span className="font-mono text-xs font-bold text-[#E76F51] truncate">
               {state.manifest.name || "untitled-agent"}
             </span>
             <Badge 
@@ -206,8 +206,8 @@ export function AgentWorkbench() {
               className={cn(
                 "font-mono text-[9px] px-1.5 py-0 uppercase",
                 completeness === 100 
-                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" 
-                  : "bg-warning/10 text-warning border-warning/30"
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" 
+                  : "bg-[#E9C46A]/10 text-[#E9C46A] border-[#E9C46A]/30"
               )}
             >
               {completeness}% Configured
@@ -217,28 +217,29 @@ export function AgentWorkbench() {
 
         <div className="flex items-center gap-2">
           {/* Quick Metrics Bar */}
-          <div className="hidden lg:flex items-center gap-3 px-3 py-1 bg-muted/40 border border-border/60 rounded-sm text-[11px] font-mono">
-            <span className="text-muted-foreground">TOKENS: <strong className="text-foreground font-bold">{tokenEstimate.toLocaleString()}</strong></span>
-            <span className="text-border">|</span>
-            <span className="text-muted-foreground">SKILLS: <strong className="text-primary font-bold">{state.manifest.skills?.length || 0}</strong></span>
-            <span className="text-border">|</span>
-            <span className="text-muted-foreground">RISK: <strong className="text-foreground font-bold">{state.manifest.compliance?.risk_tier || 'T1'}</strong></span>
+          <div className="hidden lg:flex items-center gap-3 px-3 py-1 bg-[#141A20]/80 border border-[#A0D2EB]/15 rounded-sm text-[11px] font-mono">
+            <span className="text-[#A0D2EB]/60">TOKENS: <strong className="text-foreground font-bold">{tokenEstimate.toLocaleString()}</strong></span>
+            <span className="text-[#A0D2EB]/20">|</span>
+            <span className="text-[#A0D2EB]/60">SKILLS: <strong className="text-[#E76F51] font-bold">{state.manifest.skills?.length || 0}</strong></span>
+            <span className="text-[#A0D2EB]/20">|</span>
+            <span className="text-[#A0D2EB]/60">RISK: <strong className="text-foreground font-bold">{state.manifest.compliance?.risk_tier || 'T1'}</strong></span>
           </div>
 
           <Button 
             variant="outline" 
             size="sm" 
             onClick={() => navigate('/workbench/chat')}
-            className="text-xs font-medium gap-1.5"
+            className="text-xs font-medium gap-1.5 border-[#A0D2EB]/20 text-[#A0D2EB] hover:bg-[#A0D2EB]/10"
           >
-            <MessageSquare className="size-3.5 text-primary" />
+            <MessageSquare className="size-3.5 text-[#E76F51]" />
             <span className="hidden sm:inline">Test in Lab</span>
           </Button>
 
           <Button 
+            variant="warm"
             size="sm" 
             onClick={() => dispatch({ type: 'SAVE_SNAPSHOT', payload: 'Manual Save' })}
-            className="bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs gap-1.5 rounded-sm shadow-xs transition-all"
+            className="text-xs gap-1.5"
           >
             <Save className="size-3.5" />
             <span className="hidden sm:inline">Snapshot</span>
@@ -249,7 +250,7 @@ export function AgentWorkbench() {
             size="icon-sm" 
             onClick={() => navigate('/export')}
             title="Export Repository ZIP"
-            className="text-muted-foreground hover:text-foreground"
+            className="text-[#A0D2EB]/70 hover:text-foreground border-[#A0D2EB]/20 hover:bg-[#A0D2EB]/10"
           >
             <Download className="size-3.5" />
           </Button>
@@ -259,7 +260,7 @@ export function AgentWorkbench() {
             size="icon-sm" 
             onClick={() => setShowInspector(prev => !prev)}
             title={showInspector ? "Hide Inspector Panel" : "Show Inspector Panel"}
-            className={cn("text-muted-foreground hover:text-foreground", showInspector && "bg-muted/80 text-foreground")}
+            className={cn("text-[#A0D2EB]/70 hover:text-foreground", showInspector && "bg-[#A0D2EB]/10 text-foreground")}
           >
             <SlidersHorizontal className="size-4" />
           </Button>
@@ -267,7 +268,7 @@ export function AgentWorkbench() {
       </div>
 
       {/* Horizontal Tabs Header Bar on Top */}
-      <div className="h-11 border-b border-border/80 bg-card/40 px-5 flex items-center justify-between shrink-0 overflow-x-auto gap-3 select-none">
+      <div className="h-11 border-b border-[#A0D2EB]/15 bg-[#141A20]/50 px-5 flex items-center justify-between shrink-0 overflow-x-auto gap-3 select-none">
         <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto">
           {sections.map((sec) => {
             const Icon = sec.icon;
@@ -278,13 +279,13 @@ export function AgentWorkbench() {
                 key={sec.id}
                 onClick={() => handleTabChange(sec.id)}
                 className={cn(
-                  "h-8 px-3 rounded-sm text-xs font-medium transition-all flex items-center gap-2 shrink-0 border cursor-pointer",
+                  "h-8 px-3 rounded-sm text-xs font-medium transition-all flex items-center gap-2 shrink-0 border cursor-pointer font-sans",
                   isActive 
-                    ? "bg-card border-primary/50 text-foreground font-semibold shadow-xs" 
-                    : "bg-transparent border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    ? "bg-[#1E2833] border-[#E76F51]/50 text-foreground font-semibold shadow-[0_0_12px_rgba(231,111,81,0.12)]" 
+                    : "bg-transparent border-transparent text-[#A0D2EB]/60 hover:text-foreground hover:bg-[#A0D2EB]/5"
                 )}
               >
-                <Icon className={cn("size-3.5 transition-colors", isActive ? "text-primary" : "text-muted-foreground")} />
+                <Icon className={cn("size-3.5 transition-colors", isActive ? "text-[#E76F51]" : "text-[#A0D2EB]/60")} />
                 <span>{sec.title}</span>
                 <span className={cn(
                   "text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-sm transition-all",
@@ -298,24 +299,24 @@ export function AgentWorkbench() {
         </div>
 
         {/* Quick Workbench Links */}
-        <div className="hidden xl:flex items-center gap-2 shrink-0 pl-2 border-l border-border/60">
+        <div className="hidden xl:flex items-center gap-2 shrink-0 pl-2 border-l border-[#A0D2EB]/15">
           <button
             onClick={() => navigate('/workbench/prompts')}
-            className="text-[11px] font-mono text-muted-foreground hover:text-foreground px-2 py-1 rounded-sm hover:bg-muted/50 transition-colors flex items-center gap-1"
+            className="text-[11px] font-mono text-[#A0D2EB]/60 hover:text-foreground px-2 py-1 rounded-sm hover:bg-[#A0D2EB]/10 transition-colors flex items-center gap-1"
           >
-            <Terminal className="size-3 text-primary" /> Prompts
+            <Terminal className="size-3 text-[#E76F51]" /> Prompts
           </button>
           <button
             onClick={() => navigate('/workbench/skills')}
-            className="text-[11px] font-mono text-muted-foreground hover:text-foreground px-2 py-1 rounded-sm hover:bg-muted/50 transition-colors flex items-center gap-1"
+            className="text-[11px] font-mono text-[#A0D2EB]/60 hover:text-foreground px-2 py-1 rounded-sm hover:bg-[#A0D2EB]/10 transition-colors flex items-center gap-1"
           >
-            <Zap className="size-3 text-primary" /> Skills
+            <Zap className="size-3 text-[#E76F51]" /> Skills
           </button>
           <button
             onClick={() => navigate('/workbench/workflows')}
-            className="text-[11px] font-mono text-muted-foreground hover:text-foreground px-2 py-1 rounded-sm hover:bg-muted/50 transition-colors flex items-center gap-1"
+            className="text-[11px] font-mono text-[#A0D2EB]/60 hover:text-foreground px-2 py-1 rounded-sm hover:bg-[#A0D2EB]/10 transition-colors flex items-center gap-1"
           >
-            <Workflow className="size-3 text-primary" /> Pipelines
+            <Workflow className="size-3 text-[#E76F51]" /> Pipelines
           </button>
           <button
             onClick={() => navigate('/workbench/knowledge')}

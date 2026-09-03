@@ -815,8 +815,8 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                     className={cn(
                       "text-[10px] font-mono px-2 py-0.5 rounded-sm transition-all cursor-pointer",
                       isSelected
-                        ? "bg-primary text-primary-foreground font-bold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        ? "bg-gradient-to-r from-[#E76F51] to-[#E9C46A] text-[#141A20] font-bold shadow-xs"
+                        : "text-[#A0D2EB]/60 hover:text-foreground hover:bg-[#A0D2EB]/10"
                     )}
                   >
                     {f.shortLabel}
@@ -1369,7 +1369,8 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
               </div>
             ) : (
               <Button 
-                className="h-full px-4 rounded-sm bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium transition-all shadow-xs" 
+                variant="warm"
+                className="h-full px-4 rounded-sm transition-all shadow-xs" 
                 onClick={() => handleSend()}
                 disabled={!input.trim() && contextFiles.length === 0}
               >
