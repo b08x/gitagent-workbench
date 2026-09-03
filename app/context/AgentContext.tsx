@@ -94,6 +94,9 @@ export interface HookEntry {
 
 interface ExtendedWorkspace extends AgentWorkspace {
   selectedTemplate: StructureType;
+  isCompilingSpec?: boolean;
+  compilationStage?: string;
+  compilationElapsed?: number;
   'core-identity'?: string;
   'communication-style'?: string;
   'values-principles'?: string;

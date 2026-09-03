@@ -37,7 +37,8 @@ import {
   BookOpen,
   Eye,
   SlidersHorizontal,
-  Code2
+  Code2,
+  Loader2
 } from 'lucide-react';
 import { AgentWizard } from './AgentWizard';
 import { RuntimeFrameworkStep } from '../wizard/steps/RuntimeFrameworkStep';
@@ -409,9 +410,16 @@ export function AgentWorkbench() {
           <div className="w-80 shrink-0 border-l border-border/80 bg-card/40 flex flex-col overflow-hidden select-none">
             {/* Inspector Header */}
             <div className="h-11 px-4 border-b border-border/80 bg-muted/30 flex items-center justify-between shrink-0">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-                <Sliders className="size-3 text-primary" /> Inspector & Specs
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <Sliders className="size-3 text-primary" /> Inspector & Specs
+                </span>
+                {state.isCompilingSpec && (
+                  <Badge variant="outline" className="text-[9px] font-mono text-primary bg-primary/10 border-primary/30 flex items-center gap-1 py-0 px-1.5 h-4">
+                    <span className="size-1.5 rounded-full bg-primary animate-ping" /> Live Streaming
+                  </Badge>
+                )}
+              </div>
               <button 
                 onClick={() => setShowInspector(false)}
                 className="text-muted-foreground hover:text-foreground text-xs"
@@ -444,6 +452,16 @@ export function AgentWorkbench() {
                     </span>
                   </div>
                 </div>
+
+                {state.isCompilingSpec && (
+                  <div className="flex items-center justify-between text-[10px] font-mono text-primary bg-primary/5 px-2 py-1 rounded-sm border border-primary/20 animate-pulse">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <Loader2 className="size-2.5 animate-spin shrink-0" />
+                      <span className="truncate">{state.compilationStage || 'Streaming partial specification...'}</span>
+                    </span>
+                    <span className="text-muted-foreground shrink-0 ml-1">⏱ {((state.compilationElapsed || 0) / 10).toFixed(1)}s</span>
+                  </div>
+                )}
 
                 <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
                   <div 

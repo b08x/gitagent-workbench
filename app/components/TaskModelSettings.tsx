@@ -18,11 +18,36 @@ import {
   FileText, 
   Loader2, 
   Sparkles,
-  Info
+  Info,
+  Bot,
+  Brain,
+  Zap,
+  Layers,
+  Globe
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { ProviderIcon } from '@lobehub/icons';
+
+function ProviderIcon({ provider, size = 18 }: { provider: string; size?: number }) {
+  switch (provider) {
+    case 'google':
+      return <Sparkles className="size-4 text-amber-500" />;
+    case 'openai':
+      return <Bot className="size-4 text-emerald-500" />;
+    case 'anthropic':
+      return <Brain className="size-4 text-rose-500" />;
+    case 'groq':
+      return <Zap className="size-4 text-orange-500" />;
+    case 'mistral':
+      return <Layers className="size-4 text-amber-600" />;
+    case 'openrouter':
+      return <Globe className="size-4 text-blue-500" />;
+    case 'ollama':
+      return <Cpu className="size-4 text-purple-500" />;
+    default:
+      return <Cpu className="size-4 text-muted-foreground" />;
+  }
+}
 
 const TASKS = [
   { id: 'scripts', name: 'Scripts/Tools Generation', icon: Cpu },

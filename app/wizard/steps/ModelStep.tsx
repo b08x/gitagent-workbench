@@ -12,9 +12,29 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { ProviderIcon } from '@lobehub/icons';
-import { InfoIcon, Settings2, Loader2, CheckCircle2, Info, Sliders } from 'lucide-react';
+import { InfoIcon, Settings2, Loader2, CheckCircle2, Info, Sliders, Sparkles, Bot, Brain, Zap, Layers, Globe, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+function ProviderIcon({ provider, size = 18 }: { provider: string; size?: number }) {
+  switch (provider) {
+    case 'google':
+      return <Sparkles className="size-4 text-amber-500" />;
+    case 'openai':
+      return <Bot className="size-4 text-emerald-500" />;
+    case 'anthropic':
+      return <Brain className="size-4 text-rose-500" />;
+    case 'groq':
+      return <Zap className="size-4 text-orange-500" />;
+    case 'mistral':
+      return <Layers className="size-4 text-amber-600" />;
+    case 'openrouter':
+      return <Globe className="size-4 text-blue-500" />;
+    case 'ollama':
+      return <Cpu className="size-4 text-purple-500" />;
+    default:
+      return <Cpu className="size-4 text-muted-foreground" />;
+  }
+}
 
 function getModelCapabilities(modelId: string, providerId: string) {
   const isReasoning = modelId?.includes('o1') || modelId?.includes('o3') || modelId?.includes('reasoner') || modelId?.includes('r1');

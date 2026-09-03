@@ -63,6 +63,22 @@ interface ChatMessage {
   isAuditLog?: boolean;
 }
 
+type GenerationStage = 'intent' | 'manifest' | 'soul' | 'rules' | 'skills' | 'finalizing' | 'complete';
+
+const GENERATION_STEPS = [
+  { id: 'intent', label: 'Parsing intent' },
+  { id: 'manifest', label: 'Drafting manifest' },
+  { id: 'soul', label: 'Composing soul' },
+  { id: 'rules', label: 'Defining rules' },
+  { id: 'skills', label: 'Assigning skills' },
+  { id: 'finalizing', label: 'Finalizing' }
+] as const;
+
+const getStepOrder = (stage: GenerationStage): number => {
+  const index = GENERATION_STEPS.findIndex(s => s.id === stage);
+  return index === -1 ? (stage === 'complete' ? 6 : 0) : index;
+};
+
 export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => void }) {
   const { state, dispatch } = useAgentWorkspace();
   const { settings, updateTaskModel, setApiKey, clearApiKey } = useSettings();
@@ -82,6 +98,9 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [generationStage, setGenerationStage] = useState<GenerationStage>('intent');
+  const [stageProgress, setStageProgress] = useState<number>(15);
+  const [stageMessage, setStageMessage] = useState<string>('');
   const [contextFiles, setContextFiles] = useState<File[]>([]);
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
   const [inlineKeyInput, setInlineKeyInput] = useState('');
@@ -91,6 +110,12 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const progressiveTimersRef = useRef<NodeJS.Timeout[]>([]);
+
+  const clearProgressiveTimers = () => {
+    progressiveTimersRef.current.forEach(t => clearTimeout(t));
+    progressiveTimersRef.current = [];
+  };
 
   const currentProviderId = settings.taskModels.architect?.providerId || 'google';
   const currentModelId = settings.taskModels.architect?.modelId || 'gemini-3.7-flash';
@@ -279,16 +304,18 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    clearProgressiveTimers();
     setIsProcessing(false);
+    dispatch({ type: 'UPDATE_WORKSPACE', payload: { isCompilingSpec: false } });
     setMessages(prev => {
       const last = prev[prev.length - 1];
-      if (last && last.role === 'assistant' && !last.isError && (last.content.includes('Analyzing') || last.content.includes('Generating'))) {
+      if (last && last.role === 'assistant' && !last.isError && (last.content.includes('Analyzing') || last.content.includes('Generating') || last.id.startsWith('asst-'))) {
         return [
           ...prev.slice(0, -1),
           {
             id: `cancel-${Date.now()}`,
             role: 'assistant',
-            content: 'Generation cancelled by user.',
+            content: `Generation cancelled by user after ${elapsedSeconds.toFixed(1)}s.`,
             isCancelled: true,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           }
@@ -325,6 +352,111 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     setIsProcessing(true);
 
     abortControllerRef.current = new AbortController();
+
+    // Reset pipeline state and initialize live streaming
+    clearProgressiveTimers();
+    setGenerationStage('intent');
+    setStageProgress(15);
+    setStageMessage(`Parsing intent & runtime constraints for ${activeFrameworkMeta.label}...`);
+
+    dispatch({
+      type: 'UPDATE_WORKSPACE',
+      payload: {
+        isCompilingSpec: true,
+        compilationStage: `Parsing intent (${activeFrameworkMeta.shortLabel})...`,
+        targetFramework: activeFramework
+      }
+    });
+
+    // Synthesize structured deterministic baseline specification for immediate progressive streaming
+    const interimSpec = synthesizeAgentSpec(promptToSend, '', activeFramework);
+
+    // Staged progressive update 1: Manifest metadata & Kebab-case identifier at 1.5s
+    const t1 = setTimeout(() => {
+      setGenerationStage('manifest');
+      setStageProgress(35);
+      const msg = `Drafting manifest metadata for ${interimSpec.manifest.name}...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: {
+          isCompilingSpec: true,
+          compilationStage: 'Drafting manifest...',
+          manifest: {
+            ...state.manifest,
+            name: interimSpec.manifest.name,
+            description: interimSpec.manifest.description,
+            version: interimSpec.manifest.version || '1.0.0',
+            compliance: interimSpec.manifest.compliance
+          }
+        }
+      });
+    }, 1500);
+
+    // Staged progressive update 2: Identity & SOUL.md at 3.2s
+    const t2 = setTimeout(() => {
+      setGenerationStage('soul');
+      setStageProgress(55);
+      const msg = `Composing Core Identity & values into SOUL.md...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: {
+          isCompilingSpec: true,
+          compilationStage: 'Composing soul (SOUL.md)...',
+          soul: interimSpec.soul
+        }
+      });
+    }, 3200);
+
+    // Staged progressive update 3: Operational Rules at 4.8s
+    const t3 = setTimeout(() => {
+      setGenerationStage('rules');
+      setStageProgress(75);
+      const msg = `Establishing operational boundaries into RULES.md...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: {
+          isCompilingSpec: true,
+          compilationStage: 'Defining rules (RULES.md)...',
+          rules: interimSpec.rules
+        }
+      });
+    }, 4800);
+
+    // Staged progressive update 4: Domain Skills & Tools at 6.5s
+    const t4 = setTimeout(() => {
+      setGenerationStage('skills');
+      setStageProgress(90);
+      const msg = `Mapping domain tools & skills to ${activeFrameworkMeta.label} matrix...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: {
+          isCompilingSpec: true,
+          compilationStage: 'Assigning skills & tools...',
+          skills: interimSpec.skills
+        }
+      });
+    }, 6500);
+
+    // Staged progressive update 5: Finalizing at 8.0s
+    const t5 = setTimeout(() => {
+      setGenerationStage('finalizing');
+      setStageProgress(96);
+      const msg = `Finalizing specification health and verifying harness...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: {
+          isCompilingSpec: true,
+          compilationStage: 'Finalizing agent...'
+        }
+      });
+    }, 8000);
+
+    progressiveTimersRef.current = [t1, t2, t3, t4, t5];
 
     try {
       const { providerId, modelId, parameters } = settings.taskModels.architect;
@@ -416,39 +548,130 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
 
       const encodedPrompt = btoa(unescape(encodeURIComponent(JSON.stringify(promptObj))));
 
-      const response = await fetch('/api/compute/v1', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          providerId,
-          modelId,
-          apiKey: apiKey && apiKey !== '********' ? apiKey : undefined,
-          options: {
-            ...parameters,
-            targetFramework: activeFramework
-          },
-          targetFramework: activeFramework,
-          prompt: encodedPrompt
-        }),
-        signal: abortControllerRef.current.signal
-      });
+      let result: any = null;
 
-      if (!response.ok) {
-        let errMessage = `HTTP error! status: ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errMessage = errorData.error || errMessage;
-        } catch {
-          const text = await response.text();
-          if (text) errMessage = text;
+      // Try streaming endpoint first for live server events
+      try {
+        const streamResponse = await fetch('/api/agent/compile-stream', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            providerId,
+            modelId,
+            apiKey: apiKey && apiKey !== '********' ? apiKey : undefined,
+            options: {
+              ...parameters,
+              targetFramework: activeFramework
+            },
+            targetFramework: activeFramework,
+            prompt: encodedPrompt
+          }),
+          signal: abortControllerRef.current.signal
+        });
+
+        if (streamResponse.ok && streamResponse.body) {
+          const reader = streamResponse.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            let currentEvent = 'message';
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                currentEvent = line.slice(6).trim();
+              } else if (line.startsWith('data:')) {
+                const dataStr = line.slice(5).trim();
+                if (dataStr === '[DONE]') break;
+                try {
+                  const eventData = JSON.parse(dataStr);
+                  if (currentEvent === 'stage') {
+                    if (eventData.stage) setGenerationStage(eventData.stage);
+                    if (eventData.label) setStageMessage(eventData.label);
+                    if (eventData.progress) setStageProgress(eventData.progress);
+                    dispatch({
+                      type: 'UPDATE_WORKSPACE',
+                      payload: {
+                        isCompilingSpec: true,
+                        compilationStage: eventData.label
+                      }
+                    });
+                  } else if (currentEvent === 'partial') {
+                    if (eventData.stage) setGenerationStage(eventData.stage);
+                    if (eventData.label) setStageMessage(eventData.label);
+                    if (eventData.progress) setStageProgress(eventData.progress);
+                    if (eventData.data) {
+                      dispatch({
+                        type: 'UPDATE_WORKSPACE',
+                        payload: {
+                          isCompilingSpec: true,
+                          compilationStage: eventData.label,
+                          ...eventData.data
+                        }
+                      });
+                    }
+                  } else if (currentEvent === 'complete') {
+                    result = eventData.object;
+                  }
+                } catch {
+                  // Ignore JSON parse error on non-json or chunked data
+                }
+              }
+            }
+          }
         }
-        throw new Error(errMessage);
+      } catch (streamErr: any) {
+        if (streamErr.name === 'AbortError') throw streamErr;
+        console.warn('Streaming fetch fallback to standard compute:', streamErr);
       }
 
-      const data = await response.json();
-      const result = data.object;
+      // If streaming didn't produce full object (or was unavailable), use compute endpoint
+      if (!result) {
+        const response = await fetch('/api/compute/v1', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            providerId,
+            modelId,
+            apiKey: apiKey && apiKey !== '********' ? apiKey : undefined,
+            options: {
+              ...parameters,
+              targetFramework: activeFramework
+            },
+            targetFramework: activeFramework,
+            prompt: encodedPrompt
+          }),
+          signal: abortControllerRef.current.signal
+        });
+
+        if (!response.ok) {
+          let errMessage = `HTTP error! status: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errMessage = errorData.error || errMessage;
+          } catch {
+            const text = await response.text();
+            if (text) errMessage = text;
+          }
+          throw new Error(errMessage);
+        }
+
+        const data = await response.json();
+        result = data.object;
+      }
+
+      clearProgressiveTimers();
+      setStageProgress(100);
+      setGenerationStage('complete');
 
       if (!result || !result.manifest) {
         throw new Error("Invalid format received from model. Please try regenerating.");
@@ -461,10 +684,11 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         stage: 'architect_synthesis'
       });
 
-      // Update workspace with explicit framework binding
+      // Update workspace with explicit framework binding and mark compilation complete
       dispatch({
         type: 'UPDATE_WORKSPACE',
         payload: {
+          isCompilingSpec: false,
           targetFramework: activeFramework,
           manifest: {
             ...state.manifest,
@@ -539,8 +763,10 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         ];
       });
     } finally {
+      clearProgressiveTimers();
       setIsProcessing(false);
       abortControllerRef.current = null;
+      dispatch({ type: 'UPDATE_WORKSPACE', payload: { isCompilingSpec: false } });
     }
   };
 
@@ -897,69 +1123,88 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                   {m.content.includes("Analyzing parameters") || (isProcessing && m.id.startsWith('asst-')) ? (
                     <div className="space-y-3 font-mono">
                       {/* Live Header & Timer */}
-                      <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center justify-between text-xs pb-1 border-b border-border/40">
                         <div className="flex items-center gap-2 text-foreground font-semibold">
                           <Loader2 className="size-3.5 animate-spin text-primary shrink-0" />
-                          <span>Generating Agent Blueprint</span>
+                          <span>Generating Agent Blueprint ({activeFrameworkMeta.label})</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 text-primary border-primary/30">
-                            ⏱ {elapsedSeconds.toFixed(1)}s
+                          <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 text-primary border-primary/30 py-0.5 px-2 flex items-center gap-1.5">
+                            <span>⏱ {elapsedSeconds.toFixed(1)}s</span>
+                            <span className="text-muted-foreground font-normal">• Est. ~6–8s</span>
                           </Badge>
                           <Button
                             variant="ghost"
                             size="xs"
                             onClick={handleCancel}
-                            className="h-5 px-1.5 text-[10px] text-destructive hover:bg-destructive/10 uppercase tracking-wider"
+                            className="h-6 px-2 text-[11px] font-medium text-destructive hover:bg-destructive/10 border border-destructive/20 uppercase tracking-wider gap-1"
                           >
+                            <Square className="size-2.5 fill-current" />
                             Cancel
                           </Button>
+                        </div>
+                      </div>
+
+                      {/* Multi-step Status Line */}
+                      <div className="p-2.5 rounded-sm bg-muted/30 border border-border/60 space-y-2">
+                        <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground border-b border-border/40 pb-1.5">
+                          <span className="font-semibold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                            <Layers className="size-3 text-primary" /> Synthesis Pipeline
+                          </span>
+                          <span className="text-primary font-bold">{stageProgress}% Complete</span>
+                        </div>
+                        
+                        {/* Interactive Status Chain */}
+                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] font-mono">
+                          {GENERATION_STEPS.map((step, idx) => {
+                            const isPast = getStepOrder(generationStage) > idx;
+                            const isCurrent = generationStage === step.id;
+                            return (
+                              <React.Fragment key={step.id}>
+                                <div className={cn(
+                                  "flex items-center gap-1 transition-colors py-0.5 px-1.5 rounded",
+                                  isCurrent && "bg-primary/20 text-primary font-bold ring-1 ring-primary/40",
+                                  isPast && "text-emerald-500 font-medium",
+                                  !isCurrent && !isPast && "text-muted-foreground/60"
+                                )}>
+                                  {isPast ? (
+                                    <Check className="size-3 text-emerald-500 shrink-0 stroke-[2.5]" />
+                                  ) : isCurrent ? (
+                                    <span className="size-2 rounded-full bg-primary animate-pulse shrink-0" />
+                                  ) : (
+                                    <span className="size-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
+                                  )}
+                                  <span>{step.label}</span>
+                                </div>
+                                {idx < GENERATION_STEPS.length - 1 && (
+                                  <span className={cn(
+                                    "text-[10px]",
+                                    isPast ? "text-emerald-500" : isCurrent ? "text-primary font-bold" : "text-muted-foreground/30"
+                                  )}>→</span>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+
+                        {/* Live Stage Subtext & Inspector streaming note */}
+                        <div className="pt-1 text-[11px] text-muted-foreground flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <Sparkles className="size-3 text-primary shrink-0 animate-pulse" />
+                            <span className="text-foreground truncate">{stageMessage || 'Streaming specification into Inspector in real time...'}</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-primary shrink-0 ml-2 hidden sm:inline">
+                            Live Inspector Sync
+                          </span>
                         </div>
                       </div>
 
                       {/* Progress Bar */}
                       <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-primary transition-all duration-300 rounded-full terracotta-glow-sm"
-                          style={{
-                            width: `${elapsedSeconds < 1.8 ? 25 : elapsedSeconds < 4.0 ? 55 : elapsedSeconds < 6.5 ? 80 : 95}%`
-                          }}
+                          className="h-full bg-primary transition-all duration-500 rounded-full terracotta-glow-sm"
+                          style={{ width: `${stageProgress}%` }}
                         />
-                      </div>
-
-                      {/* Stage Pipeline Steps */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[11px]">
-                        <div className={cn(
-                          "flex items-center gap-1.5 p-1.5 rounded transition-colors",
-                          elapsedSeconds < 1.8 ? "bg-primary/15 text-primary font-bold" : "text-muted-foreground bg-muted/30"
-                        )}>
-                          <span className="size-1.5 rounded-full bg-current" />
-                          <span>1. Intent & Runtime ({activeFrameworkMeta.shortLabel})</span>
-                        </div>
-
-                        <div className={cn(
-                          "flex items-center gap-1.5 p-1.5 rounded transition-colors",
-                          elapsedSeconds >= 1.8 && elapsedSeconds < 4.0 ? "bg-primary/15 text-primary font-bold" : elapsedSeconds > 4.0 ? "text-emerald-500 bg-emerald-500/5" : "text-muted-foreground bg-muted/30"
-                        )}>
-                          <span className="size-1.5 rounded-full bg-current" />
-                          <span>2. Manifest, Soul & Persona</span>
-                        </div>
-
-                        <div className={cn(
-                          "flex items-center gap-1.5 p-1.5 rounded transition-colors",
-                          elapsedSeconds >= 4.0 && elapsedSeconds < 6.5 ? "bg-primary/15 text-primary font-bold" : elapsedSeconds > 6.5 ? "text-emerald-500 bg-emerald-500/5" : "text-muted-foreground bg-muted/30"
-                        )}>
-                          <span className="size-1.5 rounded-full bg-current" />
-                          <span>3. Tools & Matrix Mapping</span>
-                        </div>
-
-                        <div className={cn(
-                          "flex items-center gap-1.5 p-1.5 rounded transition-colors",
-                          elapsedSeconds >= 6.5 ? "bg-primary/15 text-primary font-bold animate-pulse" : "text-muted-foreground bg-muted/30"
-                        )}>
-                          <span className="size-1.5 rounded-full bg-current" />
-                          <span>4. Rules & Specification Health</span>
-                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1105,17 +1350,23 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5 h-full">
             {isProcessing ? (
-              <Button 
-                variant="destructive"
-                className="h-full px-3.5 rounded-sm font-medium transition-all shadow-xs gap-1.5"
-                onClick={handleCancel}
-                title="Cancel Generation"
-              >
-                <Square className="size-4 fill-current" />
-                <span className="text-xs font-mono uppercase">Stop</span>
-              </Button>
+              <div className="flex items-center gap-1.5 h-full">
+                <Badge variant="outline" className="h-full px-2 text-[11px] font-mono text-muted-foreground border-border/80 flex items-center gap-1.5 bg-muted/20">
+                  <span className="size-1.5 rounded-full bg-primary animate-ping" />
+                  <span>⏱ {elapsedSeconds.toFixed(1)}s</span>
+                </Badge>
+                <Button 
+                  variant="destructive"
+                  className="h-full px-3.5 rounded-sm font-medium transition-all shadow-xs gap-1.5"
+                  onClick={handleCancel}
+                  title="Cancel Generation"
+                >
+                  <Square className="size-3.5 fill-current" />
+                  <span className="text-xs font-mono uppercase">Stop</span>
+                </Button>
+              </div>
             ) : (
               <Button 
                 className="h-full px-4 rounded-sm bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium transition-all shadow-xs" 

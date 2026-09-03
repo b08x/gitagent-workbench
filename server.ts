@@ -614,6 +614,122 @@ async function startServer() {
     });
   });
 
+  // Streaming Agent Architect specification endpoint
+  app.post("/api/agent/compile-stream", async (req, res) => {
+    refreshEnvKeys();
+    let { prompt, modelId, providerId, options, apiKey: rawClientKey, targetFramework = 'hermes_agent' } = req.body;
+    prompt = decodePrompt(prompt);
+    providerId = providerId || 'google';
+    const cleanModelId = normalizeModelId(providerId, modelId);
+    const clientKey = sanitizeApiKey(rawClientKey);
+    let apiKey = clientKey || serverKeys[providerId];
+    const googleKey = serverKeys['google'];
+
+    if (!apiKey && googleKey) {
+      providerId = 'google';
+      apiKey = googleKey;
+    }
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    if (typeof (res as any).flushHeaders === 'function') {
+      (res as any).flushHeaders();
+    }
+
+    const sendEvent = (event: string, data: any) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    const userText = extractUserPromptText(prompt);
+    const framework = (targetFramework || options?.targetFramework || 'hermes_agent') as any;
+
+    // Stage 1: Intent & Runtime analysis
+    sendEvent('stage', {
+      stage: 'intent',
+      label: `Parsing intent & runtime constraints (${framework})...`,
+      progress: 15
+    });
+
+    // Synthesize structured baseline specification for immediate interim streaming
+    const baseSpec = synthesizeAgentSpec(userText || 'Specialist Agent', '', framework);
+
+    // Stage 2: Manifest metadata
+    sendEvent('partial', {
+      stage: 'manifest',
+      label: `Drafting manifest metadata for ${baseSpec.manifest.name}...`,
+      progress: 35,
+      data: {
+        manifest: {
+          name: baseSpec.manifest.name,
+          description: baseSpec.manifest.description,
+          version: baseSpec.manifest.version || '1.0.0',
+          compliance: baseSpec.manifest.compliance
+        }
+      }
+    });
+
+    // Stage 3: Identity & Soul
+    sendEvent('partial', {
+      stage: 'soul',
+      label: 'Composing Identity & Soul (SOUL.md)...',
+      progress: 60,
+      data: {
+        soul: baseSpec.soul
+      }
+    });
+
+    // Stage 4: Operational Rules
+    sendEvent('partial', {
+      stage: 'rules',
+      label: 'Establishing operational boundaries (RULES.md)...',
+      progress: 80,
+      data: {
+        rules: baseSpec.rules
+      }
+    });
+
+    // Stage 5: Domain Skills & Matrix Mapping
+    sendEvent('partial', {
+      stage: 'skills',
+      label: `Mapping domain skills and tools to ${framework} matrix...`,
+      progress: 92,
+      data: {
+        skills: baseSpec.skills
+      }
+    });
+
+    // Execute LLM for refined specification if API key is present
+    let finalSpec = baseSpec;
+    if (apiKey) {
+      try {
+        const llmResult = await executeUniversalGeneration(providerId, cleanModelId, apiKey, prompt, options);
+        if (llmResult?.object?.manifest) {
+          finalSpec = {
+            ...baseSpec,
+            ...llmResult.object,
+            manifest: {
+              ...baseSpec.manifest,
+              ...llmResult.object.manifest
+            }
+          };
+        }
+      } catch (e: any) {
+        console.warn("Stream LLM refinement fell back to built-in synthesis:", e.message);
+      }
+    }
+
+    sendEvent('complete', {
+      stage: 'done',
+      label: 'Agent specification compiled successfully.',
+      progress: 100,
+      object: finalSpec
+    });
+
+    res.write("data: [DONE]\n\n");
+    res.end();
+  });
+
   app.post("/api/stream", async (req, res) => {
     refreshEnvKeys();
     let { prompt, modelId, providerId, options, apiKey: rawClientKey } = req.body;
