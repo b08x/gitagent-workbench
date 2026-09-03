@@ -21,7 +21,9 @@ import {
   ShieldAlert,
   Terminal,
   Check,
-  Sparkles
+  Sparkles,
+  CheckCircle2,
+  ShieldCheck
 } from 'lucide-react';
 import { cn, formatErrorMessage } from '../../lib/utils';
 
@@ -34,6 +36,10 @@ interface Message {
   modelId?: string;
   isError?: boolean;
   failedPrompt?: string;
+  resolved?: boolean;
+  resolvedVia?: string;
+  isAuditLog?: boolean;
+  actionTaken?: string;
 }
 
 interface ChatModelState {
@@ -145,6 +151,20 @@ export function ChatWorkbench() {
     return { flagged: false };
   };
 
+  const handleRetryPrompt = (failedPrompt: string) => {
+    setMessages(prev => [
+      ...prev,
+      {
+        role: 'user',
+        content: `Recovery Action: Retried prompt: "${failedPrompt.slice(0, 80)}${failedPrompt.length > 80 ? '...' : ''}"`,
+        timestamp: new Date(),
+        isAuditLog: true,
+        actionTaken: 'Retry Prompt'
+      }
+    ]);
+    handleSend(failedPrompt);
+  };
+
   const handleSend = async (overridePrompt?: string) => {
     const textToSend = overridePrompt !== undefined ? overridePrompt : input;
     if (!textToSend.trim() || !chatModel.modelId) return;
@@ -222,7 +242,9 @@ export function ChatWorkbench() {
       const violation = checkRuleViolations(content);
 
       setMessages(prev => {
-        const next = [...prev];
+        // Mark all previous error notices as resolved upon successful response
+        const resolved = prev.map(msg => msg.isError ? { ...msg, resolved: true, resolvedVia: 'Retried successfully' } : msg);
+        const next = [...resolved];
         const last = next[next.length - 1];
         if (last && last.role === 'assistant') {
           last.content = content;
@@ -426,53 +448,91 @@ export function ChatWorkbench() {
                   key={i} 
                   className={cn(
                     "flex flex-col max-w-[85%]",
-                    m.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
+                    m.isAuditLog
+                      ? "w-full max-w-full"
+                      : m.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
                   )}
                 >
-                  <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] font-mono text-muted-foreground uppercase">
-                    {m.role === 'user' ? (
-                      <>
-                        <span>You</span>
-                        <User className="size-3" />
-                      </>
-                    ) : (
-                      <>
-                        <Bot className="size-3 text-primary" />
-                        <span className="text-primary font-bold">Agent</span>
-                        {m.modelId && <span className="text-muted-foreground/60">• {m.modelId}</span>}
-                      </>
-                    )}
-                  </div>
+                  {!m.isAuditLog && (
+                    <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] font-mono text-muted-foreground uppercase">
+                      {m.role === 'user' ? (
+                        <>
+                          <span>You</span>
+                          <User className="size-3" />
+                        </>
+                      ) : (
+                        <>
+                          <Bot className="size-3 text-primary" />
+                          <span className="text-primary font-bold">Agent</span>
+                          {m.modelId && <span className="text-muted-foreground/60">• {m.modelId}</span>}
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   <div className={cn(
                     "p-3.5 rounded-sm text-xs leading-relaxed border shadow-xs",
-                    m.role === 'user' 
-                      ? "bg-primary text-primary-foreground border-primary/50 font-medium" 
-                      : m.isError
-                        ? "bg-destructive/5 border-destructive/30 text-foreground"
-                        : "bg-card border-border/80 text-foreground",
+                    m.isAuditLog
+                      ? "bg-muted/40 border-primary/20 text-foreground w-full"
+                      : m.role === 'user' 
+                        ? "bg-primary text-primary-foreground border-primary/50 font-medium" 
+                        : m.isError
+                          ? (m.resolved 
+                              ? "bg-muted/30 border-emerald-500/30 text-foreground" 
+                              : "bg-destructive/5 border-destructive/30 text-foreground")
+                          : "bg-card border-border/80 text-foreground",
                     m.flagged && "border-l-4 border-l-amber-500 bg-amber-50/20"
                   )}>
-                    {m.isError ? (
-                      <div className="space-y-2.5">
-                        <div className="flex items-start gap-2 text-destructive">
-                          <AlertCircle className="size-4 shrink-0 mt-0.5" />
-                          <span>{m.content}</span>
+                    {m.isAuditLog ? (
+                      <div className="flex items-center justify-between gap-2 font-mono text-xs text-foreground">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <ShieldCheck className="size-3.5 text-primary shrink-0" />
+                          <span className="font-bold text-primary text-[10px]">[AUDIT LOG]</span>
+                          <span className="font-sans text-xs">{m.content}</span>
                         </div>
-                        {m.failedPrompt && (
-                          <div className="pt-2 border-t border-destructive/20">
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              className="text-xs font-mono gap-1.5 h-6"
-                              onClick={() => handleSend(m.failedPrompt)}
-                              disabled={isStreaming}
-                            >
-                              <RotateCcw className="size-3" /> Retry Prompt
-                            </Button>
-                          </div>
+                        {m.actionTaken && (
+                          <Badge variant="outline" className="text-[9px] font-mono bg-primary/10 text-primary border-primary/30 shrink-0">
+                            {m.actionTaken}
+                          </Badge>
                         )}
                       </div>
+                    ) : m.isError ? (
+                      m.resolved ? (
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 font-medium">
+                            <div className="flex items-center gap-1.5">
+                              <CheckCircle2 className="size-3.5 shrink-0" />
+                              <span className="font-semibold text-xs">Error Resolved ({m.resolvedVia || 'Retried successfully'})</span>
+                            </div>
+                            <Badge variant="outline" className="text-[9px] font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 py-0">
+                              Resolved
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground pl-5 line-through opacity-70">
+                            {m.content}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          <div className="flex items-start gap-2 text-destructive">
+                            <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                            <span>{m.content}</span>
+                          </div>
+                          {m.failedPrompt && (
+                            <div className="pt-2 border-t border-destructive/20">
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                className="text-xs font-mono gap-1.5 h-6 cursor-pointer"
+                                onClick={() => handleRetryPrompt(m.failedPrompt!)}
+                                disabled={isStreaming}
+                              >
+                                <RotateCcw className="size-3" /> Retry Prompt
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )
                     ) : (
                       <div className="whitespace-pre-wrap">{m.content}</div>
                     )}

@@ -78,7 +78,6 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
 
   const handleFrameworkChange = (val: AgentFramework) => {
     setSelectedFramework(val);
-    agentDispatch({ type: 'UPDATE_WORKSPACE', payload: { targetFramework: val } });
   };
 
   return (

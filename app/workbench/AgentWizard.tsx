@@ -34,7 +34,9 @@ import {
   Trash2,
   Cpu,
   Layers,
-  CheckCircle2
+  CheckCircle2,
+  ShieldCheck,
+  ChevronRight
 } from 'lucide-react';
 import { cn, formatErrorMessage } from '../../lib/utils';
 import { providers } from '../../lib/providers';
@@ -56,6 +58,9 @@ interface ChatMessage {
   failedFiles?: File[];
   resolved?: boolean;
   resolvedVia?: string;
+  retrying?: boolean;
+  actionTaken?: string;
+  isAuditLog?: boolean;
 }
 
 export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => void }) {
@@ -125,13 +130,45 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   };
 
   const markErrorsResolved = (via: string) => {
-    setMessages(prev => prev.map(msg => msg.isError ? { ...msg, resolved: true, resolvedVia: via } : msg));
+    setMessages(prev => prev.map(msg => msg.isError ? { ...msg, resolved: true, resolvedVia: via, retrying: false } : msg));
   };
 
-  const handleSynthesizeLocally = (promptText: string) => {
+  const handleRetryLLM = (errorMsgId: string, promptText?: string, files?: File[]) => {
+    if (isProcessing) return;
+    const targetPrompt = promptText || '';
+    const targetFiles = files || [];
+
+    const { providerId, modelId } = settings.taskModels.architect;
+    const actionDesc = `Retried LLM generation with ${providerId.toUpperCase()} (${modelId})`;
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Mark the original error message as retrying and add audit log entry to transcript
+    setMessages(prev => {
+      const updated = prev.map(msg => 
+        msg.id === errorMsgId ? { ...msg, retrying: true, actionTaken: 'Retry LLM' } : msg
+      );
+      const auditMsg: ChatMessage = {
+        id: `audit-${Date.now()}`,
+        role: 'user',
+        content: `Recovery Action: ${actionDesc}`,
+        isAuditLog: true,
+        actionTaken: 'Retry LLM',
+        timestamp
+      };
+      return [...updated, auditMsg];
+    });
+
+    handleSend(targetPrompt, targetFiles, { sourceErrorId: errorMsgId, recoveryAction: 'Retried successfully via Retry LLM' });
+  };
+
+  const handleSynthesizeLocally = (errorMsgId?: string, promptText?: string) => {
     setIsProcessing(true);
+    const targetPrompt = promptText || 'Autonomous Specialist Agent';
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const actionDesc = `Synthesized agent blueprint locally using built-in offline compiler`;
+
     try {
-      const synth = synthesizeAgentSpec(promptText || 'Autonomous Specialist Agent', '', activeFramework);
+      const synth = synthesizeAgentSpec(targetPrompt, '', activeFramework);
       dispatch({
         type: 'UPDATE_WORKSPACE',
         payload: {
@@ -152,20 +189,89 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         }
       });
 
-      markErrorsResolved('Built-in Synthesizer');
+      setMessages(prev => {
+        // Mark all errors as resolved in place via built-in synthesizer
+        const updated = prev.map(msg => 
+          msg.isError ? { 
+            ...msg, 
+            resolved: true, 
+            resolvedVia: 'Synthesized Locally (Built-in Compiler)', 
+            retrying: false,
+            actionTaken: (errorMsgId && msg.id === errorMsgId) ? 'Synthesize Locally' : (msg.actionTaken || 'Synthesize Locally')
+          } : msg
+        );
 
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `synth-${Date.now()}`,
+        const auditMsg: ChatMessage = {
+          id: `audit-${Date.now()}`,
+          role: 'user',
+          content: `Recovery Action: ${actionDesc}`,
+          isAuditLog: true,
+          actionTaken: 'Synthesize Locally',
+          timestamp
+        };
+
+        const synthMsg: ChatMessage = {
+          id: `synth-${Date.now() + 1}`,
           role: 'assistant',
           content: synth.explanation,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
+        };
+
+        return [...updated, auditMsg, synthMsg];
+      });
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleSaveKeyAndRetry = (errorMsgId: string, promptText?: string, files?: File[]) => {
+    if (!inlineKeyInput.trim()) return;
+    setApiKey(currentProviderId, inlineKeyInput.trim());
+    setShowInlineKeyInput(false);
+    setInlineKeyInput('');
+
+    const targetPrompt = promptText || '';
+    const targetFiles = files || [];
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const actionDesc = `Updated API key for ${currentProviderId.toUpperCase()} and retried LLM generation`;
+
+    setMessages(prev => {
+      const updated = prev.map(msg => 
+        msg.id === errorMsgId ? { ...msg, retrying: true, actionTaken: 'Updated API Key & Retried LLM' } : msg
+      );
+      const auditMsg: ChatMessage = {
+        id: `audit-${Date.now()}`,
+        role: 'user',
+        content: `Recovery Action: ${actionDesc}`,
+        isAuditLog: true,
+        actionTaken: 'Update Key & Retry',
+        timestamp
+      };
+      return [...updated, auditMsg];
+    });
+
+    handleSend(targetPrompt, targetFiles, { sourceErrorId: errorMsgId, recoveryAction: 'Retried successfully with updated API key' });
+  };
+
+  const handleClearKey = (errorMsgId: string) => {
+    clearApiKey(currentProviderId);
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const actionDesc = `Cleared saved API key for ${currentProviderId.toUpperCase()}`;
+
+    setMessages(prev => {
+      const updated = prev.map(msg => 
+        msg.id === errorMsgId ? { ...msg, actionTaken: 'Cleared API Key' } : msg
+      );
+      const auditMsg: ChatMessage = {
+        id: `audit-${Date.now()}`,
+        role: 'user',
+        content: `Recovery Action: ${actionDesc}`,
+        isAuditLog: true,
+        actionTaken: 'Clear Key',
+        timestamp
+      };
+      return [...updated, auditMsg];
+    });
   };
 
   const handleCancel = () => {
@@ -192,24 +298,30 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     });
   };
 
-  const handleSend = async (overridePrompt?: string, overrideFiles?: File[]) => {
+  const handleSend = async (
+    overridePrompt?: string, 
+    overrideFiles?: File[],
+    recoveryOptions?: { sourceErrorId?: string; recoveryAction?: string }
+  ) => {
     const promptToSend = overridePrompt !== undefined ? overridePrompt : input;
     const filesToSend = overrideFiles !== undefined ? overrideFiles : contextFiles;
 
     if (!promptToSend.trim() && filesToSend.length === 0) return;
     if (isProcessing) return;
 
-    const userTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const userMessageId = `user-${Date.now()}`;
-    const userMessage: ChatMessage = { 
-      id: userMessageId,
-      role: 'user', 
-      content: promptToSend, 
-      timestamp: userTime 
-    };
+    if (!recoveryOptions?.recoveryAction) {
+      const userTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const userMessageId = `user-${Date.now()}`;
+      const userMessage: ChatMessage = { 
+        id: userMessageId,
+        role: 'user', 
+        content: promptToSend, 
+        timestamp: userTime 
+      };
 
-    setMessages(prev => [...prev, userMessage]);
-    if (overridePrompt === undefined) setInput('');
+      setMessages(prev => [...prev, userMessage]);
+      if (overridePrompt === undefined) setInput('');
+    }
     setIsProcessing(true);
 
     abortControllerRef.current = new AbortController();
@@ -376,8 +488,22 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
       }
 
       setMessages(prev => {
-        // Mark previous error banners as resolved
-        const resolved = prev.map(msg => msg.isError ? { ...msg, resolved: true, resolvedVia: 'Generation succeeded' } : msg);
+        // Mark all previous error notices as resolved in place
+        const resolved = prev.map(msg => {
+          if (msg.isError) {
+            const via = (recoveryOptions?.sourceErrorId && msg.id === recoveryOptions.sourceErrorId && recoveryOptions.recoveryAction)
+              ? recoveryOptions.recoveryAction
+              : (msg.actionTaken ? `Resolved via ${msg.actionTaken}` : (recoveryOptions?.recoveryAction || 'Retried successfully via LLM'));
+            return {
+              ...msg,
+              resolved: true,
+              resolvedVia: via,
+              retrying: false
+            };
+          }
+          return msg;
+        });
+
         return [
           ...resolved.slice(0, -1), 
           { 
@@ -397,18 +523,21 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
       console.error('AI Architect generation error:', err);
       const cleanError = formatErrorMessage(err);
 
-      setMessages(prev => [
-        ...prev.slice(0, -1),
-        { 
-          id: `error-${Date.now()}`,
-          role: 'assistant', 
-          content: cleanError,
-          isError: true,
-          failedPrompt: promptToSend,
-          failedFiles: filesToSend,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
+      setMessages(prev => {
+        const resetRetrying = prev.map(msg => msg.retrying ? { ...msg, retrying: false } : msg);
+        return [
+          ...resetRetrying.slice(0, -1),
+          { 
+            id: `error-${Date.now()}`,
+            role: 'assistant', 
+            content: cleanError,
+            isError: true,
+            failedPrompt: promptToSend,
+            failedFiles: filesToSend,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        ];
+      });
     } finally {
       setIsProcessing(false);
       abortControllerRef.current = null;
@@ -532,36 +661,129 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
             key={m.id} 
             className={cn(
               "flex gap-3 max-w-[90%]",
-              m.role === 'user' ? "ml-auto flex-row-reverse" : "mr-auto"
+              m.isAuditLog 
+                ? "w-full max-w-full" 
+                : m.role === 'user' 
+                  ? "ml-auto flex-row-reverse" 
+                  : "mr-auto"
             )}
           >
             <div className={cn(
               "size-7 rounded-sm flex items-center justify-center shrink-0 border font-mono text-xs shadow-xs",
-              m.role === 'user' 
-                ? "bg-primary text-primary-foreground font-bold border-primary/50 terracotta-glow-sm" 
-                : m.isError 
-                  ? "bg-destructive/10 text-destructive border-destructive/30" 
-                  : "bg-muted text-muted-foreground border-border/80"
+              m.isAuditLog
+                ? "bg-primary/10 text-primary border-primary/30"
+                : m.role === 'user' 
+                  ? "bg-primary text-primary-foreground font-bold border-primary/50 terracotta-glow-sm" 
+                  : m.isError 
+                    ? (m.resolved 
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" 
+                        : m.retrying 
+                          ? "bg-primary/10 text-primary border-primary/30 animate-pulse" 
+                          : "bg-destructive/10 text-destructive border-destructive/30") 
+                    : "bg-muted text-muted-foreground border-border/80"
             )}>
-              {m.role === 'user' ? <User className="size-4" /> : m.isError ? <AlertCircle className="size-4 text-destructive" /> : <Bot className="size-4 text-primary" />}
+              {m.isAuditLog ? (
+                <ShieldCheck className="size-4 text-primary" />
+              ) : m.role === 'user' ? (
+                <User className="size-4" />
+              ) : m.isError ? (
+                m.resolved ? (
+                  <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                ) : m.retrying ? (
+                  <Loader2 className="size-4 text-primary animate-spin" />
+                ) : (
+                  <AlertCircle className="size-4 text-destructive" />
+                )
+              ) : (
+                <Bot className="size-4 text-primary" />
+              )}
             </div>
 
-            <div className="space-y-1.5 max-w-[calc(100%-2.5rem)]">
-              {m.isError ? (
+            <div className={cn("space-y-1.5", m.isAuditLog ? "w-full" : "max-w-[calc(100%-2.5rem)]")}>
+              {m.isAuditLog ? (
+                /* Recovery Audit Log Banner in Transcript */
+                <div className="p-2.5 rounded-sm bg-muted/40 border border-primary/20 text-xs font-mono text-muted-foreground flex items-center justify-between gap-3 shadow-2xs w-full">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ShieldCheck className="size-3.5 text-primary shrink-0" />
+                    <span className="text-foreground text-xs font-sans">
+                      <span className="font-bold text-primary font-mono text-[11px] mr-1.5">[AUDIT LOG]</span>
+                      {m.content}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {m.actionTaken && (
+                      <Badge variant="outline" className="text-[9px] font-mono bg-primary/10 text-primary border-primary/30">
+                        {m.actionTaken}
+                      </Badge>
+                    )}
+                    {m.timestamp && (
+                      <span className="text-[10px] text-muted-foreground/60 font-mono">{m.timestamp}</span>
+                    )}
+                  </div>
+                </div>
+              ) : m.isError ? (
                 m.resolved ? (
-                  /* Resolved Error State */
-                  <div className="p-3 rounded-sm text-xs bg-emerald-500/5 border border-emerald-500/30 text-foreground space-y-1.5 shadow-xs">
+                  /* Resolved Error State - Collapsed in place, clean & auditable */
+                  <div className="p-3 rounded-sm text-xs bg-muted/30 border border-emerald-500/30 text-foreground space-y-2 shadow-xs transition-all">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
                         <CheckCircle2 className="size-4 shrink-0" />
-                        <span className="font-semibold text-xs">Notice Resolved ({m.resolvedVia || 'Retried successfully'})</span>
+                        <span className="font-semibold text-xs">Generation Notice Resolved</span>
                       </div>
                       <Badge variant="outline" className="text-[9px] font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 py-0">
-                        Synchronized
+                        {m.resolvedVia || 'Retried successfully'}
                       </Badge>
                     </div>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed pl-6">
-                      Agent specification was successfully generated and applied to the current workspace.
+                    <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground pl-6">
+                      <span className="text-amber-500 font-semibold">⚠</span>
+                      <span>
+                        Original notice: <span className="font-mono text-[10px] bg-background/80 px-1 py-0.5 rounded border border-border/60 text-foreground/80">{m.content}</span>
+                        {' '}— <span className="text-emerald-600 dark:text-emerald-400 font-medium">Resolved</span> ({m.resolvedVia || 'Retried successfully'}).
+                      </span>
+                    </div>
+                    <details className="group pl-6 pt-0.5">
+                      <summary className="cursor-pointer text-[10px] font-mono text-muted-foreground/70 hover:text-foreground list-none flex items-center gap-1 select-none">
+                        <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
+                        <span>View resolution audit trail</span>
+                      </summary>
+                      <div className="mt-1.5 p-2 rounded bg-background/60 border border-border/50 text-[10px] font-mono text-muted-foreground space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span>Status:</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Resolved & Superseded</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Resolution Path:</span>
+                          <span className="text-foreground">{m.resolvedVia || 'Retried successfully'}</span>
+                        </div>
+                        {m.actionTaken && (
+                          <div className="flex items-center justify-between">
+                            <span>Action Taken:</span>
+                            <span className="text-primary font-medium">{m.actionTaken}</span>
+                          </div>
+                        )}
+                        {m.failedPrompt && (
+                          <div className="pt-1 border-t border-border/40">
+                            <span className="text-muted-foreground/70">Prompt: </span>
+                            <span className="text-foreground/90">{m.failedPrompt.slice(0, 100)}{m.failedPrompt.length > 100 ? '...' : ''}</span>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  </div>
+                ) : m.retrying ? (
+                  /* In-progress Retry State */
+                  <div className="p-3.5 rounded-sm text-xs leading-relaxed bg-primary/[0.04] border border-primary/30 text-foreground space-y-2 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-primary font-medium">
+                        <Loader2 className="size-4 animate-spin shrink-0" />
+                        <span className="font-semibold text-xs">Recovery In Progress...</span>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] font-mono bg-primary/10 text-primary border-primary/30 py-0">
+                        {m.actionTaken || 'Retrying LLM'}
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground pl-6">
+                      Generation failed previously: <span className="font-mono text-[10px] text-foreground/80">{m.content}</span>. Retrying generation with active configuration...
                     </p>
                   </div>
                 ) : (
@@ -570,7 +792,14 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                     <div className="flex items-start gap-2 text-destructive font-medium">
                       <AlertCircle className="size-4 shrink-0 mt-0.5" />
                       <div className="space-y-1">
-                        <p className="font-semibold text-xs tracking-tight">Generation Notice</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-xs tracking-tight">Generation Notice</p>
+                          {m.actionTaken && (
+                            <Badge variant="outline" className="text-[9px] font-mono bg-muted text-muted-foreground border-border/80">
+                              Last Action: {m.actionTaken}
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-foreground/90 font-normal">{m.content}</p>
                       </div>
                     </div>
@@ -593,13 +822,9 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                           />
                           <Button
                             size="xs"
-                            className="h-7 px-2.5 text-xs font-mono bg-primary text-primary-foreground"
+                            className="h-7 px-2.5 text-xs font-mono bg-primary text-primary-foreground cursor-pointer"
                             disabled={!inlineKeyInput.trim()}
-                            onClick={() => {
-                              setApiKey(currentProviderId, inlineKeyInput.trim());
-                              setShowInlineKeyInput(false);
-                              if (m.failedPrompt) handleSend(m.failedPrompt, m.failedFiles);
-                            }}
+                            onClick={() => handleSaveKeyAndRetry(m.id, m.failedPrompt, m.failedFiles)}
                           >
                             Save & Retry
                           </Button>
@@ -612,8 +837,8 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                         <Button
                           size="xs"
                           variant="default"
-                          className="bg-primary hover:bg-[#d96b43] text-primary-foreground text-xs font-mono gap-1.5 h-7 shadow-xs"
-                          onClick={() => handleSend(m.failedPrompt, m.failedFiles)}
+                          className="bg-primary hover:bg-[#d96b43] text-primary-foreground text-xs font-mono gap-1.5 h-7 shadow-xs cursor-pointer"
+                          onClick={() => handleRetryLLM(m.id, m.failedPrompt, m.failedFiles)}
                           disabled={isProcessing}
                         >
                           <RotateCcw className="size-3" /> Retry LLM
@@ -624,8 +849,8 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                         <Button
                           size="xs"
                           variant="secondary"
-                          className="bg-muted hover:bg-muted/80 text-foreground text-xs font-mono gap-1.5 h-7 border border-border/80"
-                          onClick={() => handleSynthesizeLocally(m.failedPrompt!)}
+                          className="bg-muted hover:bg-muted/80 text-foreground text-xs font-mono gap-1.5 h-7 border border-border/80 cursor-pointer"
+                          onClick={() => handleSynthesizeLocally(m.id, m.failedPrompt)}
                           disabled={isProcessing}
                         >
                           <Zap className="size-3 text-amber-500" /> Synthesize Locally
@@ -635,7 +860,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                       <Button
                         size="xs"
                         variant="outline"
-                        className="text-xs font-mono gap-1.5 h-7 border-border/80 hover:bg-muted"
+                        className="text-xs font-mono gap-1.5 h-7 border-border/80 hover:bg-muted cursor-pointer"
                         onClick={() => setShowInlineKeyInput(!showInlineKeyInput)}
                       >
                         <KeyRound className="size-3 text-primary" /> {showInlineKeyInput ? 'Hide Key Input' : 'Update Key'}
@@ -645,8 +870,8 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                         <Button
                           size="xs"
                           variant="ghost"
-                          className="text-xs font-mono gap-1 h-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => clearApiKey(currentProviderId)}
+                          className="text-xs font-mono gap-1 h-7 text-muted-foreground hover:text-destructive cursor-pointer"
+                          onClick={() => handleClearKey(m.id)}
                           title="Clear saved key"
                         >
                           <Trash2 className="size-3" /> Clear Key
@@ -743,7 +968,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                 </div>
               )}
 
-              {m.timestamp && (
+              {m.timestamp && !m.isAuditLog && (
                 <div className={cn(
                   "text-[9px] font-mono text-muted-foreground uppercase px-1",
                   m.role === 'user' ? "text-right" : "text-left"

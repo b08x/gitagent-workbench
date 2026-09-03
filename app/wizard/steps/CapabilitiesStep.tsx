@@ -38,8 +38,17 @@ import {
   Check, 
   Sparkles, 
   Shield, 
-  RefreshCw 
+  RefreshCw,
+  Eye
 } from 'lucide-react';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -59,23 +68,43 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
   const [memorySeedingEnabled, setMemorySeedingEnabled] = useState(state.memoryBootstrap !== null);
   const [showAllTools, setShowAllTools] = useState(false);
   const [showMatrixModal, setShowMatrixModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
+  // Active framework is the persisted agent specification setting
   const activeFramework: AgentFramework = (state.targetFramework as AgentFramework) || 'hermes_agent';
-  const frameworkAllowedTools = AGENT_FRAMEWORK_TOOLS[activeFramework] || AGENT_FRAMEWORK_TOOLS['hermes_agent'];
   const activeFrameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === activeFramework) || AGENT_FRAMEWORK_OPTIONS[0];
 
-  const handleFrameworkChange = (frameworkId: AgentFramework) => {
-    dispatch({ type: 'UPDATE_WORKSPACE', payload: { targetFramework: frameworkId } });
+  // Preview framework is a read-only visual preview for tool compatibility inspection
+  const [previewFramework, setPreviewFramework] = useState<AgentFramework>(activeFramework);
+  const previewFrameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === previewFramework) || AGENT_FRAMEWORK_OPTIONS[0];
+  const frameworkAllowedTools = AGENT_FRAMEWORK_TOOLS[previewFramework] || AGENT_FRAMEWORK_TOOLS['hermes_agent'];
+
+  // Keep preview in sync if targetFramework changes from external sources
+  React.useEffect(() => {
+    if (state.targetFramework) {
+      setPreviewFramework(state.targetFramework as AgentFramework);
+    }
+  }, [state.targetFramework]);
+
+  // Read-only tab click: changes the preview without mutating specification or generating skills
+  const handleFrameworkPreview = (frameworkId: AgentFramework) => {
+    setPreviewFramework(frameworkId);
+  };
+
+  // Explicit confirmation: only updates workspace when explicitly confirmed by user
+  const handleConfirmHarnessSwitch = () => {
+    dispatch({ type: 'UPDATE_WORKSPACE', payload: { targetFramework: previewFramework } });
     dispatch({ 
       type: 'UPDATE_MANIFEST', 
       payload: { 
         metadata: { 
           ...(state.manifest.metadata || {}), 
-          harness: frameworkId,
-          targetFramework: frameworkId
+          harness: previewFramework,
+          targetFramework: previewFramework
         } 
       } 
     });
+    setShowConfirmModal(false);
   };
 
   const setSkillLoading = (index: number, loading: boolean) => {
@@ -103,7 +132,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
       name: 'new-skill',
       description: '',
       category: 'general',
-      targetFramework: activeFramework
+      targetFramework: previewFramework
     });
     
     updateSkills([
@@ -137,7 +166,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
       description: skill.description,
       category: skill.category,
       instructions: skill.instructions,
-      targetFramework: activeFramework
+      targetFramework: previewFramework
     });
     handleSkillChange(index, 'allowedTools', inferred.tools.join(' '));
   };
@@ -149,7 +178,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
         description: skill.description,
         category: skill.category,
         instructions: skill.instructions,
-        targetFramework: activeFramework
+        targetFramework: previewFramework
       });
       return {
         ...skill,
@@ -278,43 +307,52 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
         <TabsContent value="skills" className="space-y-6">
           {/* Harness / Framework Selector Banner */}
           <Card className="border-primary/20 bg-primary/[0.03] overflow-hidden">
-            <CardContent className="p-4 sm:p-5">
+            <CardContent className="p-4 sm:p-5 space-y-3">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Cpu className="h-4 w-4 text-primary" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-primary">Target Agent Harness / Framework</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-primary">Execution Harness & Tool Mapping</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Skills contextually auto-assign canonical tools according to your active execution harness.
+                    Preview tool mappings across runtime harnesses. Switching preview tabs is read-only and does not mutate your agent specification.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   {AGENT_FRAMEWORK_OPTIONS.map((f) => {
-                    const isSelected = activeFramework === f.id;
+                    const isPreviewing = previewFramework === f.id;
+                    const isSpecActive = activeFramework === f.id;
                     const toolCount = AGENT_FRAMEWORK_TOOLS[f.id]?.length || 0;
                     return (
                       <Button
                         key={f.id}
                         type="button"
-                        variant={isSelected ? 'default' : 'outline'}
+                        variant={isPreviewing ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => handleFrameworkChange(f.id)}
+                        onClick={() => handleFrameworkPreview(f.id)}
                         className={cn(
-                          "h-8 text-xs font-medium transition-all",
-                          isSelected 
+                          "h-8 text-xs font-medium transition-all relative",
+                          isPreviewing 
                             ? "bg-primary text-primary-foreground shadow-xs" 
                             : "bg-background hover:bg-muted"
                         )}
                       >
-                        {isSelected && <Check className="h-3.5 w-3.5 mr-1" />}
+                        {isPreviewing && <Eye className="h-3.5 w-3.5 mr-1" />}
                         {f.shortLabel}
+                        {isSpecActive && (
+                          <span className={cn(
+                            "ml-1 text-[9px] px-1 py-0 rounded font-semibold",
+                            isPreviewing ? "bg-white/20 text-white" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                          )}>
+                            Active
+                          </span>
+                        )}
                         <Badge 
-                          variant={isSelected ? "secondary" : "outline"} 
+                          variant={isPreviewing ? "secondary" : "outline"} 
                           className={cn(
                             "ml-1.5 px-1.5 py-0 text-[10px] h-4",
-                            isSelected ? "bg-primary-foreground/20 text-primary-foreground border-transparent" : "text-muted-foreground"
+                            isPreviewing ? "bg-primary-foreground/20 text-primary-foreground border-transparent" : "text-muted-foreground"
                           )}
                         >
                           {toolCount}
@@ -324,6 +362,38 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                   })}
                 </div>
               </div>
+
+              {/* Preview Mode Alert Banner */}
+              {previewFramework !== activeFramework && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-900 dark:text-amber-200 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <span>
+                      <strong>Previewing {previewFrameworkMeta.label} tools:</strong> Your agent specification remains configured for <strong>{activeFrameworkMeta.label}</strong>. No skills or specs have been modified.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => setPreviewFramework(activeFramework)}
+                      className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Reset Preview
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="xs"
+                      onClick={() => setShowConfirmModal(true)}
+                      className="h-7 text-xs font-semibold gap-1 shadow-xs"
+                    >
+                      <Check className="h-3.5 w-3.5" /> Apply {previewFrameworkMeta.shortLabel} to Spec...
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -335,6 +405,11 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                   <p className="text-sm text-foreground font-medium">
                     Active Harness: <span className="text-primary font-bold">{activeFrameworkMeta.label}</span>
                   </p>
+                  {previewFramework !== activeFramework && (
+                    <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30 bg-amber-500/10">
+                      Previewing: {previewFrameworkMeta.shortLabel}
+                    </Badge>
+                  )}
                   <Button
                     type="button"
                     variant="link"
@@ -346,20 +421,22 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  {activeFrameworkMeta.description}. Tools are automatically inferred from skill context and mapped to permissions.
+                  {previewFramework !== activeFramework 
+                    ? `Showing tool assignments and compatibility for ${previewFrameworkMeta.label}. Click 'Apply to Spec' to make it the active harness.`
+                    : `${activeFrameworkMeta.description}. Tools are automatically inferred from skill context and mapped to permissions.`}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              {state.skillsList.length > 1 && (
+              {state.skillsList.length > 0 && (
                 <Button 
                   variant="outline" 
                   size="sm" 
                   onClick={reassignAllSkillsToCurrentFramework}
                   className="h-8 text-xs gap-1.5"
                 >
-                  <RefreshCw className="h-3.5 w-3.5" /> Re-infer All ({activeFrameworkMeta.shortLabel})
+                  <RefreshCw className="h-3.5 w-3.5" /> Auto-Assign All ({previewFrameworkMeta.shortLabel})
                 </Button>
               )}
               <Button variant="outline" size="sm" onClick={() => navigate('/workbench/skills')} className="h-8 text-xs">
@@ -441,7 +518,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                     description: skill.description,
                     category: skill.category,
                     instructions: skill.instructions,
-                    targetFramework: activeFramework
+                    targetFramework: previewFramework
                   });
 
                   return (
@@ -503,8 +580,13 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                             <div className="flex items-center gap-2">
                               <Label className="text-xs font-semibold">Allowed Tools</Label>
                               <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 font-mono">
-                                {activeFrameworkMeta.shortLabel} ({frameworkAllowedTools.length})
+                                {previewFrameworkMeta.shortLabel} ({frameworkAllowedTools.length})
                               </Badge>
+                              {previewFramework !== activeFramework && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                                  Preview
+                                </Badge>
+                              )}
                               {currentSkillTools.length > 0 && (
                                 <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4 font-mono text-primary">
                                   {currentSkillTools.length} enabled
@@ -530,7 +612,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                                 onClick={() => selectAllFrameworkTools(index)}
                                 className="h-6 text-[10px] px-1.5 text-muted-foreground hover:text-foreground"
                               >
-                                All {activeFrameworkMeta.shortLabel}
+                                All {previewFrameworkMeta.shortLabel}
                               </Button>
                               <Button 
                                 type="button" 
@@ -548,7 +630,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                             <div className="flex items-center justify-between p-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs">
                               <span className="flex items-center gap-1.5">
                                 <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                {unsupportedTools.length} tool(s) not in {activeFrameworkMeta.shortLabel}: {unsupportedTools.join(', ')}
+                                {unsupportedTools.length} tool(s) not in {previewFrameworkMeta.shortLabel}: {unsupportedTools.join(', ')}
                               </span>
                               <Button
                                 type="button"
@@ -567,7 +649,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                               {displayTools.map(tool => {
                                 const isSupportedByHarness = frameworkAllowedTools.includes(tool);
                                 const isChecked = currentSkillTools.includes(tool);
-                                const toolEntry = TOOL_MATRIX.find(t => t.framework === activeFramework && t.name === tool);
+                                const toolEntry = TOOL_MATRIX.find(t => t.framework === previewFramework && t.name === tool);
                                 const toolDesc = toolEntry?.functionDesc || TOOL_DESCRIPTIONS[tool] || 'Framework tool capability';
 
                                 return (
@@ -643,7 +725,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                                     description: skill.description,
                                     category: skill.category,
                                     instructions: val,
-                                    targetFramework: activeFramework
+                                    targetFramework: previewFramework
                                   });
                                   handleSkillChange(index, 'allowedTools', inf.tools.join(' '));
                                 }
@@ -812,8 +894,58 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
       <ToolMatrixModal
         open={showMatrixModal}
         onOpenChange={setShowMatrixModal}
-        defaultFramework={activeFramework}
+        defaultFramework={previewFramework}
       />
+
+      {/* Explicit Confirmation Dialog for Harness Switch */}
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Cpu className="h-5 w-5 text-primary" />
+              Confirm Target Harness Switch
+            </DialogTitle>
+            <DialogDescription>
+              Switching the target runtime harness will update your agent's execution target. Review the impact below:
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 space-y-3 text-xs">
+            <div className="p-3.5 rounded-lg bg-muted/40 border space-y-2.5">
+              <div className="flex justify-between items-center pb-2 border-b">
+                <span className="text-muted-foreground font-medium">Target Harness:</span>
+                <span className="font-mono font-bold text-foreground">
+                  {activeFrameworkMeta.label} → {previewFrameworkMeta.label}
+                </span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b">
+                <span className="text-muted-foreground font-medium">Skill Count:</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <Check className="h-3.5 w-3.5" /> {state.skillsList.length} skill(s) preserved (no skills added or removed)
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-medium">Specification Health:</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <Check className="h-3.5 w-3.5" /> Preserved (no automatic regeneration)
+                </span>
+              </div>
+            </div>
+            <p className="text-muted-foreground text-[11px] leading-relaxed">
+              All existing skills, prompt instructions, and duties will be kept intact. No new skills will be generated or removed.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" onClick={() => setShowConfirmModal(false)}>
+              Cancel (Keep Preview)
+            </Button>
+            <Button variant="default" size="sm" onClick={handleConfirmHarnessSwitch} className="gap-1.5 font-semibold">
+              <Check className="h-3.5 w-3.5" /> Confirm & Apply {previewFrameworkMeta.shortLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

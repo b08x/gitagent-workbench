@@ -2,7 +2,6 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
 import { generateText, streamText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -11,9 +10,6 @@ import cors from "cors";
 import { synthesizeAgentSpec } from "./lib/generation/agentSynthesizer";
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 function cleanErrorMessage(err: any): string {
   if (!err) return "Internal generation error";
@@ -56,7 +52,7 @@ function sanitizeApiKey(key: any): string | null {
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = 3000;
 
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
