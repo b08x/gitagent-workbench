@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, RotateCcw, Info, Rocket } from 'lucide-react';
+import { AlertCircle, RotateCcw, Info, Rocket, Cpu } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
+import { AGENT_FRAMEWORK_TOOLS, AGENT_FRAMEWORK_OPTIONS } from '../../../lib/gitagent/constants';
 import { cn } from '@/lib/utils';
 
 const TOOL_GROUPS = [
@@ -205,32 +207,19 @@ export function DeploymentStep() {
 
       <Separator className="my-8" />
 
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Tool Permissions</h2>
-        <p className="text-muted-foreground">
-          Control which tools are available in each deployment context.
-          Sub-agents only receive tools explicitly granted in their column.
-        </p>
-      </div>
-
-      {skillWarnings.length > 0 && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Skill Configuration Warning</AlertTitle>
-          <AlertDescription className="space-y-1">
-            {skillWarnings.map((w, i) => (
-              <p key={i}>
-                Skill '{w.skillName}' declares tool '{w.tool}' but it is not enabled in any deployment context.
-              </p>
-            ))}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={resetAll}>
-          <RotateCcw className="mr-2 h-4 w-4" /> Reset All to Defaults
-        </Button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Tool Permissions</h2>
+          <p className="text-muted-foreground">
+            Control which tools are available in each deployment context.
+            Active harness: <span className="font-semibold text-foreground">{AGENT_FRAMEWORK_OPTIONS.find(f => f.id === (state.targetFramework || 'hermes_agent'))?.label}</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={resetAll}>
+            <RotateCcw className="mr-2 h-4 w-4" /> Reset All to Defaults
+          </Button>
+        </div>
       </div>
 
       <Card className="overflow-hidden">

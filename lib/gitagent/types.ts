@@ -1,4 +1,5 @@
 export type StructureType = 'minimal' | 'standard' | 'full' | 'data-analyst' | 'web-scraper' | 'researcher' | 'inheritance' | 'multi-repo' | 'monorepo';
+export type AgentFramework = 'hermes_agent' | 'claude_code' | 'google_antigravity' | 'mistral_vibe';
 
 // ─── Compliance ─────────────────────────────────────────────────────────────
 
@@ -255,6 +256,7 @@ export interface AgentWorkspace {
   examples: { goodOutputs: string | null; badOutputs: string | null };
   config: { default: Record<string, unknown> | null; production: Record<string, unknown> | null };
   subAgents: Record<string, AgentWorkspace>;
+  targetFramework?: AgentFramework;
   deploymentTargets: Array<'cli' | 'telegram' | 'discord' | 'slack' | 'api' | 'background' | 'homeassistant'>;
   hermesConfig: string | null;
   knowledgeDocs: Array<{

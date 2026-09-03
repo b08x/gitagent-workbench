@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAgentWorkspace } from '../context/AgentContext';
 import { validateWizardState, ValidationResult } from '../../lib/wizard/validate';
 import { TemplateSelectStep } from './steps/TemplateSelectStep';
+import { RuntimeFrameworkStep } from './steps/RuntimeFrameworkStep';
 import { StructureStep } from './steps/StructureStep';
 import { IdentityStep } from './steps/IdentityStep';
 import { ModelStep } from './steps/ModelStep';
@@ -22,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 const WizardModelStep = (props: any) => <ModelStep {...props} hideGeneration={true} />;
 
 const steps = [
+  { id: 'runtime-framework', title: 'Target Runtime', component: RuntimeFrameworkStep },
   { id: 'template', title: 'Template', component: TemplateSelectStep },
   { id: 'context', title: 'Context', component: ContextStep },
   { id: 'structure', title: 'Structure', component: StructureStep },
@@ -42,7 +44,7 @@ const steps = [
 export function WizardShell() {
   const { state } = useAgentWorkspace();
   const [validation, setValidation] = useState<ValidationResult>({ valid: true, errors: {} });
-  const [activeTab, setActiveTab] = useState('template');
+  const [activeTab, setActiveTab] = useState('runtime-framework');
 
   useEffect(() => {
     const timer = setTimeout(() => {

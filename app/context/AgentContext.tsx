@@ -1,8 +1,9 @@
 import * as React from 'react';
 import { createContext, useContext, useReducer, ReactNode } from 'react';
-import { AgentWorkspace, StructureType, ParsedSkill, SkillEntry } from '../../lib/gitagent/types';
+import { AgentWorkspace, StructureType, ParsedSkill, SkillEntry, AgentFramework } from '../../lib/gitagent/types';
 import { assembleSoul, assembleRules } from '@/lib/gitagent/assembleSystemPrompt';
 import { parseMarkdownToFineGrained } from '@/lib/gitagent/parser';
+import { inferFrameworkTools } from '@/lib/gitagent/contextToolInference';
 
 export interface ScaffoldContextFile {
   name: string;
@@ -16,7 +17,7 @@ type Action =
   | { type: 'UPDATE_META'; payload: Partial<AgentWorkspace['meta']> }
   | { type: 'UPDATE_MANIFEST'; payload: Partial<AgentWorkspace['manifest']> }
   | { type: 'SET_FILE'; payload: { path: string; content: string } }
-  | { type: 'UPDATE_WORKSPACE'; payload: Partial<ExtendedWorkspace> }
+  | { type: 'UPDATE_WORKSPACE'; payload: Omit<Partial<ExtendedWorkspace>, 'skills'> & { skills?: Record<string, ParsedSkill> | string } }
   | { type: 'ADD_SKILL'; payload: ParsedSkill }
   | { type: 'SET_TEMPLATE'; payload: StructureType }
   | { type: 'ADD_SCAFFOLD_CONTEXT'; payload: ScaffoldContextFile }
@@ -93,6 +94,9 @@ export interface HookEntry {
 
 interface ExtendedWorkspace extends AgentWorkspace {
   selectedTemplate: StructureType;
+  isCompilingSpec?: boolean;
+  compilationStage?: string;
+  compilationElapsed?: number;
   'core-identity'?: string;
   'communication-style'?: string;
   'values-principles'?: string;
@@ -247,6 +251,7 @@ const initialState: ExtendedWorkspace = {
   examples: { goodOutputs: null, badOutputs: null },
   config: { default: null, production: null },
   subAgents: {},
+  targetFramework: 'hermes_agent',
   deploymentTargets: ['cli'],
   hermesConfig: null,
   knowledgeDocs: [],
@@ -285,6 +290,7 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         hooks: (action.payload as any).hooks || initialState.hooks,
         memoryConfig: (action.payload as any).memoryConfig || initialState.memoryConfig,
         deploymentTargets: action.payload.deploymentTargets || initialState.deploymentTargets,
+        targetFramework: action.payload.targetFramework || state.targetFramework || initialState.targetFramework,
         hermesConfig: action.payload.hermesConfig || initialState.hermesConfig,
         knowledgeDocs: action.payload.knowledgeDocs || initialState.knowledgeDocs,
         memoryBootstrap: action.payload.memoryBootstrap || initialState.memoryBootstrap,
@@ -324,10 +330,31 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
       if (payload.skills && typeof payload.skills === 'string') {
         // Special case where skills might be sent as a markdown block
         const skillsUpdates = parseMarkdownToFineGrained(payload.skills, 'skills');
-        payload = { ...payload, ...skillsUpdates };
+        delete (payload as any).skills;
+        
+        const effectiveFramework = (payload.targetFramework || state.targetFramework || 'hermes_agent') as AgentFramework;
+        const alignedSkillsList = (skillsUpdates.skillsList || []).map(skill => {
+          if (!skill.allowedTools || skill.allowedTools.trim() === '') {
+            const inferred = inferFrameworkTools({
+              name: skill.name,
+              description: skill.description,
+              category: skill.category,
+              instructions: skill.instructions,
+              targetFramework: effectiveFramework
+            });
+            return { ...skill, allowedTools: inferred.tools.join(' ') };
+          }
+          return skill;
+        });
+
+        payload = { 
+          ...payload, 
+          ...skillsUpdates, 
+          skillsList: alignedSkillsList.length > 0 ? alignedSkillsList : (payload.skillsList || state.skillsList)
+        };
       }
 
-      return { ...state, ...payload };
+      return { ...state, ...payload } as ExtendedWorkspace;
     case 'SET_FILE':
       const filePayload = action.payload;
       let nextState = { ...state, [filePayload.path]: filePayload.content };

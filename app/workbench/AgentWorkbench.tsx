@@ -37,9 +37,11 @@ import {
   BookOpen,
   Eye,
   SlidersHorizontal,
-  Code2
+  Code2,
+  Loader2
 } from 'lucide-react';
 import { AgentWizard } from './AgentWizard';
+import { RuntimeFrameworkStep } from '../wizard/steps/RuntimeFrameworkStep';
 import { IdentityStep } from '../wizard/steps/IdentityStep';
 import { CapabilitiesStep } from '../wizard/steps/CapabilitiesStep';
 import { ModelStep } from '../wizard/steps/ModelStep';
@@ -51,7 +53,7 @@ export function AgentWorkbench() {
   const { state, dispatch } = useAgentWorkspace();
   const { settings, updateSettings } = useSettings();
 
-  const activeTab = searchParams.get('tab') || 'architect';
+  const activeTab = searchParams.get('tab') || 'target-runtime';
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [showInspector, setShowInspector] = useState(true);
 
@@ -68,14 +70,25 @@ export function AgentWorkbench() {
     setTimeout(() => setCopiedPrompt(false), 2000);
   };
 
-  const isKebabCase = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(state.manifest.name || '');
+  const hasAgentName = !!(state.manifest.name && state.manifest.name.trim().length > 0);
+  const isKebabCaseValid = hasAgentName && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(state.manifest.name || '');
 
   const sections = [
+    { 
+      id: 'target-runtime', 
+      title: 'Target Runtime', 
+      icon: Layers, 
+      badge: state.targetFramework ? (state.targetFramework.replace('_', ' ').toUpperCase()) : 'HERMES', 
+      badgeType: 'success' as const,
+      desc: 'Execution harness, canonical tools & rules',
+      ready: true
+    },
     { 
       id: 'architect', 
       title: 'AI Architect Studio', 
       icon: Sparkles, 
       badge: 'COMPUTE', 
+      badgeType: 'info' as const,
       desc: 'Conversational agent generation & updates',
       ready: true
     },
@@ -84,6 +97,7 @@ export function AgentWorkbench() {
       title: 'Identity & Soul', 
       icon: ShieldCheck, 
       badge: state.soul ? 'DEFINED' : 'PENDING', 
+      badgeType: state.soul ? 'success' as const : 'warning' as const,
       desc: 'Core persona, communication style, values',
       ready: !!state.soul
     },
@@ -91,15 +105,17 @@ export function AgentWorkbench() {
       id: 'capabilities', 
       title: 'Capabilities & Tools', 
       icon: Zap, 
-      badge: `${state.manifest.skills?.length || 0} Skills`, 
+      badge: (state.skillsList?.length || 0) > 0 ? `${state.skillsList.length} Skills` : '0 Skills', 
+      badgeType: (state.skillsList?.length || 0) > 0 ? 'success' as const : 'warning' as const,
       desc: 'Tool permissions, custom skills & MCP',
-      ready: (state.manifest.skills?.length || 0) > 0
+      ready: (state.skillsList?.length || 0) > 0
     },
     { 
       id: 'runtime', 
-      title: 'Model & Runtime', 
+      title: 'Model & Parameters', 
       icon: Cpu, 
       badge: settings.providerId || 'AUTO', 
+      badgeType: 'neutral' as const,
       desc: 'LLM parameters, temperature, limits',
       ready: true
     },
@@ -108,18 +124,68 @@ export function AgentWorkbench() {
       title: 'Compiled System Prompt', 
       icon: Terminal, 
       badge: `${tokenEstimate} tok`, 
+      badgeType: 'neutral' as const,
       desc: 'Live concatenated system instructions',
       ready: true
     }
   ];
 
-  // Agent Health score
-  const completeness = Math.round(
-    ((state.manifest.name ? 25 : 0) +
-     (state.manifest.description ? 25 : 0) +
-     (state.soul ? 25 : 0) +
-     ((state.manifest.skills?.length || 0) > 0 ? 25 : 0))
-  );
+  // Agent Health score checklist
+  const healthChecklist = [
+    {
+      id: 'target-runtime',
+      label: 'Target Runtime',
+      tab: 'target-runtime',
+      met: !!state.targetFramework,
+      desc: state.targetFramework ? `Harness: ${state.targetFramework.replace('_', ' ').toUpperCase()}` : 'Select an execution harness'
+    },
+    {
+      id: 'name',
+      label: 'Agent Name',
+      tab: 'identity',
+      met: isKebabCaseValid,
+      desc: hasAgentName ? (isKebabCaseValid ? `${state.manifest.name}` : 'Must be lowercase kebab-case') : 'Enter a valid kebab-case name'
+    },
+    {
+      id: 'description',
+      label: 'Purpose Description',
+      tab: 'identity',
+      met: !!(state.manifest.description && state.manifest.description.trim().length > 0),
+      desc: state.manifest.description ? 'Description configured' : 'Define agent scope and purpose'
+    },
+    {
+      id: 'soul',
+      label: 'Identity & SOUL.md',
+      tab: 'identity',
+      met: !!(state.soul && state.soul.trim().length > 0),
+      desc: state.soul ? 'Core persona and principles configured' : 'Define core identity and style'
+    },
+    {
+      id: 'skills',
+      label: 'Skills & Tools',
+      tab: 'capabilities',
+      met: (state.skillsList?.length || 0) > 0,
+      desc: (state.skillsList?.length || 0) > 0 ? `${state.skillsList.length} skill(s) configured` : 'Add at least one skill'
+    }
+  ];
+
+  const metCriteriaCount = healthChecklist.filter(item => item.met).length;
+  const completeness = Math.round((metCriteriaCount / healthChecklist.length) * 100);
+
+  const [showHealthBreakdown, setShowHealthBreakdown] = useState(true);
+
+  const getBadgeClasses = (type: 'success' | 'warning' | 'info' | 'neutral', isActive: boolean) => {
+    if (isActive) {
+      if (type === 'success') return 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30';
+      if (type === 'warning') return 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30';
+      if (type === 'info') return 'bg-primary/20 text-primary border border-primary/30';
+      return 'bg-muted text-foreground border border-border/80';
+    }
+    if (type === 'success') return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20';
+    if (type === 'warning') return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-semibold';
+    if (type === 'info') return 'bg-primary/10 text-primary/90 border border-primary/20';
+    return 'bg-muted/80 text-muted-foreground border border-border/60';
+  };
 
   return (
     <div className="h-full w-full overflow-hidden flex flex-col bg-background text-foreground select-text">
@@ -221,8 +287,8 @@ export function AgentWorkbench() {
                 <Icon className={cn("size-3.5 transition-colors", isActive ? "text-primary" : "text-muted-foreground")} />
                 <span>{sec.title}</span>
                 <span className={cn(
-                  "text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded-sm",
-                  isActive ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                  "text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-sm transition-all",
+                  getBadgeClasses(sec.badgeType, isActive)
                 )}>
                   {sec.badge}
                 </span>
@@ -268,6 +334,14 @@ export function AgentWorkbench() {
             {activeTab === 'architect' && (
               <div className="h-full min-h-[580px]">
                 <AgentWizard onTabChange={handleTabChange} />
+              </div>
+            )}
+
+            {activeTab === 'target-runtime' && (
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="p-4 bg-muted/20 border border-border/80 rounded-md">
+                  <RuntimeFrameworkStep />
+                </div>
               </div>
             )}
 
@@ -336,9 +410,16 @@ export function AgentWorkbench() {
           <div className="w-80 shrink-0 border-l border-border/80 bg-card/40 flex flex-col overflow-hidden select-none">
             {/* Inspector Header */}
             <div className="h-11 px-4 border-b border-border/80 bg-muted/30 flex items-center justify-between shrink-0">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-                <Sliders className="size-3 text-primary" /> Inspector & Specs
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <Sliders className="size-3 text-primary" /> Inspector & Specs
+                </span>
+                {state.isCompilingSpec && (
+                  <Badge variant="outline" className="text-[9px] font-mono text-primary bg-primary/10 border-primary/30 flex items-center gap-1 py-0 px-1.5 h-4">
+                    <span className="size-1.5 rounded-full bg-primary animate-ping" /> Live Streaming
+                  </Badge>
+                )}
+              </div>
               <button 
                 onClick={() => setShowInspector(false)}
                 className="text-muted-foreground hover:text-foreground text-xs"
@@ -350,23 +431,82 @@ export function AgentWorkbench() {
 
             {/* Inspector Form Controls */}
             <div className="flex-1 overflow-y-auto p-4 space-y-5">
-              {/* Completeness Card */}
-              <div className="p-3 rounded-sm bg-card border border-border/80 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">Specification Health</span>
-                  <span className="text-xs font-mono font-bold text-primary">{completeness}%</span>
+              {/* Specification Health Interactive Checklist Card */}
+              <div className="p-3 rounded-sm bg-card border border-border/80 space-y-2.5">
+                <div 
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => setShowHealthBreakdown(prev => !prev)}
+                >
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                    Specification Health
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn(
+                      "text-xs font-mono font-bold",
+                      completeness === 100 ? "text-emerald-500" : completeness > 50 ? "text-primary" : "text-amber-500"
+                    )}>
+                      {completeness}%
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {showHealthBreakdown ? '▲' : '▼'}
+                    </span>
+                  </div>
                 </div>
+
+                {state.isCompilingSpec && (
+                  <div className="flex items-center justify-between text-[10px] font-mono text-primary bg-primary/5 px-2 py-1 rounded-sm border border-primary/20 animate-pulse">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <Loader2 className="size-2.5 animate-spin shrink-0" />
+                      <span className="truncate">{state.compilationStage || 'Streaming partial specification...'}</span>
+                    </span>
+                    <span className="text-muted-foreground shrink-0 ml-1">⏱ {((state.compilationElapsed || 0) / 10).toFixed(1)}s</span>
+                  </div>
+                )}
+
                 <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-primary transition-all duration-300 rounded-full terracotta-glow-sm" 
+                    className={cn(
+                      "h-full transition-all duration-300 rounded-full",
+                      completeness === 100 ? "bg-emerald-500" : "bg-primary terracotta-glow-sm"
+                    )}
                     style={{ width: `${completeness}%` }}
                   />
                 </div>
+
                 <p className="text-[10px] text-muted-foreground leading-tight">
                   {completeness === 100 
                     ? "✓ Full specification configured. Ready to export or deploy." 
-                    : "Complete identity and capabilities to achieve 100% compliance."}
+                    : `${metCriteriaCount} of ${healthChecklist.length} requirements met. Click items to complete.`}
                 </p>
+
+                {showHealthBreakdown && (
+                  <div className="pt-2 border-t border-border/60 space-y-1.5 animate-in fade-in duration-150">
+                    {healthChecklist.map((item) => (
+                      <div 
+                        key={item.id}
+                        onClick={() => handleTabChange(item.tab)}
+                        className={cn(
+                          "p-1.5 rounded text-[10px] font-mono flex items-center justify-between cursor-pointer transition-colors",
+                          item.met 
+                            ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10" 
+                            : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5 truncate">
+                          {item.met ? (
+                            <Check className="size-3 text-emerald-500 shrink-0" />
+                          ) : (
+                            <span className="size-3 rounded-full border border-muted-foreground/40 shrink-0 inline-block" />
+                          )}
+                          <span className={cn("font-medium truncate", !item.met && "text-foreground")}>{item.label}</span>
+                        </div>
+                        <span className="text-[9px] opacity-75 shrink-0 ml-1">
+                          {item.met ? "Pass" : "Missing →"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Manifest Metadata */}
@@ -378,8 +518,11 @@ export function AgentWorkbench() {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label className="text-[11px] font-semibold text-foreground">Agent Name</Label>
-                    <span className={cn("text-[9px] font-mono font-bold uppercase", isKebabCase ? "text-emerald-500" : "text-destructive")}>
-                      {isKebabCase ? "Valid Kebab-Case" : "Invalid Format"}
+                    <span className={cn(
+                      "text-[9px] font-mono font-bold uppercase",
+                      !hasAgentName ? "text-muted-foreground" : isKebabCaseValid ? "text-emerald-500" : "text-destructive"
+                    )}>
+                      {!hasAgentName ? "Draft (Optional)" : isKebabCaseValid ? "Valid Kebab-Case" : "Invalid Format"}
                     </span>
                   </div>
                   <Input 
@@ -391,7 +534,7 @@ export function AgentWorkbench() {
                     placeholder="my-agent-name"
                     className={cn(
                       "h-8 text-xs font-mono rounded-sm bg-background border-border/80",
-                      !isKebabCase && "border-destructive focus-visible:ring-destructive/30"
+                      hasAgentName && !isKebabCaseValid && "border-destructive focus-visible:ring-destructive/30"
                     )}
                   />
                 </div>
@@ -429,6 +572,21 @@ export function AgentWorkbench() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold text-foreground">
+                    Author <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
+                  </Label>
+                  <Input 
+                    value={state.manifest.author || ''} 
+                    onChange={(e) => dispatch({
+                      type: 'UPDATE_MANIFEST',
+                      payload: { author: e.target.value }
+                    })}
+                    placeholder="Author name or team"
+                    className="h-8 text-xs font-mono rounded-sm bg-background border-border/80"
+                  />
                 </div>
 
                 <div className="space-y-1.5">

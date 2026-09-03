@@ -2,8 +2,11 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Zap, Shield, Search, Terminal, Database, Code, Check } from 'lucide-react';
-import { ParsedSkill } from '../../../lib/gitagent/types';
+import { Plus, Shield, Search, Database, Code, Sparkles } from 'lucide-react';
+import { ParsedSkill, AgentFramework } from '../../../lib/gitagent/types';
+import { useAgentWorkspace } from '../../context/AgentContext';
+import { inferFrameworkTools } from '../../../lib/gitagent/contextToolInference';
+import { AGENT_FRAMEWORK_OPTIONS } from '../../../lib/gitagent/constants';
 
 interface BlueprintsGalleryProps {
   onSelectBlueprint: (blueprint: Partial<ParsedSkill>) => void;
@@ -15,63 +18,98 @@ const BLUEPRINTS: Array<{
   category: string;
   description: string;
   icon: any;
-  allowedTools: string[];
   instructions: string;
   tags: string[];
 }> = [
   {
     id: 'github-reviewer',
     name: 'GitHub PR Reviewer',
-    category: 'development',
+    category: 'code',
     icon: Code,
     description: 'Inspects code diffs, enforces linting conventions, and leaves line-by-line review comments.',
-    allowedTools: ['git_diff', 'fetch_pr', 'post_review_comment'],
     tags: ['git', 'code-review'],
     instructions: `# GitHub PR Reviewer Skill\n\n## Objective\nAnalyze pull request code changes for architecture soundness, test coverage, and security hazards.\n\n## Review Criteria\n1. Verify TypeScript types are strictly typed without 'any'.\n2. Check for race conditions in async operations.\n3. Validate unit test assertions.`
   },
   {
-    id: 'data-sanitizer',
-    name: 'PII & Data Sanitizer',
-    category: 'security',
+    id: 'artifact-removal',
+    name: 'Artifact Removal & Sanitizer',
+    category: 'code',
     icon: Shield,
-    description: 'Scans text buffers and log outputs for credentials, API tokens, emails, and sensitive user data.',
-    allowedTools: ['regex_match', 'mask_buffer'],
-    tags: ['security', 'compliance'],
-    instructions: `# PII & Data Sanitizer Skill\n\n## Core Rules\n- MUST ALWAYS replace social security numbers and phone numbers with [REDACTED].\n- MUST NEVER permit plaintext API keys (sk-..., ghp-...) to leak in console outputs.`
+    description: 'Detect and delete copy/paste artifacts such as "$1" and similar strings across code and documentation.',
+    tags: ['cleanup', 'refactor', 'sanitization'],
+    instructions: `# Artifact Removal Skill\n\n## Objective\nSearch for and remove copy/paste artifacts and erroneous escaped template variables across repository files.\n\n## Workflow\n1. Scan workspace files for artifacts like \\$1, \\$2, or placeholder garbage.\n2. Apply atomic patches to clean them up.\n3. Verify syntax integrity after deletion.`
   },
   {
     id: 'web-scraper',
     name: 'Structured Web Scraper',
-    category: 'data',
+    category: 'research',
     icon: Search,
-    description: 'Extracts tabular and article data from URLs into clean JSON schemas.',
-    allowedTools: ['fetch_url', 'parse_html', 'json_transform'],
-    tags: ['scraping', 'etl'],
-    instructions: `# Structured Web Scraper\n\n## Instructions\nFetch web page contents using \`fetch_url\`, remove noisy navigation elements, and extract core text into standard markdown schema.`
+    description: 'Extracts tabular and article data from online documentation and web sources into clean structured schemas.',
+    tags: ['scraping', 'docs', 'research'],
+    instructions: `# Structured Web Scraper\n\n## Instructions\nFetch web page contents using web extract tools, remove noisy navigation elements, and compile structured summary notes.`
   },
   {
-    id: 'postgres-query-analyzer',
-    name: 'SQL Query Optimizer',
-    category: 'database',
+    id: 'sql-query-analyzer',
+    name: 'SQL Query & Schema Optimizer',
+    category: 'code',
     icon: Database,
     description: 'Analyzes SQL query execution plans (EXPLAIN ANALYZE) and recommends optimal index strategies.',
-    allowedTools: ['explain_query', 'suggest_indexes'],
-    tags: ['sql', 'postgres', 'performance'],
-    instructions: `# SQL Query Optimizer\n\n## Instructions\nParse query execution plans, identify sequential scans on large tables, and recommend Composite B-Tree or GIN indexes.`
+    tags: ['sql', 'database', 'performance'],
+    instructions: `# SQL Query Optimizer\n\n## Instructions\nParse query execution plans, identify sequential scans on large tables, and recommend composite or clustered indexes.`
   }
 ];
 
 export function BlueprintsGallery({ onSelectBlueprint }: BlueprintsGalleryProps) {
+  const { state: agentState } = useAgentWorkspace();
+  const framework: AgentFramework = (agentState.targetFramework as AgentFramework) || 'hermes_agent';
+  const frameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === framework) || AGENT_FRAMEWORK_OPTIONS[0];
+
+  const handleSelect = (bp: typeof BLUEPRINTS[0]) => {
+    const inferred = inferFrameworkTools({
+      name: bp.name,
+      description: bp.description,
+      category: bp.category,
+      instructions: bp.instructions,
+      targetFramework: framework
+    });
+
+    onSelectBlueprint({
+      name: bp.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
+      description: bp.description,
+      instructions: bp.instructions,
+      allowedTools: inferred.tools,
+      metadata: {
+        category: bp.category,
+        tags: bp.tags
+      }
+    });
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="space-y-1">
-        <h2 className="text-xl font-bold tracking-tight text-foreground">Skill Blueprints Library</h2>
-        <p className="text-xs text-muted-foreground">Pre-configured agent capabilities with verified tool whitelists and execution rules</p>
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h2 className="text-xl font-bold tracking-tight text-foreground">Skill Blueprints Library</h2>
+          <p className="text-xs text-muted-foreground">
+            Pre-configured agent capabilities with automatic tool inference for <span className="font-semibold text-primary">{frameworkMeta.label}</span>
+          </p>
+        </div>
+        <Badge variant="outline" className="text-xs font-mono">
+          Harness: {frameworkMeta.shortLabel}
+        </Badge>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {BLUEPRINTS.map((bp) => {
           const Icon = bp.icon;
+          const inferred = inferFrameworkTools({
+            name: bp.name,
+            description: bp.description,
+            category: bp.category,
+            instructions: bp.instructions,
+            targetFramework: framework
+          });
+
           return (
             <Card key={bp.id} className="border-border/80 bg-card rounded-sm shadow-xs hover:border-primary/50 transition-colors flex flex-col justify-between">
               <CardHeader className="p-4 pb-2">
@@ -86,7 +124,7 @@ export function BlueprintsGallery({ onSelectBlueprint }: BlueprintsGalleryProps)
                     </div>
                   </div>
                   <Badge variant="outline" className="text-[9px] font-mono uppercase text-primary border-primary/30">
-                    {bp.allowedTools.length} Tools
+                    {inferred.tools.length} Tools ({frameworkMeta.shortLabel})
                   </Badge>
                 </div>
                 <CardDescription className="text-xs pt-2 text-muted-foreground leading-relaxed">
@@ -95,28 +133,26 @@ export function BlueprintsGallery({ onSelectBlueprint }: BlueprintsGalleryProps)
               </CardHeader>
               <CardContent className="p-4 pt-2 space-y-3">
                 <div className="flex flex-wrap gap-1">
-                  {bp.allowedTools.map(t => (
+                  {inferred.tools.map(t => (
                     <Badge key={t} variant="secondary" className="text-[9px] font-mono px-1 py-0">
                       {t}
                     </Badge>
                   ))}
                 </div>
-
-                <Button 
-                  size="sm" 
-                  onClick={() => onSelectBlueprint({
-                    name: bp.name,
-                    description: bp.description,
-                    instructions: bp.instructions,
-                    allowedTools: bp.allowedTools,
-                    category: bp.category,
-                    metadata: { version: '1.0.0', category: bp.category },
-                    tags: bp.tags
-                  })}
-                  className="w-full h-8 bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs rounded-sm shadow-xs gap-1.5"
-                >
-                  <Plus className="size-3.5" /> Use Blueprint
-                </Button>
+                <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                  <div className="flex gap-1">
+                    {bp.tags.map(t => (
+                      <span key={t} className="text-[9px] text-muted-foreground/80 font-mono">#{t}</span>
+                    ))}
+                  </div>
+                  <Button 
+                    size="xs" 
+                    onClick={() => handleSelect(bp)} 
+                    className="h-7 text-xs gap-1 shadow-xs"
+                  >
+                    <Plus className="size-3" /> Use Blueprint
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           );

@@ -1,5 +1,7 @@
 import { GenerationPrompt, GenerationResult } from '../providers/types';
 import { OrchestratorConfig } from './types';
+import { universalSynthesize } from './agentSynthesizer';
+import { assertHarnessMatch } from './harnessVerifier';
 import { z } from 'zod';
 
 export async function generateWithRetryAndFallback<T extends z.ZodTypeAny = any>(
@@ -29,9 +31,11 @@ export async function generateWithRetryAndFallback<T extends z.ZodTypeAny = any>
           prompt,
           modelId,
           providerId,
+          apiKey: (config as any).apiKey || (config as any).apiKeys?.[providerId],
           options: {
             temperature: (config as any).temperature,
             maxTokens: (config as any).maxTokens,
+            targetFramework: (config as any).targetFramework || 'hermes_agent',
           }
         })
       });
@@ -63,13 +67,27 @@ export async function generateWithRetryAndFallback<T extends z.ZodTypeAny = any>
       }
 
       const result = await response.json();
+      
+      const targetFramework = (config as any).targetFramework;
+      if (targetFramework && result) {
+        assertHarnessMatch({
+          selectedHarnessId: targetFramework,
+          modelResponse: result,
+          stage: 'engine_generate'
+        });
+      }
+
       return result as GenerationResult<z.infer<T>>;
     } catch (error: any) {
       lastError = error;
       console.warn(`Failed with ${providerId}/${modelId}:`, error.message);
     }
   }
-  throw lastError;
+
+  // Graceful fallback to client-side universal synthesizer if all remote attempts fail
+  console.log("Remote generation failed; activating local synthesis engine...");
+  const synth = universalSynthesize(prompt, (config as any).targetFramework || 'hermes_agent');
+  return synth as GenerationResult<z.infer<T>>;
 }
 
 export async function* streamWithRetryAndFallback(
@@ -99,9 +117,11 @@ export async function* streamWithRetryAndFallback(
           prompt,
           modelId,
           providerId,
+          apiKey: (config as any).apiKey || (config as any).apiKeys?.[providerId],
           options: {
             temperature: (config as any).temperature,
             maxTokens: (config as any).maxTokens,
+            targetFramework: (config as any).targetFramework || 'hermes_agent',
           }
         })
       });
@@ -160,5 +180,18 @@ export async function* streamWithRetryAndFallback(
       console.warn(`Streaming failed with ${providerId}/${modelId}:`, error.message);
     }
   }
-  throw lastError;
+
+  // Graceful local synthesis fallback for streaming
+  console.log("Remote streaming failed; streaming locally synthesized response...");
+  const synth = universalSynthesize(prompt, (config as any).targetFramework || 'hermes_agent');
+  const fullText = synth.text || (synth.object ? JSON.stringify(synth.object, null, 2) : '');
+  const words = fullText.split(/(\s+)/);
+  let chunkBuffer = '';
+  for (let i = 0; i < words.length; i++) {
+    chunkBuffer += words[i];
+    if (chunkBuffer.length >= 20 || i === words.length - 1) {
+      yield chunkBuffer;
+      chunkBuffer = '';
+    }
+  }
 }

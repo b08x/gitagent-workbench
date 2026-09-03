@@ -42,6 +42,8 @@ const SettingsContext = createContext<{
   settings: AppConfig;
   updateSettings: (newSettings: Partial<AppConfig>) => void;
   setApiKey: (providerId: string, key: string) => void;
+  clearApiKey: (providerId: string) => void;
+  testApiKey: (providerId: string, key?: string) => Promise<{ ok: boolean; error?: string }>;
   updateTaskModel: (task: keyof AppConfig['taskModels'], config: Partial<TaskConfig>) => void;
   addMcpServer: (url: string) => void;
   removeMcpServer: (url: string) => void;
@@ -174,7 +176,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings(prev => ({ ...prev, ...newSettings }));
   };
 
-  const setApiKey = (providerId: string, key: string) => {
+  const setApiKey = (providerId: string, rawKey: string) => {
+    const key = rawKey.trim();
     setSettings(prev => ({
       ...prev,
       apiKeys: { ...prev.apiKeys, [providerId]: key }
@@ -186,6 +189,38 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ providerId, key })
     }).catch(err => console.error('Failed to sync key to server:', err));
+  };
+
+  const clearApiKey = (providerId: string) => {
+    setSettings(prev => {
+      const nextKeys = { ...prev.apiKeys };
+      delete nextKeys[providerId];
+      return {
+        ...prev,
+        apiKeys: nextKeys
+      };
+    });
+
+    fetch('/api/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ providerId, key: '' })
+    }).catch(err => console.error('Failed to clear key on server:', err));
+  };
+
+  const testApiKey = async (providerId: string, testKey?: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const keyToTest = testKey !== undefined ? testKey : settings.apiKeys[providerId];
+      const res = await fetch('/api/test-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providerId, apiKey: keyToTest })
+      });
+      const data = await res.json();
+      return { ok: data.ok, error: data.error };
+    } catch (e: any) {
+      return { ok: false, error: e.message || 'Network error while testing key.' };
+    }
   };
 
   const updateTaskModel = (task: keyof AppConfig['taskModels'], config: Partial<TaskConfig>) => {
@@ -213,7 +248,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, setApiKey, updateTaskModel, addMcpServer, removeMcpServer }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, setApiKey, clearApiKey, testApiKey, updateTaskModel, addMcpServer, removeMcpServer }}>
       {children}
     </SettingsContext.Provider>
   );

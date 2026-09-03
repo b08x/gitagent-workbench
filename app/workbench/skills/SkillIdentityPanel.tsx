@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { useSkillWorkbench } from '../../context/SkillWorkbenchContext';
-import { SkillDefinition } from '../../../lib/gitagent/types';
+import { useAgentWorkspace } from '../../context/AgentContext';
+import { SkillDefinition, AgentFramework } from '../../../lib/gitagent/types';
+import { inferFrameworkTools } from '../../../lib/gitagent/contextToolInference';
+import { AGENT_FRAMEWORK_OPTIONS } from '../../../lib/gitagent/constants';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Trash2, AlertCircle, Sparkles } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
 interface SkillIdentityPanelProps {
@@ -15,7 +19,19 @@ interface SkillIdentityPanelProps {
 
 export function SkillIdentityPanel({ skill }: SkillIdentityPanelProps) {
   const { updateSkill } = useSkillWorkbench();
+  const { state: agentState } = useAgentWorkspace();
   const [nameError, setNameError] = useState<string | null>(null);
+
+  const activeFramework: AgentFramework = (agentState.targetFramework as AgentFramework) || 'hermes_agent';
+  const frameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === activeFramework) || AGENT_FRAMEWORK_OPTIONS[0];
+
+  const inferred = inferFrameworkTools({
+    name: skill.name,
+    description: skill.description,
+    category: skill.metadata?.category,
+    instructions: skill.instructions,
+    targetFramework: activeFramework
+  });
 
   const validateName = (name: string) => {
     if (!name) return 'Name is required';
@@ -29,6 +45,22 @@ export function SkillIdentityPanel({ skill }: SkillIdentityPanelProps) {
     const error = validateName(name);
     setNameError(error);
     updateSkill(skill.id, { name });
+  };
+
+  const handleDescriptionChange = (description: string) => {
+    // If allowedTools is empty, automatically infer and assign for this harness
+    if (!skill.allowedTools || skill.allowedTools.length === 0) {
+      const autoTools = inferFrameworkTools({
+        name: skill.name,
+        description,
+        category: skill.metadata?.category,
+        instructions: skill.instructions,
+        targetFramework: activeFramework
+      }).tools;
+      updateSkill(skill.id, { description, allowedTools: autoTools });
+    } else {
+      updateSkill(skill.id, { description });
+    }
   };
 
   const updateMetadata = (key: string, value: string) => {
@@ -55,14 +87,22 @@ export function SkillIdentityPanel({ skill }: SkillIdentityPanelProps) {
     <div className="grid gap-8">
       <Card>
         <CardHeader>
-          <CardTitle>Skill Identity</CardTitle>
-          <CardDescription>Define the core properties of your skill.</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Skill Identity</CardTitle>
+              <CardDescription>Define the core properties and purpose of your skill.</CardDescription>
+            </div>
+            <Badge variant="outline" className="text-xs font-mono">
+              Harness: {frameworkMeta.shortLabel}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-2">
             <Label htmlFor="name">Name (kebab-case)</Label>
             <Input 
               id="name"
+              placeholder="e.g. artifact-removal"
               value={skill.name}
               onChange={(e) => handleNameChange(e.target.value)}
               className={cn(nameError && "border-destructive focus-visible:ring-destructive")}
@@ -86,11 +126,19 @@ export function SkillIdentityPanel({ skill }: SkillIdentityPanelProps) {
             </div>
             <Textarea 
               id="description"
-              placeholder="What does this skill do?"
+              placeholder="e.g. Detect and delete copy/paste artifacts such as $1 and similar strings..."
               value={skill.description}
-              onChange={(e) => updateSkill(skill.id, { description: e.target.value })}
+              onChange={(e) => handleDescriptionChange(e.target.value)}
               className="h-24"
             />
+            {skill.description && (
+              <div className="flex items-center gap-2 pt-1">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs text-muted-foreground">
+                  Inferred tools ({frameworkMeta.shortLabel}): <strong className="text-foreground font-mono">{inferred.tools.join(', ')}</strong>
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

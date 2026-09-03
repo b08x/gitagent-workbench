@@ -1,23 +1,56 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAgentWorkspace } from '../../context/AgentContext';
-import { SkillEntry } from '../../../lib/gitagent/types';
 import { useSkillWorkbench } from '../../context/SkillWorkbenchContext';
+import { SkillEntry, AgentFramework } from '../../../lib/gitagent/types';
+import { 
+  AGENT_FRAMEWORK_TOOLS, 
+  AGENT_FRAMEWORK_OPTIONS, 
+  ALL_CANONICAL_TOOLS, 
+  TOOL_DESCRIPTIONS,
+  TOOL_MATRIX
+} from '../../../lib/gitagent/constants';
+import { inferFrameworkTools } from '../../../lib/gitagent/contextToolInference';
+import { ToolMatrixModal } from '../../workbench/skills/ToolMatrixModal';
+import { GenerateImproveButton } from '../components/GenerateImproveButton';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, AlertCircle, Info, Brain, BookOpen, Zap, Settings2, ExternalLink, Library } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { GenerateImproveButton } from '../components/GenerateImproveButton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Plus, 
+  Trash2, 
+  AlertCircle, 
+  ExternalLink, 
+  Zap, 
+  BookOpen, 
+  Brain, 
+  Info, 
+  Library, 
+  Cpu, 
+  Check, 
+  Sparkles, 
+  Shield, 
+  RefreshCw,
+  Eye
+} from 'lucide-react';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 const toKebabCase = (str: string) => {
   return str
@@ -26,17 +59,6 @@ const toKebabCase = (str: string) => {
     .replace(/^-+|-+$/g, '');
 };
 
-const isValidKebabCase = (str: string) => {
-  return /^[a-z][a-z0-9-]*$/.test(str);
-};
-
-const CANONICAL_TOOLS = [
-  'web_search', 'web_extract', 'terminal', 'process', 'read_file', 'patch', 
-  'browser_navigate', 'browser_snapshot', 'browser_vision', 'vision_analyze', 
-  'image_generate', 'text_to_speech', 'todo', 'clarify', 'execute_code', 
-  'delegate_task', 'memory', 'session_search', 'cronjob', 'send_message'
-];
-
 export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
   const { state: workbenchState } = useSkillWorkbench();
@@ -44,6 +66,46 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
 
   const [loadingSkills, setLoadingSkills] = useState<Record<number, boolean>>({});
   const [memorySeedingEnabled, setMemorySeedingEnabled] = useState(state.memoryBootstrap !== null);
+  const [showAllTools, setShowAllTools] = useState(false);
+  const [showMatrixModal, setShowMatrixModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Active framework is the persisted agent specification setting
+  const activeFramework: AgentFramework = (state.targetFramework as AgentFramework) || 'hermes_agent';
+  const activeFrameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === activeFramework) || AGENT_FRAMEWORK_OPTIONS[0];
+
+  // Preview framework is a read-only visual preview for tool compatibility inspection
+  const [previewFramework, setPreviewFramework] = useState<AgentFramework>(activeFramework);
+  const previewFrameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === previewFramework) || AGENT_FRAMEWORK_OPTIONS[0];
+  const frameworkAllowedTools = AGENT_FRAMEWORK_TOOLS[previewFramework] || AGENT_FRAMEWORK_TOOLS['hermes_agent'];
+
+  // Keep preview in sync if targetFramework changes from external sources
+  React.useEffect(() => {
+    if (state.targetFramework) {
+      setPreviewFramework(state.targetFramework as AgentFramework);
+    }
+  }, [state.targetFramework]);
+
+  // Read-only tab click: changes the preview without mutating specification or generating skills
+  const handleFrameworkPreview = (frameworkId: AgentFramework) => {
+    setPreviewFramework(frameworkId);
+  };
+
+  // Explicit confirmation: only updates workspace when explicitly confirmed by user
+  const handleConfirmHarnessSwitch = () => {
+    dispatch({ type: 'UPDATE_WORKSPACE', payload: { targetFramework: previewFramework } });
+    dispatch({ 
+      type: 'UPDATE_MANIFEST', 
+      payload: { 
+        metadata: { 
+          ...(state.manifest.metadata || {}), 
+          harness: previewFramework,
+          targetFramework: previewFramework
+        } 
+      } 
+    });
+    setShowConfirmModal(false);
+  };
 
   const setSkillLoading = (index: number, loading: boolean) => {
     setLoadingSkills(prev => ({ ...prev, [index]: loading }));
@@ -66,7 +128,23 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
   };
 
   const addSkill = () => {
-    updateSkills([...state.skillsList, { name: '', description: '', instructions: '', category: 'general', allowedTools: '' }]);
+    const initialTools = inferFrameworkTools({
+      name: 'new-skill',
+      description: '',
+      category: 'general',
+      targetFramework: previewFramework
+    });
+    
+    updateSkills([
+      ...state.skillsList, 
+      { 
+        name: '', 
+        description: '', 
+        instructions: '', 
+        category: 'general', 
+        allowedTools: initialTools.tools.join(' ') 
+      }
+    ]);
   };
 
   const removeSkill = (index: number) => {
@@ -81,6 +159,35 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
     updateSkills(newSkills);
   };
 
+  const autoInferToolsForSkill = (index: number) => {
+    const skill = state.skillsList[index];
+    const inferred = inferFrameworkTools({
+      name: skill.name,
+      description: skill.description,
+      category: skill.category,
+      instructions: skill.instructions,
+      targetFramework: previewFramework
+    });
+    handleSkillChange(index, 'allowedTools', inferred.tools.join(' '));
+  };
+
+  const reassignAllSkillsToCurrentFramework = () => {
+    const nextSkills = state.skillsList.map(skill => {
+      const inferred = inferFrameworkTools({
+        name: skill.name,
+        description: skill.description,
+        category: skill.category,
+        instructions: skill.instructions,
+        targetFramework: previewFramework
+      });
+      return {
+        ...skill,
+        allowedTools: inferred.tools.join(' ')
+      };
+    });
+    updateSkills(nextSkills);
+  };
+
   const toggleSkillTool = (index: number, tool: string) => {
     const skill = state.skillsList[index];
     const currentTools = (skill.allowedTools || '').split(' ').filter(Boolean);
@@ -90,6 +197,24 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
     handleSkillChange(index, 'allowedTools', nextTools.join(' '));
   };
 
+  const selectAllFrameworkTools = (index: number) => {
+    const skill = state.skillsList[index];
+    const currentTools = new Set((skill.allowedTools || '').split(' ').filter(Boolean));
+    frameworkAllowedTools.forEach(t => currentTools.add(t));
+    handleSkillChange(index, 'allowedTools', Array.from(currentTools).join(' '));
+  };
+
+  const clearSkillTools = (index: number) => {
+    handleSkillChange(index, 'allowedTools', '');
+  };
+
+  const pruneUnsupportedTools = (index: number) => {
+    const skill = state.skillsList[index];
+    const currentTools = (skill.allowedTools || '').split(' ').filter(Boolean);
+    const filtered = currentTools.filter(t => frameworkAllowedTools.includes(t));
+    handleSkillChange(index, 'allowedTools', filtered.join(' '));
+  };
+
   const importFromWorkbench = (skillId: string) => {
     const workbenchSkill = availableWorkbenchSkills.find(s => s.id === skillId);
     if (!workbenchSkill) return;
@@ -97,12 +222,24 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
     const existingIndex = state.skillsList.findIndex(s => s.name === workbenchSkill.name);
     if (existingIndex !== -1) return;
 
+    // Filter tools or infer for active framework
+    let tools = workbenchSkill.allowedTools || [];
+    if (tools.length === 0) {
+      tools = inferFrameworkTools({
+        name: workbenchSkill.name,
+        description: workbenchSkill.description,
+        category: workbenchSkill.metadata?.category,
+        instructions: workbenchSkill.instructions,
+        targetFramework: activeFramework
+      }).tools;
+    }
+
     const newSkill: SkillEntry = {
       name: workbenchSkill.name,
       description: workbenchSkill.description,
       instructions: workbenchSkill.instructions,
       category: (workbenchSkill.metadata?.category as any) || 'general',
-      allowedTools: workbenchSkill.allowedTools.join(' ')
+      allowedTools: tools.join(' ')
     };
 
     updateSkills([...state.skillsList, newSkill]);
@@ -151,9 +288,6 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
     }
   };
 
-  // ── Tools & Deployment ─────────────────────────────────────────────────────
-  // Moved to DeploymentStep and ToolsStep
-
   return (
     <div className="space-y-8">
       <Tabs defaultValue="skills" className="w-full">
@@ -171,17 +305,144 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
 
         {/* ── SKILLS TAB ────────────────────────────────────────────────────── */}
         <TabsContent value="skills" className="space-y-6">
+          {/* Harness / Framework Selector Banner */}
+          <Card className="border-primary/20 bg-primary/[0.03] overflow-hidden">
+            <CardContent className="p-4 sm:p-5 space-y-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Cpu className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-primary">Execution Harness & Tool Mapping</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Preview tool mappings across runtime harnesses. Switching preview tabs is read-only and does not mutate your agent specification.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {AGENT_FRAMEWORK_OPTIONS.map((f) => {
+                    const isPreviewing = previewFramework === f.id;
+                    const isSpecActive = activeFramework === f.id;
+                    const toolCount = AGENT_FRAMEWORK_TOOLS[f.id]?.length || 0;
+                    return (
+                      <Button
+                        key={f.id}
+                        type="button"
+                        variant={isPreviewing ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => handleFrameworkPreview(f.id)}
+                        className={cn(
+                          "h-8 text-xs font-medium transition-all relative",
+                          isPreviewing 
+                            ? "bg-primary text-primary-foreground shadow-xs" 
+                            : "bg-background hover:bg-muted"
+                        )}
+                      >
+                        {isPreviewing && <Eye className="h-3.5 w-3.5 mr-1" />}
+                        {f.shortLabel}
+                        {isSpecActive && (
+                          <span className={cn(
+                            "ml-1 text-[9px] px-1 py-0 rounded font-semibold",
+                            isPreviewing ? "bg-white/20 text-white" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                          )}>
+                            Active
+                          </span>
+                        )}
+                        <Badge 
+                          variant={isPreviewing ? "secondary" : "outline"} 
+                          className={cn(
+                            "ml-1.5 px-1.5 py-0 text-[10px] h-4",
+                            isPreviewing ? "bg-primary-foreground/20 text-primary-foreground border-transparent" : "text-muted-foreground"
+                          )}
+                        >
+                          {toolCount}
+                        </Badge>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Preview Mode Alert Banner */}
+              {previewFramework !== activeFramework && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-900 dark:text-amber-200 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <span>
+                      <strong>Previewing {previewFrameworkMeta.label} tools:</strong> Your agent specification remains configured for <strong>{activeFrameworkMeta.label}</strong>. No skills or specs have been modified.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => setPreviewFramework(activeFramework)}
+                      className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Reset Preview
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="xs"
+                      onClick={() => setShowConfirmModal(true)}
+                      className="h-7 text-xs font-semibold gap-1 shadow-xs"
+                    >
+                      <Check className="h-3.5 w-3.5" /> Apply {previewFrameworkMeta.shortLabel} to Spec...
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-start gap-4 p-4 bg-primary/5 border border-primary/10 rounded-lg flex-1">
+            <div className="flex items-start gap-4 p-4 bg-muted/40 border rounded-lg flex-1">
               <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                <strong className="text-foreground">Skills</strong> are procedural knowledge. <strong className="text-foreground">HOW</strong> to do things.
-                Loaded on demand, only when relevant. Zero token cost until triggered.
-              </p>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-foreground font-medium">
+                    Active Harness: <span className="text-primary font-bold">{activeFrameworkMeta.label}</span>
+                  </p>
+                  {previewFramework !== activeFramework && (
+                    <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30 bg-amber-500/10">
+                      Previewing: {previewFrameworkMeta.shortLabel}
+                    </Badge>
+                  )}
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="xs"
+                    onClick={() => setShowMatrixModal(true)}
+                    className="h-5 text-xs text-primary p-0 gap-1"
+                  >
+                    <BookOpen className="h-3 w-3" /> View Tool Matrix
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {previewFramework !== activeFramework 
+                    ? `Showing tool assignments and compatibility for ${previewFrameworkMeta.label}. Click 'Apply to Spec' to make it the active harness.`
+                    : `${activeFrameworkMeta.description}. Tools are automatically inferred from skill context and mapped to permissions.`}
+                </p>
+              </div>
             </div>
-            <Button variant="outline" onClick={() => navigate('/workbench/skills')}>
-              <ExternalLink className="mr-2 h-4 w-4" /> Skill Workbench
-            </Button>
+
+            <div className="flex items-center gap-2">
+              {state.skillsList.length > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={reassignAllSkillsToCurrentFramework}
+                  className="h-8 text-xs gap-1.5"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Auto-Assign All ({previewFrameworkMeta.shortLabel})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => navigate('/workbench/skills')} className="h-8 text-xs">
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Skill Workbench
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -221,7 +482,18 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
             </div>
 
             <div className="lg:col-span-2 space-y-4">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Agent Capabilities</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Agent Capabilities</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Show all tools:</span>
+                  <Switch 
+                    checked={showAllTools} 
+                    onCheckedChange={setShowAllTools} 
+                    className="scale-75" 
+                  />
+                </div>
+              </div>
+
               {state.skillsList.length === 0 && (
                 <div className="border-2 border-dashed rounded-xl p-12 text-center space-y-4">
                   <Zap className="h-12 w-12 text-muted-foreground/20 mx-auto" />
@@ -236,101 +508,243 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
               )}
               
               <div className="space-y-4">
-                {state.skillsList.map((skill, index) => (
-                  <Card key={index} className="relative overflow-hidden group">
-                    <CardContent className="pt-6 space-y-4">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="absolute top-2 right-2 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removeSkill(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                {state.skillsList.map((skill, index) => {
+                  const currentSkillTools = (skill.allowedTools || '').split(' ').filter(Boolean);
+                  const unsupportedTools = currentSkillTools.filter(t => !frameworkAllowedTools.includes(t));
+                  const displayTools = showAllTools ? ALL_CANONICAL_TOOLS : frameworkAllowedTools;
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  const inferred = inferFrameworkTools({
+                    name: skill.name,
+                    description: skill.description,
+                    category: skill.category,
+                    instructions: skill.instructions,
+                    targetFramework: previewFramework
+                  });
+
+                  return (
+                    <Card key={index} className="relative overflow-hidden group">
+                      <CardContent className="pt-6 space-y-4">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="absolute top-2 right-2 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeSkill(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor={`skill-name-${index}`}>Skill Name (kebab-case)</Label>
+                            <Input 
+                              id={`skill-name-${index}`}
+                              placeholder="artifact-removal"
+                              value={skill.name}
+                              onChange={e => handleSkillChange(index, 'name', e.target.value)}
+                              className={cn((fieldErrors[`skillsList.${index}.name`]) && "border-destructive")}
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor={`skill-category-${index}`}>Category</Label>
+                            <Select 
+                              value={skill.category} 
+                              onValueChange={v => handleSkillChange(index, 'category' as any, v)}
+                            >
+                              <SelectTrigger id={`skill-category-${index}`}>
+                                <SelectValue placeholder="Select category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="general">General</SelectItem>
+                                <SelectItem value="research">Research</SelectItem>
+                                <SelectItem value="code">Code</SelectItem>
+                                <SelectItem value="compliance">Compliance</SelectItem>
+                                <SelectItem value="communication">Communication</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
                         <div className="grid gap-2">
-                          <Label htmlFor={`skill-name-${index}`}>Skill Name (kebab-case)</Label>
+                          <Label htmlFor={`skill-desc-${index}`}>Description</Label>
                           <Input 
-                            id={`skill-name-${index}`}
-                            placeholder="research-expert"
-                            value={skill.name}
-                            onChange={e => handleSkillChange(index, 'name', e.target.value)}
-                            className={cn((fieldErrors[`skillsList.${index}.name`]) && "border-destructive")}
+                            id={`skill-desc-${index}`}
+                            placeholder="Detect and delete copy/paste artifacts such as $1..."
+                            value={skill.description}
+                            onChange={e => handleSkillChange(index, 'description', e.target.value)}
                           />
                         </div>
+
+                        {/* Allowed Tools Filtered by Selected Framework */}
                         <div className="grid gap-2">
-                          <Label htmlFor={`skill-category-${index}`}>Category</Label>
-                          <Select 
-                            value={skill.category} 
-                            onValueChange={v => handleSkillChange(index, 'category' as any, v)}
-                          >
-                            <SelectTrigger id={`skill-category-${index}`}>
-                              <SelectValue placeholder="Select category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="general">General</SelectItem>
-                              <SelectItem value="research">Research</SelectItem>
-                              <SelectItem value="code">Code</SelectItem>
-                              <SelectItem value="compliance">Compliance</SelectItem>
-                              <SelectItem value="communication">Communication</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="grid gap-2">
-                        <Label htmlFor={`skill-desc-${index}`}>Description</Label>
-                        <Input 
-                          id={`skill-desc-${index}`}
-                          placeholder="Expert at searching and synthesizing information..."
-                          value={skill.description}
-                          onChange={e => handleSkillChange(index, 'description', e.target.value)}
-                        />
-                      </div>
-
-                      <div className="grid gap-2">
-                        <Label className="text-xs">Allowed Tools</Label>
-                        <div className="flex flex-wrap gap-2 p-3 border rounded-md bg-muted/30">
-                          {CANONICAL_TOOLS.map(tool => (
-                            <div key={tool} className="flex items-center space-x-2">
-                              <Checkbox 
-                                id={`skill-${index}-tool-${tool}`}
-                                checked={(skill.allowedTools || '').split(' ').includes(tool)}
-                                onCheckedChange={() => toggleSkillTool(index, tool)}
-                              />
-                              <label htmlFor={`skill-${index}-tool-${tool}`} className="text-[10px] cursor-pointer select-none">
-                                {tool}
-                              </label>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs font-semibold">Allowed Tools</Label>
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 font-mono">
+                                {previewFrameworkMeta.shortLabel} ({frameworkAllowedTools.length})
+                              </Badge>
+                              {previewFramework !== activeFramework && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                                  Preview
+                                </Badge>
+                              )}
+                              {currentSkillTools.length > 0 && (
+                                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4 font-mono text-primary">
+                                  {currentSkillTools.length} enabled
+                                </Badge>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                            
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="xs"
+                                onClick={() => autoInferToolsForSkill(index)}
+                                className="h-6 text-[10px] px-2 text-primary border-primary/30 hover:bg-primary/10 gap-1"
+                              >
+                                <Sparkles className="h-3 w-3" /> Auto-Assign ({inferred.tools.length})
+                              </Button>
+                              <span className="text-muted-foreground/30">•</span>
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="xs" 
+                                onClick={() => selectAllFrameworkTools(index)}
+                                className="h-6 text-[10px] px-1.5 text-muted-foreground hover:text-foreground"
+                              >
+                                All {previewFrameworkMeta.shortLabel}
+                              </Button>
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="xs" 
+                                onClick={() => clearSkillTools(index)}
+                                className="h-6 text-[10px] px-1.5 text-muted-foreground hover:text-destructive"
+                              >
+                                Clear
+                              </Button>
+                            </div>
+                          </div>
 
-                      <div className="grid gap-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor={`skill-instructions-${index}`}>Instructions</Label>
-                          <GenerateImproveButton 
-                            fieldValue={skill.instructions || ''}
-                            fileType="skill-md"
-                            fieldName={`Skill: ${skill.name} Instructions`}
-                            workspace={state}
-                            onLoadingChange={(loading) => setSkillLoading(index, loading)}
-                            onResult={(val) => handleSkillChange(index, 'instructions', val)}
+                          {unsupportedTools.length > 0 && !showAllTools && (
+                            <div className="flex items-center justify-between p-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs">
+                              <span className="flex items-center gap-1.5">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                {unsupportedTools.length} tool(s) not in {previewFrameworkMeta.shortLabel}: {unsupportedTools.join(', ')}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="xs"
+                                onClick={() => pruneUnsupportedTools(index)}
+                                className="h-5 text-[10px] border-amber-500/30 text-amber-700 dark:text-amber-300"
+                              >
+                                Prune
+                              </Button>
+                            </div>
+                          )}
+
+                          <TooltipProvider delayDuration={200}>
+                            <div className="flex flex-wrap gap-1.5 p-3 border rounded-md bg-muted/30 max-h-48 overflow-y-auto">
+                              {displayTools.map(tool => {
+                                const isSupportedByHarness = frameworkAllowedTools.includes(tool);
+                                const isChecked = currentSkillTools.includes(tool);
+                                const toolEntry = TOOL_MATRIX.find(t => t.framework === previewFramework && t.name === tool);
+                                const toolDesc = toolEntry?.functionDesc || TOOL_DESCRIPTIONS[tool] || 'Framework tool capability';
+
+                                return (
+                                  <Tooltip key={tool}>
+                                    <TooltipTrigger asChild>
+                                      <div 
+                                        className={cn(
+                                          "flex items-center space-x-1.5 px-2 py-1 rounded-sm border transition-colors cursor-pointer select-none text-xs",
+                                          isChecked 
+                                            ? "bg-primary/10 border-primary/40 text-foreground font-medium" 
+                                            : "bg-background border-border/60 text-muted-foreground hover:bg-muted/60",
+                                          !isSupportedByHarness && "opacity-60 border-dashed"
+                                        )}
+                                        onClick={() => toggleSkillTool(index, tool)}
+                                      >
+                                        <Checkbox 
+                                          id={`skill-${index}-tool-${tool}`}
+                                          checked={isChecked}
+                                          onCheckedChange={() => toggleSkillTool(index, tool)}
+                                          className="h-3.5 w-3.5"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <label 
+                                          htmlFor={`skill-${index}-tool-${tool}`} 
+                                          className="text-[11px] font-mono cursor-pointer select-none leading-none"
+                                        >
+                                          {tool}
+                                        </label>
+                                        {!isSupportedByHarness && (
+                                          <span className="text-[9px] text-amber-500 font-sans ml-1">
+                                            (external)
+                                          </span>
+                                        )}
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs text-xs space-y-1">
+                                      <p className="font-semibold font-mono text-primary">{tool}</p>
+                                      <p className="text-foreground/90">{toolDesc}</p>
+                                      {toolEntry?.permissions && (
+                                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground pt-1 border-t">
+                                          <Shield className="h-3 w-3 text-amber-500" />
+                                          <span>{toolEntry.permissions}</span>
+                                        </div>
+                                      )}
+                                      {toolEntry?.circumstances && (
+                                        <p className="text-[10px] text-muted-foreground italic">
+                                          Used: {toolEntry.circumstances}
+                                        </p>
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                );
+                              })}
+                            </div>
+                          </TooltipProvider>
+                        </div>
+
+                        <div className="grid gap-2">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor={`skill-instructions-${index}`}>Instructions</Label>
+                            <GenerateImproveButton 
+                              fieldValue={skill.instructions || ''}
+                              fileType="skill-md"
+                              fieldName={`Skill: ${skill.name || 'Skill'} Instructions`}
+                              workspace={state}
+                              onLoadingChange={(loading) => setSkillLoading(index, loading)}
+                              onResult={(val) => {
+                                handleSkillChange(index, 'instructions', val);
+                                // If allowedTools was empty, auto-assign contextually inferred tools
+                                if (!skill.allowedTools || skill.allowedTools.trim() === '') {
+                                  const inf = inferFrameworkTools({
+                                    name: skill.name,
+                                    description: skill.description,
+                                    category: skill.category,
+                                    instructions: val,
+                                    targetFramework: previewFramework
+                                  });
+                                  handleSkillChange(index, 'allowedTools', inf.tools.join(' '));
+                                }
+                              }}
+                            />
+                          </div>
+                          <Textarea 
+                            id={`skill-instructions-${index}`}
+                            placeholder="1. Step one...&#10;2. Step two..."
+                            value={skill.instructions || ''}
+                            disabled={loadingSkills[index]}
+                            onChange={e => handleSkillChange(index, 'instructions', e.target.value)}
+                            className="min-h-[100px] text-xs font-mono"
                           />
                         </div>
-                        <Textarea 
-                          id={`skill-instructions-${index}`}
-                          placeholder="1. Step one...&#10;2. Step two..."
-                          value={skill.instructions || ''}
-                          disabled={loadingSkills[index]}
-                          onChange={e => handleSkillChange(index, 'instructions', e.target.value)}
-                          className="min-h-[100px] text-xs font-mono"
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
 
                 {state.skillsList.length > 0 && (
                   <Button variant="outline" className="w-full border-dashed" onClick={addSkill}>
@@ -476,6 +890,62 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
       </Tabs>
 
       <Separator className="my-8" />
+
+      <ToolMatrixModal
+        open={showMatrixModal}
+        onOpenChange={setShowMatrixModal}
+        defaultFramework={previewFramework}
+      />
+
+      {/* Explicit Confirmation Dialog for Harness Switch */}
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Cpu className="h-5 w-5 text-primary" />
+              Confirm Target Harness Switch
+            </DialogTitle>
+            <DialogDescription>
+              Switching the target runtime harness will update your agent's execution target. Review the impact below:
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 space-y-3 text-xs">
+            <div className="p-3.5 rounded-lg bg-muted/40 border space-y-2.5">
+              <div className="flex justify-between items-center pb-2 border-b">
+                <span className="text-muted-foreground font-medium">Target Harness:</span>
+                <span className="font-mono font-bold text-foreground">
+                  {activeFrameworkMeta.label} → {previewFrameworkMeta.label}
+                </span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b">
+                <span className="text-muted-foreground font-medium">Skill Count:</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <Check className="h-3.5 w-3.5" /> {state.skillsList.length} skill(s) preserved (no skills added or removed)
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-medium">Specification Health:</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <Check className="h-3.5 w-3.5" /> Preserved (no automatic regeneration)
+                </span>
+              </div>
+            </div>
+            <p className="text-muted-foreground text-[11px] leading-relaxed">
+              All existing skills, prompt instructions, and duties will be kept intact. No new skills will be generated or removed.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" onClick={() => setShowConfirmModal(false)}>
+              Cancel (Keep Preview)
+            </Button>
+            <Button variant="default" size="sm" onClick={handleConfirmHarnessSwitch} className="gap-1.5 font-semibold">
+              <Check className="h-3.5 w-3.5" /> Confirm & Apply {previewFrameworkMeta.shortLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

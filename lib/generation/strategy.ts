@@ -22,7 +22,8 @@ export function buildGenerationPrompt(
   const profileKey = fileTypeToProfileKey[file];
   const profile = (config as any).file_profiles?.[profileKey];
   
-  let systemPrompt = `You are generating content for a gitagent named "${workspace.manifest.name}".\n`;
+  const targetHarness = workspace.targetFramework || workspace.manifest?.metadata?.harness || 'hermes_agent';
+  let systemPrompt = `You are generating content for a gitagent named "${workspace.manifest.name}".\nTarget Execution Harness: ${targetHarness}\n`;
   
   if (fieldName) {
     systemPrompt += `Specifically, you are generating the content for the field: "${fieldName}".\n`;
