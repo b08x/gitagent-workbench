@@ -56,7 +56,7 @@ function sanitizeApiKey(key: any): string | null {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
@@ -603,9 +603,10 @@ async function startServer() {
     const isArchitectRequest = prompt && (prompt.schema?.properties?.manifest || prompt.schema?.manifest || (typeof prompt.system === 'string' && prompt.system.includes('AI Architect')));
 
     if (isArchitectRequest) {
-      console.log("Synthesizing agent specification with built-in architecture engine...");
       const userText = extractUserPromptText(prompt);
-      const synth = synthesizeAgentSpec(userText || 'Autonomous Specialist Agent');
+      const targetFramework = (req.body?.targetFramework || options?.targetFramework || prompt?.targetFramework || prompt?.options?.targetFramework || 'hermes_agent') as any;
+      console.log(`Synthesizing agent specification with built-in architecture engine for target harness "${targetFramework}"...`);
+      const synth = synthesizeAgentSpec(userText || 'Autonomous Specialist Agent', '', targetFramework);
       return res.json({ object: synth });
     }
 

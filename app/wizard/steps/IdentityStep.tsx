@@ -9,12 +9,18 @@ import { GenerateImproveButton } from '../components/GenerateImproveButton';
 export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
   const [loadingFields, setLoadingFields] = useState<Record<string, boolean>>({});
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
 
   const setFieldLoading = (field: string, loading: boolean) => {
     setLoadingFields(prev => ({ ...prev, [field]: loading }));
   };
 
+  const markTouched = (field: string) => {
+    setTouchedFields(prev => ({ ...prev, [field]: true }));
+  };
+
   const updateManifest = (field: string, value: string) => {
+    markTouched(field);
     dispatch({ type: 'UPDATE_MANIFEST', payload: { [field]: value } });
   };
 
@@ -32,6 +38,9 @@ export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string
 
   const isMinimal = state.selectedTemplate === 'minimal';
 
+  const shouldShowNameError = (touchedFields['name'] || (state.manifest.name && state.manifest.name.length > 0)) && fieldErrors['manifest.name'];
+  const shouldShowVersionError = (touchedFields['version'] || (state.manifest.version && state.manifest.version.length > 0)) && fieldErrors['manifest.version'];
+
   return (
     <div className="space-y-8">
       <div>
@@ -48,9 +57,10 @@ export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string
               placeholder="my-awesome-agent" 
               value={state.manifest.name || ''}
               onChange={e => updateManifest('name', e.target.value)}
-              className={fieldErrors['manifest.name'] ? 'border-destructive' : ''}
+              onBlur={() => markTouched('name')}
+              className={shouldShowNameError ? 'border-destructive' : ''}
             />
-            {fieldErrors['manifest.name'] && (
+            {shouldShowNameError && (
               <p className="text-xs text-destructive mt-1">{fieldErrors['manifest.name']}</p>
             )}
           </div>
@@ -61,9 +71,10 @@ export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string
               placeholder="1.0.0" 
               value={state.manifest.version || ''}
               onChange={e => updateManifest('version', e.target.value)}
-              className={fieldErrors['manifest.version'] ? 'border-destructive' : ''}
+              onBlur={() => markTouched('version')}
+              className={shouldShowVersionError ? 'border-destructive' : ''}
             />
-            {fieldErrors['manifest.version'] && (
+            {shouldShowVersionError && (
               <p className="text-xs text-destructive mt-1">{fieldErrors['manifest.version']}</p>
             )}
           </div>
@@ -233,7 +244,9 @@ export function IdentityStep({ fieldErrors = {} }: { fieldErrors?: Record<string
         )}
 
         <div className="grid gap-2">
-          <Label htmlFor="author">Author</Label>
+          <Label htmlFor="author">
+            Author <span className="text-xs font-normal text-muted-foreground">(Optional)</span>
+          </Label>
           <Input 
             id="author" 
             placeholder="Your Name" 

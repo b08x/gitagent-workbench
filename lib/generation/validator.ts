@@ -172,5 +172,16 @@ export function validateWorkspace(workspace: AgentWorkspace): ValidationResult {
     });
   }
 
+  // ── 8. Harness / Target Runtime consistency check ──────────────────────────
+  const wsTarget = workspace.targetFramework;
+  const manifestHarness = (workspace.manifest.metadata as any)?.harness || (workspace.manifest.metadata as any)?.targetFramework;
+  if (wsTarget && manifestHarness && wsTarget !== manifestHarness) {
+    errors.push({
+      file: 'agent.yaml',
+      field: 'metadata.harness',
+      message: `Harness mismatch: UI active target is "${wsTarget}" but agent metadata specifies "${manifestHarness}"`,
+    });
+  }
+
   return { valid: errors.length === 0, errors, warnings };
 }

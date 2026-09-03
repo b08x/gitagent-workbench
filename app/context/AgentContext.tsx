@@ -1,8 +1,9 @@
 import * as React from 'react';
 import { createContext, useContext, useReducer, ReactNode } from 'react';
-import { AgentWorkspace, StructureType, ParsedSkill, SkillEntry } from '../../lib/gitagent/types';
+import { AgentWorkspace, StructureType, ParsedSkill, SkillEntry, AgentFramework } from '../../lib/gitagent/types';
 import { assembleSoul, assembleRules } from '@/lib/gitagent/assembleSystemPrompt';
 import { parseMarkdownToFineGrained } from '@/lib/gitagent/parser';
+import { inferFrameworkTools } from '@/lib/gitagent/contextToolInference';
 
 export interface ScaffoldContextFile {
   name: string;
@@ -327,7 +328,27 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         // Special case where skills might be sent as a markdown block
         const skillsUpdates = parseMarkdownToFineGrained(payload.skills, 'skills');
         delete (payload as any).skills;
-        payload = { ...payload, ...skillsUpdates };
+        
+        const effectiveFramework = (payload.targetFramework || state.targetFramework || 'hermes_agent') as AgentFramework;
+        const alignedSkillsList = (skillsUpdates.skillsList || []).map(skill => {
+          if (!skill.allowedTools || skill.allowedTools.trim() === '') {
+            const inferred = inferFrameworkTools({
+              name: skill.name,
+              description: skill.description,
+              category: skill.category,
+              instructions: skill.instructions,
+              targetFramework: effectiveFramework
+            });
+            return { ...skill, allowedTools: inferred.tools.join(' ') };
+          }
+          return skill;
+        });
+
+        payload = { 
+          ...payload, 
+          ...skillsUpdates, 
+          skillsList: alignedSkillsList.length > 0 ? alignedSkillsList : (payload.skillsList || state.skillsList)
+        };
       }
 
       return { ...state, ...payload } as ExtendedWorkspace;

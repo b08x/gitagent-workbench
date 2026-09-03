@@ -31,11 +31,18 @@ import {
   Check,
   Zap,
   KeyRound,
-  Trash2
+  Trash2,
+  Cpu,
+  Layers,
+  CheckCircle2
 } from 'lucide-react';
 import { cn, formatErrorMessage } from '../../lib/utils';
 import { providers } from '../../lib/providers';
 import { synthesizeAgentSpec } from '../../lib/generation/agentSynthesizer';
+import { assertHarnessMatch } from '../../lib/generation/harnessVerifier';
+import { AGENT_FRAMEWORK_OPTIONS, AGENT_FRAMEWORK_TOOLS } from '../../lib/gitagent/constants';
+import { AgentFramework } from '../../lib/gitagent/types';
+import { inferFrameworkTools } from '../../lib/gitagent/contextToolInference';
 
 interface ChatMessage {
   id: string;
@@ -47,23 +54,29 @@ interface ChatMessage {
   isCancelled?: boolean;
   failedPrompt?: string;
   failedFiles?: File[];
+  resolved?: boolean;
+  resolvedVia?: string;
 }
 
 export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => void }) {
   const { state, dispatch } = useAgentWorkspace();
   const { settings, updateTaskModel, setApiKey, clearApiKey } = useSettings();
 
+  const activeFramework: AgentFramework = (state.targetFramework as AgentFramework) || 'hermes_agent';
+  const activeFrameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === activeFramework) || AGENT_FRAMEWORK_OPTIONS[0];
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     { 
       id: 'init-1',
       role: 'assistant', 
-      content: "Hello! I am your AI Architect. Describe your agent's purpose, target workflows, domain guidelines, or upload spec documents (Markdown, TXT, JSON). I will configure the manifest, soul, rules, and skills in real time.",
+      content: `Hello! I am your AI Architect configured for the ${activeFrameworkMeta.label} runtime. Describe your agent's purpose, target workflows, or upload spec documents. I will configure the manifest, soul, rules, and skills in real time.`,
       isInitializing: true,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [contextFiles, setContextFiles] = useState<File[]>([]);
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
   const [inlineKeyInput, setInlineKeyInput] = useState('');
@@ -72,15 +85,34 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentProviderId = settings.taskModels.architect?.providerId || 'google';
   const currentModelId = settings.taskModels.architect?.modelId || 'gemini-3.7-flash';
 
   useEffect(() => {
+    if (isProcessing) {
+      const startTime = Date.now();
+      setElapsedSeconds(0);
+      timerRef.current = setInterval(() => {
+        setElapsedSeconds((Date.now() - startTime) / 1000);
+      }, 100);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isProcessing]);
+
+  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isProcessing]);
+  }, [messages, isProcessing, elapsedSeconds]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -92,23 +124,35 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     setContextFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const markErrorsResolved = (via: string) => {
+    setMessages(prev => prev.map(msg => msg.isError ? { ...msg, resolved: true, resolvedVia: via } : msg));
+  };
+
   const handleSynthesizeLocally = (promptText: string) => {
     setIsProcessing(true);
     try {
-      const synth = synthesizeAgentSpec(promptText || 'Autonomous Specialist Agent');
+      const synth = synthesizeAgentSpec(promptText || 'Autonomous Specialist Agent', '', activeFramework);
       dispatch({
         type: 'UPDATE_WORKSPACE',
         payload: {
+          targetFramework: activeFramework,
           manifest: {
             ...state.manifest,
             name: synth.manifest.name,
-            description: synth.manifest.description
+            description: synth.manifest.description,
+            metadata: {
+              ...(state.manifest.metadata || {}),
+              harness: activeFramework,
+              targetFramework: activeFramework
+            }
           },
           soul: synth.soul,
           rules: synth.rules,
           skills: synth.skills
         }
       });
+
+      markErrorsResolved('Built-in Synthesizer');
 
       setMessages(prev => [
         ...prev,
@@ -132,7 +176,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     setIsProcessing(false);
     setMessages(prev => {
       const last = prev[prev.length - 1];
-      if (last && last.role === 'assistant' && !last.isError && last.content.includes('Analyzing')) {
+      if (last && last.role === 'assistant' && !last.isError && (last.content.includes('Analyzing') || last.content.includes('Generating'))) {
         return [
           ...prev.slice(0, -1),
           {
@@ -178,7 +222,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
       const assistantMessage: ChatMessage = { 
         id: assistantMsgId,
         role: 'assistant', 
-        content: "Analyzing parameters and compiling agent specification...",
+        content: `Analyzing parameters and compiling agent specification for ${activeFrameworkMeta.label}...`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, assistantMessage]);
@@ -203,7 +247,12 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         });
       }));
       
-      const systemInstruction = `You are an expert AI Architect. Your goal is to design an agent based on user requests and provided context documents.
+      const systemInstruction = `You are an expert AI Architect. Your goal is to design an agent specification specifically tailored for the target harness "${activeFramework}".
+      
+      CRITICAL TARGET RUNTIME CONSTRAINTS:
+      - Target Execution Runtime / Harness: ${activeFramework} (${activeFrameworkMeta.label})
+      - Inferred tools and skill definitions MUST align with the ${activeFramework} harness toolset.
+      
       You must respond in JSON format with the following schema:
       {
         "manifest": {
@@ -213,14 +262,14 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         "soul": "Markdown string with ## sections (Core Identity, Communication Style, Values & Principles, Domain Expertise, Collaboration Style)",
         "rules": "Markdown string with ## sections (Must Always, Must Never, Output Constraints, Interaction Boundaries)",
         "skills": "Markdown string with ## Skill: Name sections",
-        "explanation": "Brief explanation of what was updated"
+        "explanation": "Brief explanation of what was configured, explicitly confirming target harness: ${activeFramework}"
       }
       
       Guidelines:
       - Core Identity should strictly reflect the agent purpose.
-      - Skills should be detailed and include allowed tools if applicable.
+      - Skills should be detailed and include allowed tools aligned with ${activeFramework}.
       - INTEGRATE ALL RELEVANT INFORMATION from any provided documents into the Soul and Rules.
-      - The agent name MUST be kebab-case.`;
+      - The agent name MUST be lowercase kebab-case.`;
 
       const promptObj = {
         system: systemInstruction,
@@ -228,7 +277,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
           {
             role: 'user',
             content: [
-              { type: 'text', text: `User Prompt: ${promptToSend}` },
+              { type: 'text', text: `Target Runtime: ${activeFramework} (${activeFrameworkMeta.label})\nUser Prompt: ${promptToSend}` },
               ...fileParts
             ]
           }
@@ -264,7 +313,11 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
           providerId,
           modelId,
           apiKey: apiKey && apiKey !== '********' ? apiKey : undefined,
-          options: parameters,
+          options: {
+            ...parameters,
+            targetFramework: activeFramework
+          },
+          targetFramework: activeFramework,
           prompt: encodedPrompt
         }),
         signal: abortControllerRef.current.signal
@@ -289,14 +342,27 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         throw new Error("Invalid format received from model. Please try regenerating.");
       }
 
-      // Update workspace
+      // Assert that the generated specification strictly targets the active harness
+      assertHarnessMatch({
+        selectedHarnessId: activeFramework,
+        modelResponse: result,
+        stage: 'architect_synthesis'
+      });
+
+      // Update workspace with explicit framework binding
       dispatch({
         type: 'UPDATE_WORKSPACE',
         payload: {
+          targetFramework: activeFramework,
           manifest: {
             ...state.manifest,
             name: result.manifest.name,
-            description: result.manifest.description
+            description: result.manifest.description,
+            metadata: {
+              ...(state.manifest.metadata || {}),
+              harness: activeFramework,
+              targetFramework: activeFramework
+            }
           },
           soul: result.soul,
           rules: result.rules,
@@ -304,15 +370,24 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         }
       });
 
-      setMessages(prev => [
-        ...prev.slice(0, -1), 
-        { 
-          id: assistantMsgId,
-          role: 'assistant', 
-          content: result.explanation || "I've configured your agent workspace with the requested manifest, soul, rules, and skill definitions.",
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
+      let explanation = result.explanation;
+      if (!explanation || !explanation.toLowerCase().includes(activeFrameworkMeta.label.toLowerCase())) {
+        explanation = `Configured complete agent workspace "${result.manifest.name}" for harness "${activeFramework}". Allowed tools for all generated skills have been contextually aligned with the framework matrix.`;
+      }
+
+      setMessages(prev => {
+        // Mark previous error banners as resolved
+        const resolved = prev.map(msg => msg.isError ? { ...msg, resolved: true, resolvedVia: 'Generation succeeded' } : msg);
+        return [
+          ...resolved.slice(0, -1), 
+          { 
+            id: assistantMsgId,
+            role: 'assistant', 
+            content: explanation,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        ];
+      });
 
       setContextFiles([]);
     } catch (err: any) {
@@ -346,28 +421,61 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     "Create a DevOps reliability bot for monitoring alerts, parsing logs, and safely triggering rollbacks with approval gates."
   ];
 
+  const selectFramework = (frameworkId: AgentFramework) => {
+    dispatch({ 
+      type: 'UPDATE_WORKSPACE', 
+      payload: { targetFramework: frameworkId } 
+    });
+
+    dispatch({ 
+      type: 'UPDATE_MANIFEST', 
+      payload: { 
+        metadata: { 
+          ...(state.manifest.metadata || {}), 
+          harness: frameworkId,
+          targetFramework: frameworkId
+        } 
+      } 
+    });
+  };
+
   return (
     <div className="flex flex-col h-full bg-card/60 border border-border/80 rounded-md overflow-hidden shadow-xs">
-      {/* Sub-Header Bar with Model Switcher & Snapshot */}
-      <div className="px-4 py-2.5 border-b border-border/80 bg-muted/40 flex items-center justify-between shrink-0 gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="size-7 rounded-sm bg-primary/15 text-primary flex items-center justify-center terracotta-glow-sm shrink-0">
-            <Sparkles className="size-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-xs tracking-tight text-foreground truncate">AI Architect Studio</h3>
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-primary px-1.5 py-0.5 bg-primary/10 rounded-sm shrink-0">
-                COMPUTE
-              </span>
+      {/* Sub-Header Bar with Target Runtime Switcher & Model Switcher */}
+      <div className="px-4 py-2 border-b border-border/80 bg-muted/40 flex flex-wrap items-center justify-between shrink-0 gap-2.5">
+        {/* Target Runtime Selector */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-background border border-border/80 rounded-sm px-2 py-1 shadow-xs">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground font-bold flex items-center gap-1">
+              <Layers className="size-3 text-primary" /> Target Runtime:
+            </span>
+            <div className="flex items-center gap-1">
+              {AGENT_FRAMEWORK_OPTIONS.map(f => {
+                const isSelected = activeFramework === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => selectFramework(f.id)}
+                    className={cn(
+                      "text-[10px] font-mono px-2 py-0.5 rounded-sm transition-all cursor-pointer",
+                      isSelected
+                        ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    )}
+                  >
+                    {f.shortLabel}
+                  </button>
+                );
+              })}
             </div>
-            <p className="text-[10px] font-mono text-muted-foreground truncate hidden sm:block">Natural language synthesis & automated configuration</p>
           </div>
         </div>
 
         {/* Quick Model Selector & Actions */}
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-1 bg-background/80 border border-border/80 rounded-sm px-1.5 py-0.5 text-xs font-mono">
+            <span className="text-[9px] uppercase font-bold text-muted-foreground px-1">Engine:</span>
             <Select 
               value={currentProviderId} 
               onValueChange={(val) => {
@@ -440,95 +548,113 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
 
             <div className="space-y-1.5 max-w-[calc(100%-2.5rem)]">
               {m.isError ? (
-                /* Enhanced Actionable Error Card with Retry Button and Built-in Synthesizer */
-                <div className="p-4 rounded-sm text-xs leading-relaxed bg-destructive/5 border border-destructive/30 text-foreground space-y-3 shadow-xs">
-                  <div className="flex items-start gap-2 text-destructive font-medium">
-                    <AlertCircle className="size-4 shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="font-semibold text-xs tracking-tight">Generation Notice</p>
-                      <p className="text-xs text-foreground/90 font-normal">{m.content}</p>
-                    </div>
-                  </div>
-
-                  {/* Inline Key Configuration option */}
-                  {showInlineKeyInput && (
-                    <div className="p-2.5 bg-background/80 border border-border/80 rounded-sm space-y-2 animate-in fade-in duration-150">
-                      <div className="flex items-center justify-between text-[11px] font-mono">
-                        <span className="text-muted-foreground flex items-center gap-1">
-                          <KeyRound className="size-3 text-primary" /> Enter {currentProviderId.toUpperCase()} API Key:
-                        </span>
+                m.resolved ? (
+                  /* Resolved Error State */
+                  <div className="p-3 rounded-sm text-xs bg-emerald-500/5 border border-emerald-500/30 text-foreground space-y-1.5 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
+                        <CheckCircle2 className="size-4 shrink-0" />
+                        <span className="font-semibold text-xs">Notice Resolved ({m.resolvedVia || 'Retried successfully'})</span>
                       </div>
-                      <div className="flex gap-1.5">
-                        <Input
-                          type="password"
-                          placeholder="sk-..."
-                          value={inlineKeyInput}
-                          onChange={(e) => setInlineKeyInput(e.target.value)}
-                          className="h-7 text-xs font-mono bg-background"
-                        />
+                      <Badge variant="outline" className="text-[9px] font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 py-0">
+                        Synchronized
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed pl-6">
+                      Agent specification was successfully generated and applied to the current workspace.
+                    </p>
+                  </div>
+                ) : (
+                  /* Enhanced Actionable Error Card with Retry Button and Built-in Synthesizer */
+                  <div className="p-4 rounded-sm text-xs leading-relaxed bg-destructive/5 border border-destructive/30 text-foreground space-y-3 shadow-xs">
+                    <div className="flex items-start gap-2 text-destructive font-medium">
+                      <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="font-semibold text-xs tracking-tight">Generation Notice</p>
+                        <p className="text-xs text-foreground/90 font-normal">{m.content}</p>
+                      </div>
+                    </div>
+
+                    {/* Inline Key Configuration option */}
+                    {showInlineKeyInput && (
+                      <div className="p-2.5 bg-background/80 border border-border/80 rounded-sm space-y-2 animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between text-[11px] font-mono">
+                          <span className="text-muted-foreground flex items-center gap-1">
+                            <KeyRound className="size-3 text-primary" /> Enter {currentProviderId.toUpperCase()} API Key:
+                          </span>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <Input
+                            type="password"
+                            placeholder="sk-..."
+                            value={inlineKeyInput}
+                            onChange={(e) => setInlineKeyInput(e.target.value)}
+                            className="h-7 text-xs font-mono bg-background"
+                          />
+                          <Button
+                            size="xs"
+                            className="h-7 px-2.5 text-xs font-mono bg-primary text-primary-foreground"
+                            disabled={!inlineKeyInput.trim()}
+                            onClick={() => {
+                              setApiKey(currentProviderId, inlineKeyInput.trim());
+                              setShowInlineKeyInput(false);
+                              if (m.failedPrompt) handleSend(m.failedPrompt, m.failedFiles);
+                            }}
+                          >
+                            Save & Retry
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-destructive/20">
+                      {m.failedPrompt && (
                         <Button
                           size="xs"
-                          className="h-7 px-2.5 text-xs font-mono bg-primary text-primary-foreground"
-                          disabled={!inlineKeyInput.trim()}
-                          onClick={() => {
-                            setApiKey(currentProviderId, inlineKeyInput.trim());
-                            setShowInlineKeyInput(false);
-                            if (m.failedPrompt) handleSend(m.failedPrompt, m.failedFiles);
-                          }}
+                          variant="default"
+                          className="bg-primary hover:bg-[#d96b43] text-primary-foreground text-xs font-mono gap-1.5 h-7 shadow-xs"
+                          onClick={() => handleSend(m.failedPrompt, m.failedFiles)}
+                          disabled={isProcessing}
                         >
-                          Save & Retry
+                          <RotateCcw className="size-3" /> Retry LLM
                         </Button>
-                      </div>
+                      )}
+
+                      {m.failedPrompt && (
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          className="bg-muted hover:bg-muted/80 text-foreground text-xs font-mono gap-1.5 h-7 border border-border/80"
+                          onClick={() => handleSynthesizeLocally(m.failedPrompt!)}
+                          disabled={isProcessing}
+                        >
+                          <Zap className="size-3 text-amber-500" /> Synthesize Locally
+                        </Button>
+                      )}
+
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="text-xs font-mono gap-1.5 h-7 border-border/80 hover:bg-muted"
+                        onClick={() => setShowInlineKeyInput(!showInlineKeyInput)}
+                      >
+                        <KeyRound className="size-3 text-primary" /> {showInlineKeyInput ? 'Hide Key Input' : 'Update Key'}
+                      </Button>
+
+                      {settings.apiKeys[currentProviderId] && (
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          className="text-xs font-mono gap-1 h-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => clearApiKey(currentProviderId)}
+                          title="Clear saved key"
+                        >
+                          <Trash2 className="size-3" /> Clear Key
+                        </Button>
+                      )}
                     </div>
-                  )}
-
-                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-destructive/20">
-                    {m.failedPrompt && (
-                      <Button
-                        size="xs"
-                        variant="default"
-                        className="bg-primary hover:bg-[#d96b43] text-primary-foreground text-xs font-mono gap-1.5 h-7 shadow-xs"
-                        onClick={() => handleSend(m.failedPrompt, m.failedFiles)}
-                        disabled={isProcessing}
-                      >
-                        <RotateCcw className="size-3" /> Retry LLM
-                      </Button>
-                    )}
-
-                    {m.failedPrompt && (
-                      <Button
-                        size="xs"
-                        variant="secondary"
-                        className="bg-muted hover:bg-muted/80 text-foreground text-xs font-mono gap-1.5 h-7 border border-border/80"
-                        onClick={() => handleSynthesizeLocally(m.failedPrompt!)}
-                        disabled={isProcessing}
-                      >
-                        <Zap className="size-3 text-amber-500" /> Synthesize Locally
-                      </Button>
-                    )}
-
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      className="text-xs font-mono gap-1.5 h-7 border-border/80 hover:bg-muted"
-                      onClick={() => setShowInlineKeyInput(!showInlineKeyInput)}
-                    >
-                      <KeyRound className="size-3 text-primary" /> {showInlineKeyInput ? 'Hide Key Input' : 'Update Key'}
-                    </Button>
-
-                    {settings.apiKeys[currentProviderId] && (
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        className="text-xs font-mono gap-1 h-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => clearApiKey(currentProviderId)}
-                        title="Clear saved key"
-                      >
-                        <Trash2 className="size-3" /> Clear Key
-                      </Button>
-                    )}
                   </div>
-                </div>
+                )
               ) : m.isCancelled ? (
                 /* Cancelled State Card */
                 <div className="p-3 rounded-sm text-xs bg-muted/40 border border-border/60 text-muted-foreground flex items-center gap-2 font-mono">
@@ -536,17 +662,80 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                   <span>{m.content}</span>
                 </div>
               ) : (
-                /* Standard Message Card */
+                /* Standard Message Card or Live Pipeline Card */
                 <div className={cn(
                   "p-3.5 rounded-sm text-xs leading-relaxed border shadow-xs",
                   m.role === 'user' 
                     ? "bg-primary text-primary-foreground border-primary/50 font-medium" 
                     : "bg-card border-border/80 text-foreground"
                 )}>
-                  {m.content.includes("Analyzing parameters") ? (
-                    <div className="flex items-center gap-2.5 text-muted-foreground font-mono">
-                      <Loader2 className="size-3.5 animate-spin text-primary" />
-                      <span>{m.content}</span>
+                  {m.content.includes("Analyzing parameters") || (isProcessing && m.id.startsWith('asst-')) ? (
+                    <div className="space-y-3 font-mono">
+                      {/* Live Header & Timer */}
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 text-foreground font-semibold">
+                          <Loader2 className="size-3.5 animate-spin text-primary shrink-0" />
+                          <span>Generating Agent Blueprint</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 text-primary border-primary/30">
+                            ⏱ {elapsedSeconds.toFixed(1)}s
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={handleCancel}
+                            className="h-5 px-1.5 text-[10px] text-destructive hover:bg-destructive/10 uppercase tracking-wider"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary transition-all duration-300 rounded-full terracotta-glow-sm"
+                          style={{
+                            width: `${elapsedSeconds < 1.8 ? 25 : elapsedSeconds < 4.0 ? 55 : elapsedSeconds < 6.5 ? 80 : 95}%`
+                          }}
+                        />
+                      </div>
+
+                      {/* Stage Pipeline Steps */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[11px]">
+                        <div className={cn(
+                          "flex items-center gap-1.5 p-1.5 rounded transition-colors",
+                          elapsedSeconds < 1.8 ? "bg-primary/15 text-primary font-bold" : "text-muted-foreground bg-muted/30"
+                        )}>
+                          <span className="size-1.5 rounded-full bg-current" />
+                          <span>1. Intent & Runtime ({activeFrameworkMeta.shortLabel})</span>
+                        </div>
+
+                        <div className={cn(
+                          "flex items-center gap-1.5 p-1.5 rounded transition-colors",
+                          elapsedSeconds >= 1.8 && elapsedSeconds < 4.0 ? "bg-primary/15 text-primary font-bold" : elapsedSeconds > 4.0 ? "text-emerald-500 bg-emerald-500/5" : "text-muted-foreground bg-muted/30"
+                        )}>
+                          <span className="size-1.5 rounded-full bg-current" />
+                          <span>2. Manifest, Soul & Persona</span>
+                        </div>
+
+                        <div className={cn(
+                          "flex items-center gap-1.5 p-1.5 rounded transition-colors",
+                          elapsedSeconds >= 4.0 && elapsedSeconds < 6.5 ? "bg-primary/15 text-primary font-bold" : elapsedSeconds > 6.5 ? "text-emerald-500 bg-emerald-500/5" : "text-muted-foreground bg-muted/30"
+                        )}>
+                          <span className="size-1.5 rounded-full bg-current" />
+                          <span>3. Tools & Matrix Mapping</span>
+                        </div>
+
+                        <div className={cn(
+                          "flex items-center gap-1.5 p-1.5 rounded transition-colors",
+                          elapsedSeconds >= 6.5 ? "bg-primary/15 text-primary font-bold animate-pulse" : "text-muted-foreground bg-muted/30"
+                        )}>
+                          <span className="size-1.5 rounded-full bg-current" />
+                          <span>4. Rules & Specification Health</span>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="whitespace-pre-wrap">{m.content}</div>
@@ -566,24 +755,73 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
           </div>
         ))}
 
-        {/* Starter suggestion chips if only initial message */}
+        {/* Starter target runtime & prompt suggestion cards if initial message */}
         {messages.length === 1 && (
-          <div className="pt-4 space-y-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground px-1">
-              <Lightbulb className="size-3 text-warning" />
-              <span>Recommended Prompts</span>
+          <div className="pt-2 space-y-4">
+            {/* Step 1: Select Target Runtime & Harness upfront */}
+            <div className="p-3.5 rounded-md bg-muted/30 border border-border/80 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-foreground">
+                  <Layers className="size-3.5 text-primary" />
+                  <span>1. Choose Target Runtime / Harness</span>
+                </div>
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  Selected: <strong className="text-primary font-bold">{AGENT_FRAMEWORK_OPTIONS.find(f => f.id === activeFramework)?.label}</strong>
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                {AGENT_FRAMEWORK_OPTIONS.map(f => {
+                  const isSelected = activeFramework === f.id;
+                  const tools = AGENT_FRAMEWORK_TOOLS[f.id] || [];
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => selectFramework(f.id)}
+                      className={cn(
+                        "text-left p-2.5 rounded-sm border transition-all flex flex-col justify-between gap-1.5 cursor-pointer relative",
+                        isSelected
+                          ? "bg-primary/10 border-primary shadow-xs ring-1 ring-primary/30"
+                          : "bg-background/80 hover:bg-muted/60 border-border/70 hover:border-primary/40 text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className={cn("text-xs font-bold font-mono", isSelected ? "text-primary" : "text-foreground")}>
+                          {f.label}
+                        </span>
+                        {isSelected && <CheckCircle2 className="size-3 text-primary shrink-0" />}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground line-clamp-2 leading-tight">
+                        {f.description}
+                      </span>
+                      <div className="pt-1 text-[9px] font-mono text-muted-foreground/80 flex items-center justify-between w-full border-t border-border/40">
+                        <span>{tools.length} Tools</span>
+                        <span className="text-primary/90 font-semibold">{f.shortLabel}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="grid grid-cols-1 gap-2">
-              {starterPrompts.map((starter, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleSend(starter)}
-                  className="text-left text-xs p-2.5 rounded-sm bg-muted/40 hover:bg-muted/80 border border-border/60 hover:border-primary/50 text-muted-foreground hover:text-foreground transition-all flex items-center justify-between group cursor-pointer"
-                >
-                  <span className="line-clamp-2">{starter}</span>
-                  <ArrowRight className="size-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2" />
-                </button>
-              ))}
+
+            {/* Step 2: Choose Prompt / Intent */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground px-1">
+                <Lightbulb className="size-3 text-warning" />
+                <span>2. Recommended Starting Blueprints</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {starterPrompts.map((starter, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSend(starter)}
+                    className="text-left text-xs p-2.5 rounded-sm bg-muted/40 hover:bg-muted/80 border border-border/60 hover:border-primary/50 text-muted-foreground hover:text-foreground transition-all flex items-center justify-between group cursor-pointer"
+                  >
+                    <span className="line-clamp-2">{starter}</span>
+                    <ArrowRight className="size-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2" />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

@@ -60,12 +60,12 @@ function parseSkillsMarkdown(content: string): { skillsList: SkillEntry[], skill
   const skills: Record<string, ParsedSkill> = {};
   
   // Split by skill headers
-  const sections = content.split(/^## Skill: /m);
+  const sections = content.split(/^## Skill:\s*/m);
   
   for (let i = 1; i < sections.length; i++) {
     const section = sections[i];
     const lines = section.split('\n');
-    const name = lines[0].trim();
+    const name = lines[0].trim().replace(/^[`"']|[`"']$/g, '');
     const remainingLines = lines.slice(1);
     
     let description = '';
@@ -77,11 +77,24 @@ function parseSkillsMarkdown(content: string): { skillsList: SkillEntry[], skill
       const line = remainingLines[j];
       const trimLine = line.trim();
 
-      if (trimLine.startsWith('Allowed tools:')) {
-        allowedTools = trimLine.replace('Allowed tools:', '').trim().split(/\s+/).filter(Boolean);
+      // Match Allowed Tools in formats like:
+      // - **Allowed Tools**: `read_file`, `write_file`
+      // **Allowed Tools**: read_file write_file
+      // Allowed Tools: read write
+      const toolsMatch = trimLine.match(/^[-*]?\s*\**Allowed [Tt]ools\**:\s*(.+)$/i);
+      const descMatch = trimLine.match(/^[-*]?\s*\**Description\**:\s*(.+)$/i);
+
+      if (toolsMatch) {
+        const rawTools = toolsMatch[1];
+        allowedTools = rawTools
+          .replace(/[`'",\[\]]/g, ' ')
+          .split(/\s+/)
+          .filter(Boolean);
         foundAllowedTools = true;
-      } else if (!description && trimLine && !foundAllowedTools) {
-        description = trimLine;
+      } else if (descMatch && !description) {
+        description = descMatch[1].trim();
+      } else if (!description && trimLine && !foundAllowedTools && !trimLine.startsWith('#')) {
+        description = trimLine.replace(/^[-*]\s*/, '').trim();
       } else {
         // Everything else is instructions if we have a description or if it's not empty
         if (description || trimLine || foundAllowedTools) {
