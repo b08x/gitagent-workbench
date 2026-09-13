@@ -73,7 +73,8 @@ export async function fetchChatModels(
   // Deduplicate by ID before returning
   const results = await (async () => {
     // Try server-side proxy if no local API key, masked key, or for google/openai
-    if (!apiKey || apiKey === '********' || providerId === 'openai' || providerId === 'google') {
+    // Skip this for ollama since it runs locally on localhost:11434
+    if (providerId !== 'ollama' && (!apiKey || apiKey === '********' || providerId === 'openai' || providerId === 'google')) {
       try {
         const res = await fetch(`/api/models/${providerId}`);
         if (res.ok) {
