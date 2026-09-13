@@ -33,6 +33,17 @@ function isSubStep(step: string): boolean {
   return step.startsWith('GEN_SKILL:') || step.startsWith('GEN_TOOL:');
 }
 
+const EXPECTED_STEPS = [
+  'GEN_YAML',
+  'GEN_SOUL',
+  'GEN_RULES',
+  'GEN_PROMPT',
+  'GEN_DUTIES',
+  'GEN_SKILLS',
+  'GEN_TOOLS',
+  'VALIDATE_OUT'
+];
+
 export function GenerationDashboard() {
   const { state, dispatch } = useAgentWorkspace();
   const { settings } = useSettings();
@@ -109,16 +120,17 @@ export function GenerationDashboard() {
   const hasErrors = Array.from(events.values()).some((e: OrchestratorEvent) => e.status === 'error');
 
   return (
-    <div className="max-w-3xl mx-auto py-12 px-6">
-      <div className="mb-8 flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Generating Agent</h2>
-          <p className="text-muted-foreground">
-            {isComplete
-              ? hasErrors ? 'Completed with errors — review below' : 'All files generated successfully'
-              : 'Synthesizing files...'}
-          </p>
-        </div>
+    <div className="h-full w-full overflow-y-auto bg-background">
+      <div className="max-w-3xl mx-auto py-12 px-6">
+        <div className="mb-8 flex justify-between items-end">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Generating Agent</h2>
+            <p className="text-muted-foreground">
+              {isComplete
+                ? hasErrors ? 'Completed with errors — review below' : 'All files generated successfully'
+                : 'Synthesizing files...'}
+            </p>
+          </div>
         {isComplete && (
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => navigate('/editor')}>Edit Files</Button>
@@ -151,7 +163,7 @@ export function GenerationDashboard() {
         </Card>
       )}
 
-      {stepOrder.some(isSubStep) && (
+            {stepOrder.some(isSubStep) && (
         <div className="mb-4">
           <button
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -164,44 +176,52 @@ export function GenerationDashboard() {
       )}
 
       <div className="grid gap-3">
-        {stepOrder
-          .filter(step => showSubSteps || !isSubStep(step))
-          .map(step => {
-            const event = events.get(step);
-            if (!event) return null;
-            const sub = isSubStep(step);
-            return (
-              <Card key={step} className={[event.status === 'error' ? 'border-destructive' : '', sub ? 'ml-6 shadow-none border-dashed' : ''].join(' ')}>
-                <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
-                  <CardTitle className={`text-sm font-mono ${sub ? 'text-muted-foreground font-normal' : ''}`}>
-                    {stepLabel(step)}
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    {(event.status === 'start' || event.status === 'progress')
-                      ? <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      : event.status === 'done'
-                      ? <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      : <XCircle className="h-4 w-4 text-destructive" />}
-                    <Badge variant={event.status === 'error' ? 'destructive' : 'outline'} className="text-xs">
-                      {event.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                {event.status === 'error' && event.content && (
-                  <CardContent className="pt-0">
-                    <p className="text-xs text-destructive font-mono bg-destructive/10 p-2 rounded">{event.content}</p>
-                  </CardContent>
-                )}
-                {event.status === 'progress' && event.content && (
-                  <CardContent className="pt-0">
-                    <p className="text-xs text-muted-foreground line-clamp-2 font-mono bg-muted p-2 rounded">
-                      {event.content.slice(-200)}
-                    </p>
-                  </CardContent>
-                )}
-              </Card>
-            );
-          })}
+        {(() => {
+          // Merge expected steps with actual events
+          const displaySteps = new Set([...EXPECTED_STEPS, ...stepOrder]);
+          return Array.from(displaySteps)
+            .filter(step => showSubSteps || !isSubStep(step))
+            .map(step => {
+              const event = events.get(step);
+              const sub = isSubStep(step);
+              const status = event ? event.status : 'pending';
+              const content = event ? event.content : null;
+
+              return (
+                <Card key={step} className={[status === 'error' ? 'border-destructive' : '', status === 'pending' ? 'opacity-50 border-dashed' : '', sub ? 'ml-6 shadow-none border-dashed' : ''].join(' ')}>
+                  <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
+                    <CardTitle className={`text-sm font-mono ${sub || status === 'pending' ? 'text-muted-foreground font-normal' : ''}`}>
+                      {stepLabel(step) || step}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      {(status === 'start' || status === 'progress')
+                        ? <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        : status === 'done'
+                        ? <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        : status === 'error'
+                        ? <XCircle className="h-4 w-4 text-destructive" />
+                        : <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />}
+                      <Badge variant={status === 'error' ? 'destructive' : status === 'pending' ? 'secondary' : 'outline'} className="text-xs">
+                        {status}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  {status === 'error' && content && (
+                    <CardContent className="pt-0">
+                      <p className="text-xs text-destructive font-mono bg-destructive/10 p-2 rounded">{content}</p>
+                    </CardContent>
+                  )}
+                  {status === 'progress' && content && (
+                    <CardContent className="pt-0">
+                      <p className="text-xs text-muted-foreground line-clamp-2 font-mono bg-muted p-2 rounded">
+                        {content.slice(-200)}
+                      </p>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            });
+        })()}
       </div>
 
       {isComplete && state.validationResult && (
@@ -223,6 +243,7 @@ export function GenerationDashboard() {
           ))}
         </div>
       )}
+    </div>
     </div>
   );
 }
