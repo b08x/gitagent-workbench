@@ -22,7 +22,8 @@ import {
   Sparkles,
   ShieldCheck,
   CheckCircle2,
-  Cpu
+  Cpu,
+  Library
 } from 'lucide-react';
 import { useAgentWorkspace } from '../app/context/AgentContext';
 import { useSettings } from '../app/context/SettingsContext';
@@ -63,6 +64,7 @@ export function AppSidebar({
       title: "OVERVIEW",
       items: [
         { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+        { title: "Agent Library", url: "/library", icon: Library },
         { title: "Documentation", url: "/docs", icon: BookOpen },
       ]
     },
@@ -70,10 +72,10 @@ export function AppSidebar({
       title: "AGENT CORE",
       items: [
         { title: "Agent Builder", url: "/workbench/agent", icon: Cpu, badge: "Core" },
-        { title: "Prompts", url: "/workbench/prompts", icon: Terminal },
-        { title: "Skills", url: "/workbench/skills", icon: Zap, badge: `${state.manifest.skills?.length || 0}` },
-        { title: "Workflows", url: "/workbench/workflows", icon: Workflow, badge: `${Object.keys(state.workflows || {}).length}` },
-        { title: "Knowledge", url: "/workbench/knowledge", icon: Database, badge: `${state.knowledge?.documents?.length || 0}` },
+        { title: "Prompt Templates", url: "/workbench/prompts", icon: Terminal },
+        { title: "Skill Library", url: "/workbench/skills", icon: Zap, badge: `${state.manifest.skills?.length || 0}` },
+        { title: "Workflow Library", url: "/workbench/workflows", icon: Workflow, badge: `${Object.keys(state.workflows || {}).length}` },
+        { title: "Knowledge Base", url: "/workbench/knowledge", icon: Database, badge: `${state.knowledge?.documents?.length || 0}` },
       ]
     },
     {
@@ -210,20 +212,22 @@ export function AppSidebar({
       <div className="mt-auto border-t border-border/80 p-2 space-y-1.5 bg-sidebar/50">
         {/* Active Agent Status Pill */}
         {!collapsed && (
-          <div className="px-2 py-1.5 rounded-sm bg-muted/40 border border-border/60 flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <div className="truncate">
-                <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground">Active Agent</p>
-                <p className="text-xs font-mono font-semibold text-foreground truncate">
-                  {state.manifest.name || "untitled-agent"}
-                </p>
+          <Link to="/workbench/agent" className="block px-2 py-1.5 rounded-sm bg-muted/40 border border-border/60 hover:bg-muted/80 transition-colors group">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <div className="truncate">
+                  <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground group-hover:text-primary transition-colors">Active Agent (Return)</p>
+                  <p className="text-xs font-mono font-semibold text-foreground truncate">
+                    {state.manifest.name || "untitled-agent"}
+                  </p>
+                </div>
               </div>
+              <Badge variant="outline" className="text-[9px] font-mono font-bold text-primary border-primary/20 px-1 py-0 uppercase">
+                {state.manifest.compliance?.risk_tier || "T1"}
+              </Badge>
             </div>
-            <Badge variant="outline" className="text-[9px] font-mono font-bold text-primary border-primary/20 px-1 py-0 uppercase">
-              {state.manifest.compliance?.risk_tier || "T1"}
-            </Badge>
-          </div>
+          </Link>
         )}
 
         {/* Global Actions */}

@@ -31,11 +31,9 @@ export function SettingsView() {
           </Button>
         </div>
 
-        <Card className="border-border/80 bg-card rounded-sm shadow-xs">
-          <CardContent className="p-6">
-            <SettingsPanel />
-          </CardContent>
-        </Card>
+        <div className="pt-2">
+          <SettingsPanel />
+        </div>
       </div>
     </div>
   );

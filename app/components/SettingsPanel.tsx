@@ -52,7 +52,7 @@ export function SettingsPanel() {
 
       <TabsContent value="global" className="space-y-6">
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
             <div className="flex items-center gap-3">
               {settings.theme === 'dark' ? <Moon className="h-5 w-5 text-primary" /> : <Sun className="h-5 w-5 text-primary" />}
               <div>
@@ -66,7 +66,7 @@ export function SettingsPanel() {
             />
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
             <div className="flex items-center gap-3">
               <Monitor className="h-5 w-5 text-primary" />
               <div>
@@ -80,7 +80,7 @@ export function SettingsPanel() {
             />
           </div>
 
-          <div className="bg-muted/30 border rounded-lg p-4 space-y-3">
+          <div className="bg-muted/30 rounded-lg p-4 space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <Settings2 className="h-4 w-4" />
               Persistence Status
@@ -90,7 +90,7 @@ export function SettingsPanel() {
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               {settings.envProviders?.map(pid => (
-                <Badge key={pid} variant="secondary" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/20 capitalize font-mono px-2 py-0.5">
+                <Badge key={pid} variant="secondary" className="text-[10px] bg-green-500/10 text-green-800 dark:text-green-400 border-green-500/20 capitalize font-mono px-2 py-0.5">
                   {pid} ACTIVE
                 </Badge>
               ))}
