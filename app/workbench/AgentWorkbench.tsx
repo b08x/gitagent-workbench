@@ -19,6 +19,7 @@ import {
   Zap,
   Cpu,
   ChevronRight,
+  ChevronLeft,
   LayoutDashboard,
   Save,
   Download,
@@ -38,14 +39,47 @@ import {
   Eye,
   SlidersHorizontal,
   Code2,
-  Loader2
+  Loader2,
+  ArrowRight
 } from 'lucide-react';
 import { AgentWizard } from './AgentWizard';
 import { RuntimeFrameworkStep } from '../wizard/steps/RuntimeFrameworkStep';
 import { IdentityStep } from '../wizard/steps/IdentityStep';
 import { CapabilitiesStep } from '../wizard/steps/CapabilitiesStep';
 import { ModelStep } from '../wizard/steps/ModelStep';
+import { GenerationDashboard } from '../generation/GenerationDashboard';
+import { FileEditor } from '../editor/FileEditor';
 import { cn } from '@/lib/utils';
+
+export type StepperStepId = 'runtime' | 'identity' | 'capabilities' | 'model' | 'synthesize' | 'review';
+
+interface WizardStepDef {
+  id: StepperStepId;
+  number: number;
+  title: string;
+  subtitle: string;
+  icon: React.ElementType;
+}
+
+const WIZARD_STEPS: WizardStepDef[] = [
+  { id: 'runtime', number: 1, title: 'Runtime', subtitle: 'Harness & Tools', icon: Layers },
+  { id: 'identity', number: 2, title: 'Identity', subtitle: 'Soul & Persona', icon: ShieldCheck },
+  { id: 'capabilities', number: 3, title: 'Capabilities', subtitle: 'Skills & Tools', icon: Zap },
+  { id: 'model', number: 4, title: 'Model & Rules', subtitle: 'Parameters & Limits', icon: Cpu },
+  { id: 'synthesize', number: 5, title: 'Synthesize', subtitle: 'Pipeline Execution', icon: Sparkles },
+  { id: 'review', number: 6, title: 'Review & Edit', subtitle: 'Repository Tree', icon: FileCode },
+];
+
+const normalizeStep = (tab: string | null): StepperStepId => {
+  if (!tab) return 'runtime';
+  if (tab === 'target-runtime' || tab === 'runtime') return 'runtime';
+  if (tab === 'identity') return 'identity';
+  if (tab === 'capabilities' || tab === 'skills') return 'capabilities';
+  if (tab === 'runtime-settings' || tab === 'model' || tab === 'prompt') return 'model';
+  if (tab === 'synthesize' || tab === 'generate') return 'synthesize';
+  if (tab === 'review' || tab === 'editor') return 'review';
+  return 'runtime';
+};
 
 export function AgentWorkbench() {
   const navigate = useNavigate();
@@ -53,15 +87,31 @@ export function AgentWorkbench() {
   const { state, dispatch } = useAgentWorkspace();
   const { settings, updateSettings } = useSettings();
 
-  const activeTab = searchParams.get('tab') || 'target-runtime';
+  const activeStep = normalizeStep(searchParams.get('tab'));
+  const isArchitectMode = searchParams.get('tab') === 'architect';
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [showInspector, setShowInspector] = useState(true);
 
   const assembledPrompt = useMemo(() => assembleSystemPrompt(state), [state]);
   const tokenEstimate = Math.round(assembledPrompt.length / 4);
 
-  const handleTabChange = (tab: string) => {
-    setSearchParams({ tab });
+  const handleStepChange = (step: StepperStepId) => {
+    setSearchParams({ tab: step });
+  };
+
+  const currentStepIndex = WIZARD_STEPS.findIndex(s => s.id === activeStep);
+  const currentStep = WIZARD_STEPS[currentStepIndex >= 0 ? currentStepIndex : 0];
+
+  const handleNextStep = () => {
+    if (currentStepIndex < WIZARD_STEPS.length - 1) {
+      handleStepChange(WIZARD_STEPS[currentStepIndex + 1].id);
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (currentStepIndex > 0) {
+      handleStepChange(WIZARD_STEPS[currentStepIndex - 1].id);
+    }
   };
 
   const copySystemPrompt = () => {
@@ -73,97 +123,40 @@ export function AgentWorkbench() {
   const hasAgentName = !!(state.manifest.name && state.manifest.name.trim().length > 0);
   const isKebabCaseValid = hasAgentName && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(state.manifest.name || '');
 
-  const sections = [
-    { 
-      id: 'target-runtime', 
-      title: 'Target Runtime', 
-      icon: Layers, 
-      badge: state.targetFramework ? (state.targetFramework.replace('_', ' ').toUpperCase()) : 'HERMES', 
-      badgeType: 'success' as const,
-      desc: 'Execution harness, canonical tools & rules',
-      ready: true
-    },
-    { 
-      id: 'architect', 
-      title: 'AI Architect Studio', 
-      icon: Sparkles, 
-      badge: 'COMPUTE', 
-      badgeType: 'info' as const,
-      desc: 'Conversational agent generation & updates',
-      ready: true
-    },
-    { 
-      id: 'identity', 
-      title: 'Identity & Soul', 
-      icon: ShieldCheck, 
-      badge: state.soul ? 'DEFINED' : 'PENDING', 
-      badgeType: state.soul ? 'success' as const : 'warning' as const,
-      desc: 'Core persona, communication style, values',
-      ready: !!state.soul
-    },
-    { 
-      id: 'capabilities', 
-      title: 'Capabilities & Tools', 
-      icon: Zap, 
-      badge: (state.skillsList?.length || 0) > 0 ? `${state.skillsList.length} Skills` : '0 Skills', 
-      badgeType: (state.skillsList?.length || 0) > 0 ? 'success' as const : 'warning' as const,
-      desc: 'Tool permissions, custom skills & MCP',
-      ready: (state.skillsList?.length || 0) > 0
-    },
-    { 
-      id: 'runtime', 
-      title: 'Model & Parameters', 
-      icon: Cpu, 
-      badge: settings.providerId || 'AUTO', 
-      badgeType: 'neutral' as const,
-      desc: 'LLM parameters, temperature, limits',
-      ready: true
-    },
-    { 
-      id: 'prompt', 
-      title: 'Compiled System Prompt', 
-      icon: Terminal, 
-      badge: `${tokenEstimate} tok`, 
-      badgeType: 'neutral' as const,
-      desc: 'Live concatenated system instructions',
-      ready: true
-    }
-  ];
-
   // Agent Health score checklist
   const healthChecklist = [
     {
       id: 'target-runtime',
       label: 'Target Runtime',
-      tab: 'target-runtime',
+      step: 'runtime' as StepperStepId,
       met: !!state.targetFramework,
       desc: state.targetFramework ? `Harness: ${state.targetFramework.replace('_', ' ').toUpperCase()}` : 'Select an execution harness'
     },
     {
       id: 'name',
       label: 'Agent Name',
-      tab: 'identity',
+      step: 'identity' as StepperStepId,
       met: isKebabCaseValid,
       desc: hasAgentName ? (isKebabCaseValid ? `${state.manifest.name}` : 'Must be lowercase kebab-case') : 'Enter a valid kebab-case name'
     },
     {
       id: 'description',
       label: 'Purpose Description',
-      tab: 'identity',
+      step: 'identity' as StepperStepId,
       met: !!(state.manifest.description && state.manifest.description.trim().length > 0),
       desc: state.manifest.description ? 'Description configured' : 'Define agent scope and purpose'
     },
     {
       id: 'soul',
       label: 'Identity & SOUL.md',
-      tab: 'identity',
+      step: 'identity' as StepperStepId,
       met: !!(state.soul && state.soul.trim().length > 0),
       desc: state.soul ? 'Core persona and principles configured' : 'Define core identity and style'
     },
     {
       id: 'skills',
       label: 'Skills & Tools',
-      tab: 'capabilities',
+      step: 'capabilities' as StepperStepId,
       met: (state.skillsList?.length || 0) > 0,
       desc: (state.skillsList?.length || 0) > 0 ? `${state.skillsList.length} skill(s) configured` : 'Add at least one skill'
     }
@@ -171,21 +164,7 @@ export function AgentWorkbench() {
 
   const metCriteriaCount = healthChecklist.filter(item => item.met).length;
   const completeness = Math.round((metCriteriaCount / healthChecklist.length) * 100);
-
   const [showHealthBreakdown, setShowHealthBreakdown] = useState(true);
-
-  const getBadgeClasses = (type: 'success' | 'warning' | 'info' | 'neutral', isActive: boolean) => {
-    if (isActive) {
-      if (type === 'success') return 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30';
-      if (type === 'warning') return 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30';
-      if (type === 'info') return 'bg-primary/20 text-primary border border-primary/30';
-      return 'bg-muted text-foreground border border-border/80';
-    }
-    if (type === 'success') return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20';
-    if (type === 'warning') return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-semibold';
-    if (type === 'info') return 'bg-primary/10 text-primary/90 border border-primary/20';
-    return 'bg-muted/80 text-muted-foreground border border-border/60';
-  };
 
   return (
     <div className="h-full w-full overflow-hidden flex flex-col bg-transparent text-foreground select-text">
@@ -196,7 +175,7 @@ export function AgentWorkbench() {
             <Cpu className="size-4.5" />
           </div>
           <div className="flex items-center gap-2 truncate">
-            <span className="font-bold text-sm tracking-tight text-foreground font-sans">Agent Workbench</span>
+            <span className="font-bold text-sm tracking-tight text-foreground font-sans">Agent Builder</span>
             <span className="text-[#A0D2EB]/40 text-xs">/</span>
             <span className="font-mono text-xs font-bold text-[#E76F51] truncate">
               {state.manifest.name || "untitled-agent"}
@@ -224,6 +203,22 @@ export function AgentWorkbench() {
             <span className="text-[#A0D2EB]/20">|</span>
             <span className="text-[#A0D2EB]/60">RISK: <strong className="text-foreground font-bold">{state.manifest.compliance?.risk_tier || 'T1'}</strong></span>
           </div>
+
+          <Button 
+            variant={isArchitectMode ? "default" : "outline"}
+            size="sm" 
+            onClick={() => setSearchParams({ tab: isArchitectMode ? activeStep : 'architect' })}
+            className={cn(
+              "text-xs font-medium gap-1.5",
+              isArchitectMode 
+                ? "bg-[#E76F51] text-white hover:bg-[#d96b43]" 
+                : "border-[#A0D2EB]/20 text-[#A0D2EB] hover:bg-[#A0D2EB]/10"
+            )}
+            title="Toggle Conversational AI Architect Studio"
+          >
+            <Sparkles className="size-3.5 text-[#E76F51]" />
+            <span className="hidden sm:inline">AI Architect</span>
+          </Button>
 
           <Button 
             variant="outline" 
@@ -267,163 +262,214 @@ export function AgentWorkbench() {
         </div>
       </div>
 
-      {/* Horizontal Tabs Header Bar on Top */}
-      <div className="h-11 border-b border-[#A0D2EB]/15 bg-[#141A20]/50 px-5 flex items-center justify-between shrink-0 overflow-x-auto gap-3 select-none">
-        <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto">
-          {sections.map((sec) => {
-            const Icon = sec.icon;
-            const isActive = activeTab === sec.id;
+      {/* Explicit Stepper Component Header */}
+      {!isArchitectMode && (
+        <div className="border-b border-[#A0D2EB]/15 bg-[#141A20]/70 px-4 sm:px-6 py-2.5 shrink-0 overflow-x-auto select-none">
+          <nav className="flex items-center justify-between min-w-max gap-2 sm:gap-4">
+            {WIZARD_STEPS.map((step, index) => {
+              const Icon = step.icon;
+              const isCurrent = step.id === activeStep;
+              const isPast = index < currentStepIndex;
 
-            return (
-              <button
-                key={sec.id}
-                onClick={() => handleTabChange(sec.id)}
-                className={cn(
-                  "h-8 px-3 rounded-sm text-xs font-medium transition-all flex items-center gap-2 shrink-0 border cursor-pointer font-sans",
-                  isActive 
-                    ? "bg-[#1E2833] border-[#E76F51]/50 text-foreground font-semibold shadow-[0_0_12px_rgba(231,111,81,0.12)]" 
-                    : "bg-transparent border-transparent text-[#A0D2EB]/60 hover:text-foreground hover:bg-[#A0D2EB]/5"
-                )}
-              >
-                <Icon className={cn("size-3.5 transition-colors", isActive ? "text-[#E76F51]" : "text-[#A0D2EB]/60")} />
-                <span>{sec.title}</span>
-                <span className={cn(
-                  "text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-sm transition-all",
-                  getBadgeClasses(sec.badgeType, isActive)
-                )}>
-                  {sec.badge}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <React.Fragment key={step.id}>
+                  <button
+                    onClick={() => handleStepChange(step.id)}
+                    className={cn(
+                      "flex items-center gap-2.5 px-3 py-1.5 rounded-sm transition-all cursor-pointer text-left group",
+                      isCurrent 
+                        ? "bg-[#1E2833] border border-[#E76F51]/50 shadow-[0_0_12px_rgba(231,111,81,0.12)]" 
+                        : "hover:bg-[#A0D2EB]/5 border border-transparent"
+                    )}
+                  >
+                    <div className={cn(
+                      "size-6 rounded-full flex items-center justify-center text-[11px] font-mono font-bold transition-all shrink-0",
+                      isCurrent 
+                        ? "bg-gradient-to-r from-[#E76F51] to-[#E9C46A] text-[#141A20] shadow-xs" 
+                        : isPast 
+                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
+                        : "bg-[#1E2833] text-[#A0D2EB]/50 border border-[#A0D2EB]/20 group-hover:text-foreground"
+                    )}>
+                      {isPast ? <Check className="size-3.5 stroke-[2.5]" /> : step.number}
+                    </div>
 
-        {/* Quick Workbench Links */}
-        <div className="hidden xl:flex items-center gap-2 shrink-0 pl-2 border-l border-[#A0D2EB]/15">
-          <button
-            onClick={() => navigate('/workbench/prompts')}
-            className="text-[11px] font-mono text-[#A0D2EB]/60 hover:text-foreground px-2 py-1 rounded-sm hover:bg-[#A0D2EB]/10 transition-colors flex items-center gap-1"
-          >
-            <Terminal className="size-3 text-[#E76F51]" /> Prompts
-          </button>
-          <button
-            onClick={() => navigate('/workbench/skills')}
-            className="text-[11px] font-mono text-[#A0D2EB]/60 hover:text-foreground px-2 py-1 rounded-sm hover:bg-[#A0D2EB]/10 transition-colors flex items-center gap-1"
-          >
-            <Zap className="size-3 text-[#E76F51]" /> Skills
-          </button>
-          <button
-            onClick={() => navigate('/workbench/workflows')}
-            className="text-[11px] font-mono text-[#A0D2EB]/60 hover:text-foreground px-2 py-1 rounded-sm hover:bg-[#A0D2EB]/10 transition-colors flex items-center gap-1"
-          >
-            <Workflow className="size-3 text-[#E76F51]" /> Pipelines
-          </button>
-          <button
-            onClick={() => navigate('/workbench/knowledge')}
-            className="text-[11px] font-mono text-muted-foreground hover:text-foreground px-2 py-1 rounded-sm hover:bg-muted/50 transition-colors flex items-center gap-1"
-          >
-            <Database className="size-3 text-primary" /> Knowledge
-          </button>
+                    <div className="flex flex-col min-w-0">
+                      <span className={cn(
+                        "text-xs font-semibold font-sans leading-none",
+                        isCurrent ? "text-foreground" : isPast ? "text-foreground/90" : "text-[#A0D2EB]/60 group-hover:text-foreground"
+                      )}>
+                        {step.title}
+                      </span>
+                      <span className="text-[10px] text-[#A0D2EB]/40 font-mono hidden md:inline leading-tight mt-0.5">
+                        {step.subtitle}
+                      </span>
+                    </div>
+                  </button>
+
+                  {index < WIZARD_STEPS.length - 1 && (
+                    <div className="h-px w-6 sm:w-10 bg-[#A0D2EB]/15 shrink-0 hidden sm:block" />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </nav>
         </div>
-      </div>
+      )}
 
       {/* Main Work Area: Center Content + Right Inspector */}
       <div className="flex-1 flex flex-row overflow-hidden min-h-0">
-        {/* Center Primary Viewport (Flex-1) */}
+        {/* Center Primary Viewport */}
         <div className="flex-1 flex flex-col overflow-hidden bg-background min-w-0">
           <div className="flex-1 overflow-y-auto p-5 md:p-6">
-            {activeTab === 'architect' && (
+            {isArchitectMode ? (
               <div className="h-full min-h-[580px]">
-                <AgentWizard onTabChange={handleTabChange} />
+                <AgentWizard onTabChange={(tab) => handleStepChange(normalizeStep(tab))} />
               </div>
-            )}
-
-            {activeTab === 'target-runtime' && (
-              <div className="max-w-4xl mx-auto space-y-6">
-                <div className="p-4 bg-muted/20 border border-border/80 rounded-md">
-                  <RuntimeFrameworkStep />
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'identity' && (
-              <div className="max-w-4xl mx-auto space-y-6">
-                <div className="p-4 bg-muted/20 border border-border/80 rounded-md">
-                  <IdentityStep />
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'capabilities' && (
-              <div className="max-w-4xl mx-auto space-y-6">
-                <div className="p-4 bg-muted/20 border border-border/80 rounded-md">
-                  <CapabilitiesStep />
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'runtime' && (
-              <div className="max-w-4xl mx-auto space-y-6">
-                <div className="p-4 bg-muted/20 border border-border/80 rounded-md">
-                  <ModelStep hideGeneration={true} />
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'prompt' && (
-              <div className="max-w-4xl mx-auto space-y-4">
-                <div className="flex items-center justify-between p-4 bg-card border border-border/80 rounded-md">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Terminal className="size-4 text-primary" />
-                      <h3 className="font-bold text-sm">Compiled System Instructions</h3>
-                      <Badge variant="outline" className="text-[10px] font-mono">
-                        {tokenEstimate} tokens
-                      </Badge>
+            ) : (
+              <>
+                {activeStep === 'runtime' && (
+                  <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="p-4 bg-[#141A20]/40 border border-[#A0D2EB]/15 rounded-md">
+                      <RuntimeFrameworkStep />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      This is the final text injected into runtime models when executing agent requests.
-                    </p>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={copySystemPrompt}
-                    className="gap-1.5 text-xs font-mono"
-                  >
-                    {copiedPrompt ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
-                    {copiedPrompt ? "Copied" : "Copy Prompt"}
-                  </Button>
-                </div>
+                )}
 
-                <div className="p-4 bg-muted/20 border border-border/80 rounded-md overflow-x-auto">
-                  <pre className="font-mono text-xs leading-relaxed text-foreground whitespace-pre-wrap selection:bg-primary/20">
-                    {assembledPrompt}
-                  </pre>
-                </div>
-              </div>
+                {activeStep === 'identity' && (
+                  <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="p-4 bg-[#141A20]/40 border border-[#A0D2EB]/15 rounded-md">
+                      <IdentityStep />
+                    </div>
+                  </div>
+                )}
+
+                {activeStep === 'capabilities' && (
+                  <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="p-4 bg-[#141A20]/40 border border-[#A0D2EB]/15 rounded-md">
+                      <CapabilitiesStep />
+                    </div>
+                  </div>
+                )}
+
+                {activeStep === 'model' && (
+                  <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="p-4 bg-[#141A20]/40 border border-[#A0D2EB]/15 rounded-md">
+                      <ModelStep hideGeneration={true} />
+                    </div>
+
+                    {/* Live Compiled System Prompt Preview */}
+                    <div className="p-4 bg-[#141A20]/60 border border-[#A0D2EB]/15 rounded-md space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Terminal className="size-4 text-[#E76F51]" />
+                          <span className="text-xs font-mono font-semibold text-foreground">Compiled System Instructions</span>
+                          <Badge variant="outline" className="text-[10px] font-mono border-[#A0D2EB]/20 text-[#A0D2EB]/80">
+                            {tokenEstimate} tokens
+                          </Badge>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="xs" 
+                          onClick={copySystemPrompt}
+                          className="text-xs font-mono text-[#A0D2EB]/70 hover:text-foreground"
+                        >
+                          {copiedPrompt ? <Check className="size-3 text-emerald-400 mr-1" /> : <Copy className="size-3 mr-1" />}
+                          {copiedPrompt ? "Copied" : "Copy Instructions"}
+                        </Button>
+                      </div>
+                      <pre className="font-mono text-[11px] leading-relaxed text-[#A0D2EB]/90 whitespace-pre-wrap max-h-56 overflow-y-auto p-3 bg-[#172129] rounded-sm border border-[#A0D2EB]/10">
+                        {assembledPrompt}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+
+                {activeStep === 'synthesize' && (
+                  <div className="max-w-4xl mx-auto">
+                    <GenerationDashboard onComplete={() => handleStepChange('review')} />
+                  </div>
+                )}
+
+                {activeStep === 'review' && (
+                  <div className="h-full min-h-[600px] -m-5 md:-m-6">
+                    <FileEditor />
+                  </div>
+                )}
+              </>
             )}
           </div>
+
+          {/* Sticky Stepper Action Footer */}
+          {!isArchitectMode && (
+            <div className="h-14 border-t border-[#A0D2EB]/15 bg-[#172129]/90 backdrop-blur-md px-6 flex items-center justify-between shrink-0 z-10 select-none">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrevStep}
+                disabled={currentStepIndex === 0}
+                className="text-xs border-[#A0D2EB]/20 text-[#A0D2EB]/80 hover:text-foreground disabled:opacity-30"
+              >
+                <ChevronLeft className="size-3.5 mr-1" /> Back
+              </Button>
+
+              <div className="flex items-center gap-2 text-xs font-mono text-[#A0D2EB]/70">
+                <span>Step {currentStepIndex + 1} of {WIZARD_STEPS.length}:</span>
+                <span className="font-semibold text-foreground">{currentStep.title}</span>
+              </div>
+
+              <div>
+                {currentStepIndex < 4 && (
+                  <Button
+                    onClick={handleNextStep}
+                    className="bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs h-9 px-4 rounded-sm shadow-md flex items-center gap-1.5"
+                  >
+                    Continue to {WIZARD_STEPS[currentStepIndex + 1].title}
+                    <ChevronRight className="size-3.5" />
+                  </Button>
+                )}
+
+                {currentStepIndex === 4 && (
+                  <Button
+                    onClick={handleNextStep}
+                    className="bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs h-9 px-4 rounded-sm shadow-md flex items-center gap-1.5"
+                  >
+                    Continue to Review & Edit
+                    <ChevronRight className="size-3.5" />
+                  </Button>
+                )}
+
+                {currentStepIndex === 5 && (
+                  <Button
+                    onClick={() => navigate('/export')}
+                    className="bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs h-9 px-4 rounded-sm shadow-md flex items-center gap-1.5"
+                  >
+                    Export Agent Bundle (ZIP)
+                    <Download className="size-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Right Inspector / Action Panel (~280px-320px) */}
+        {/* Right Inspector / Action Panel */}
         {showInspector && (
-          <div className="w-80 shrink-0 border-l border-border/80 bg-card/40 flex flex-col overflow-hidden select-none">
+          <div className="w-80 shrink-0 border-l border-[#A0D2EB]/15 bg-[#141A20]/80 flex flex-col overflow-hidden select-none">
             {/* Inspector Header */}
-            <div className="h-11 px-4 border-b border-border/80 bg-muted/30 flex items-center justify-between shrink-0">
+            <div className="h-11 px-4 border-b border-[#A0D2EB]/15 bg-[#141A20] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-                  <Sliders className="size-3 text-primary" /> Inspector & Specs
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70 flex items-center gap-1.5">
+                  <Sliders className="size-3 text-[#E76F51]" /> Inspector & Specs
                 </span>
                 {state.isCompilingSpec && (
-                  <Badge variant="outline" className="text-[9px] font-mono text-primary bg-primary/10 border-primary/30 flex items-center gap-1 py-0 px-1.5 h-4">
-                    <span className="size-1.5 rounded-full bg-primary animate-ping" /> Live Streaming
+                  <Badge variant="outline" className="text-[9px] font-mono text-[#E76F51] bg-[#E76F51]/10 border-[#E76F51]/30 flex items-center gap-1 py-0 px-1.5 h-4">
+                    <span className="size-1.5 rounded-full bg-[#E76F51] animate-ping" /> Live
                   </Badge>
                 )}
               </div>
               <button 
                 onClick={() => setShowInspector(false)}
-                className="text-muted-foreground hover:text-foreground text-xs"
+                className="text-[#A0D2EB]/50 hover:text-foreground text-xs"
                 title="Close Inspector"
               >
                 ✕
@@ -433,75 +479,75 @@ export function AgentWorkbench() {
             {/* Inspector Form Controls */}
             <div className="flex-1 overflow-y-auto p-4 space-y-5">
               {/* Specification Health Interactive Checklist Card */}
-              <div className="p-3 rounded-sm bg-card border border-border/80 space-y-2.5">
+              <div className="p-3 rounded-sm bg-[#172129] border border-[#A0D2EB]/15 space-y-2.5">
                 <div 
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() => setShowHealthBreakdown(prev => !prev)}
                 >
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70 flex items-center gap-1.5">
                     Specification Health
                   </span>
                   <div className="flex items-center gap-1.5">
                     <span className={cn(
                       "text-xs font-mono font-bold",
-                      completeness === 100 ? "text-emerald-500" : completeness > 50 ? "text-primary" : "text-amber-500"
+                      completeness === 100 ? "text-emerald-400" : completeness > 50 ? "text-[#E9C46A]" : "text-[#E76F51]"
                     )}>
                       {completeness}%
                     </span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] text-[#A0D2EB]/60">
                       {showHealthBreakdown ? '▲' : '▼'}
                     </span>
                   </div>
                 </div>
 
                 {state.isCompilingSpec && (
-                  <div className="flex items-center justify-between text-[10px] font-mono text-primary bg-primary/5 px-2 py-1 rounded-sm border border-primary/20 animate-pulse">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-[#E76F51] bg-[#E76F51]/5 px-2 py-1 rounded-sm border border-[#E76F51]/20 animate-pulse">
                     <span className="flex items-center gap-1.5 truncate">
                       <Loader2 className="size-2.5 animate-spin shrink-0" />
                       <span className="truncate">{state.compilationStage || 'Streaming partial specification...'}</span>
                     </span>
-                    <span className="text-muted-foreground shrink-0 ml-1">⏱ {((state.compilationElapsed || 0) / 10).toFixed(1)}s</span>
+                    <span className="text-[#A0D2EB]/60 shrink-0 ml-1">⏱ {((state.compilationElapsed || 0) / 10).toFixed(1)}s</span>
                   </div>
                 )}
 
-                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                <div className="w-full h-1.5 bg-[#1E2833] rounded-full overflow-hidden">
                   <div 
                     className={cn(
                       "h-full transition-all duration-300 rounded-full",
-                      completeness === 100 ? "bg-emerald-500" : "bg-primary terracotta-glow-sm"
+                      completeness === 100 ? "bg-emerald-400" : "bg-gradient-to-r from-[#E76F51] to-[#E9C46A]"
                     )}
                     style={{ width: `${completeness}%` }}
                   />
                 </div>
 
-                <p className="text-[10px] text-muted-foreground leading-tight">
+                <p className="text-[10px] text-[#A0D2EB]/60 leading-tight">
                   {completeness === 100 
-                    ? "✓ Full specification configured. Ready to export or deploy." 
+                    ? "✓ Full specification configured. Ready to synthesize or export." 
                     : `${metCriteriaCount} of ${healthChecklist.length} requirements met. Click items to complete.`}
                 </p>
 
                 {showHealthBreakdown && (
-                  <div className="pt-2 border-t border-border/60 space-y-1.5 animate-in fade-in duration-150">
+                  <div className="pt-2 border-t border-[#A0D2EB]/15 space-y-1.5 animate-in fade-in duration-150">
                     {healthChecklist.map((item) => (
                       <div 
                         key={item.id}
-                        onClick={() => handleTabChange(item.tab)}
+                        onClick={() => handleStepChange(item.step)}
                         className={cn(
                           "p-1.5 rounded text-[10px] font-mono flex items-center justify-between cursor-pointer transition-colors",
                           item.met 
-                            ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10" 
-                            : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            ? "bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/10" 
+                            : "bg-[#1E2833]/50 text-[#A0D2EB]/70 hover:bg-[#1E2833] hover:text-foreground"
                         )}
                       >
                         <div className="flex items-center gap-1.5 truncate">
                           {item.met ? (
-                            <Check className="size-3 text-emerald-500 shrink-0" />
+                            <Check className="size-3 text-emerald-400 shrink-0" />
                           ) : (
-                            <span className="size-3 rounded-full border border-muted-foreground/40 shrink-0 inline-block" />
+                            <span className="size-3 rounded-full border border-[#A0D2EB]/30 shrink-0 inline-block" />
                           )}
                           <span className={cn("font-medium truncate", !item.met && "text-foreground")}>{item.label}</span>
                         </div>
-                        <span className="text-[9px] opacity-75 shrink-0 ml-1">
+                        <span className="text-[9px] opacity-75 shrink-0 ml-1 text-[#A0D2EB]/60">
                           {item.met ? "Pass" : "Missing →"}
                         </span>
                       </div>
@@ -512,7 +558,7 @@ export function AgentWorkbench() {
 
               {/* Manifest Metadata */}
               <div className="space-y-3">
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70">
                   Manifest Metadata
                 </div>
 
@@ -521,7 +567,7 @@ export function AgentWorkbench() {
                     <Label className="text-[11px] font-semibold text-foreground">Agent Name</Label>
                     <span className={cn(
                       "text-[9px] font-mono font-bold uppercase",
-                      !hasAgentName ? "text-muted-foreground" : isKebabCaseValid ? "text-emerald-500" : "text-destructive"
+                      !hasAgentName ? "text-[#A0D2EB]/50" : isKebabCaseValid ? "text-emerald-400" : "text-destructive"
                     )}>
                       {!hasAgentName ? "Draft (Optional)" : isKebabCaseValid ? "Valid Kebab-Case" : "Invalid Format"}
                     </span>
@@ -534,7 +580,7 @@ export function AgentWorkbench() {
                     })}
                     placeholder="my-agent-name"
                     className={cn(
-                      "h-8 text-xs font-mono rounded-sm bg-background border-border/80",
+                      "h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20",
                       hasAgentName && !isKebabCaseValid && "border-destructive focus-visible:ring-destructive/30"
                     )}
                   />
@@ -549,7 +595,7 @@ export function AgentWorkbench() {
                         type: 'UPDATE_MANIFEST',
                         payload: { version: e.target.value }
                       })}
-                      className="h-8 text-xs font-mono rounded-sm bg-background border-border/80"
+                      className="h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20"
                     />
                   </div>
 
@@ -562,7 +608,7 @@ export function AgentWorkbench() {
                         payload: { compliance: { ...state.manifest.compliance, risk_tier: val as any } }
                       })}
                     >
-                      <SelectTrigger className="h-8 text-xs font-mono rounded-sm bg-background border-border/80">
+                      <SelectTrigger className="h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -577,7 +623,7 @@ export function AgentWorkbench() {
 
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-semibold text-foreground">
-                    Author <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
+                    Author <span className="text-[10px] font-normal text-[#A0D2EB]/60">(Optional)</span>
                   </Label>
                   <Input 
                     value={state.manifest.author || ''} 
@@ -586,7 +632,7 @@ export function AgentWorkbench() {
                       payload: { author: e.target.value }
                     })}
                     placeholder="Author name or team"
-                    className="h-8 text-xs font-mono rounded-sm bg-background border-border/80"
+                    className="h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20"
                   />
                 </div>
 
@@ -599,16 +645,16 @@ export function AgentWorkbench() {
                       payload: { description: e.target.value }
                     })}
                     placeholder="Brief description of the agent's responsibilities..."
-                    className="min-h-[64px] text-xs resize-none rounded-sm bg-background border-border/80"
+                    className="min-h-[64px] text-xs resize-none rounded-sm bg-background border-[#A0D2EB]/20"
                   />
                 </div>
               </div>
 
-              <div className="h-px bg-border/80" />
+              <div className="h-px bg-[#A0D2EB]/15" />
 
               {/* Memory & Ingestion */}
               <div className="space-y-3">
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70">
                   Memory & State
                 </div>
 
@@ -621,7 +667,7 @@ export function AgentWorkbench() {
                       payload: { memory: { ...state.manifest.memory, strategy: val as any } }
                     })}
                   >
-                    <SelectTrigger className="h-8 text-xs font-mono rounded-sm bg-background border-border/80">
+                    <SelectTrigger className="h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -642,40 +688,40 @@ export function AgentWorkbench() {
                       type: 'UPDATE_MANIFEST',
                       payload: { memory: { ...state.manifest.memory, max_tokens: parseInt(e.target.value) || 8192 } }
                     })}
-                    className="h-8 text-xs font-mono rounded-sm bg-background border-border/80"
+                    className="h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20"
                   />
                 </div>
               </div>
 
-              <div className="h-px bg-border/80" />
+              <div className="h-px bg-[#A0D2EB]/15" />
 
               {/* File Injection Slots Overview */}
               <div className="space-y-2">
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70">
                   File Injection Slots
                 </div>
                 <div className="space-y-1 text-xs font-mono">
-                  <div className="flex items-center justify-between p-2 rounded-sm bg-muted/30 border border-border/40">
-                    <span className="text-muted-foreground flex items-center gap-1.5">
-                      <FileCode className="size-3 text-primary" /> SOUL.md
+                  <div className="flex items-center justify-between p-2 rounded-sm bg-[#1E2833]/40 border border-[#A0D2EB]/10">
+                    <span className="text-[#A0D2EB]/70 flex items-center gap-1.5">
+                      <FileCode className="size-3 text-[#E76F51]" /> SOUL.md
                     </span>
                     <Badge variant={state.soul ? "secondary" : "outline"} className="text-[9px]">
                       {state.soul ? `${Math.round(state.soul.length / 4)} tok` : 'EMPTY'}
                     </Badge>
                   </div>
 
-                  <div className="flex items-center justify-between p-2 rounded-sm bg-muted/30 border border-border/40">
-                    <span className="text-muted-foreground flex items-center gap-1.5">
-                      <FileCode className="size-3 text-primary" /> RULES.md
+                  <div className="flex items-center justify-between p-2 rounded-sm bg-[#1E2833]/40 border border-[#A0D2EB]/10">
+                    <span className="text-[#A0D2EB]/70 flex items-center gap-1.5">
+                      <FileCode className="size-3 text-[#E76F51]" /> RULES.md
                     </span>
                     <Badge variant={state.rules ? "secondary" : "outline"} className="text-[9px]">
                       {state.rules ? `${Math.round(state.rules.length / 4)} tok` : 'EMPTY'}
                     </Badge>
                   </div>
 
-                  <div className="flex items-center justify-between p-2 rounded-sm bg-muted/30 border border-border/40">
-                    <span className="text-muted-foreground flex items-center gap-1.5">
-                      <FileCode className="size-3 text-primary" /> PROMPT.md
+                  <div className="flex items-center justify-between p-2 rounded-sm bg-[#1E2833]/40 border border-[#A0D2EB]/10">
+                    <span className="text-[#A0D2EB]/70 flex items-center gap-1.5">
+                      <FileCode className="size-3 text-[#E76F51]" /> PROMPT.md
                     </span>
                     <Badge variant={state.prompt_md ? "secondary" : "outline"} className="text-[9px]">
                       {state.prompt_md ? `${Math.round(state.prompt_md.length / 4)} tok` : 'EMPTY'}
@@ -687,17 +733,17 @@ export function AgentWorkbench() {
               {/* Quick Actions Footer */}
               <div className="pt-2 space-y-2">
                 <Button 
-                  onClick={() => navigate('/editor')}
+                  onClick={() => handleStepChange('review')}
                   variant="outline" 
-                  className="w-full h-8 rounded-sm text-xs font-medium gap-1.5 justify-center"
+                  className="w-full h-8 rounded-sm text-xs font-medium gap-1.5 justify-center border-[#A0D2EB]/20 text-[#A0D2EB] hover:text-foreground"
                 >
-                  <Code2 className="size-3.5 text-primary" />
-                  <span>Open Full File Editor</span>
+                  <Code2 className="size-3.5 text-[#E76F51]" />
+                  <span>Open Step 6: File Editor</span>
                 </Button>
 
                 <Button 
                   onClick={() => navigate('/export')}
-                  className="w-full h-8.5 rounded-sm bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs shadow-xs transition-all flex items-center justify-center gap-1.5"
+                  className="w-full h-8.5 rounded-sm bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5"
                 >
                   <Download className="size-3.5" />
                   <span>Export Agent Bundle</span>

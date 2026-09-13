@@ -51,7 +51,7 @@ export function Dashboard() {
   // KPI / Stat Cards
   const kpiStats = [
     {
-      label: 'SYSTEM TOKENS',
+      label: 'System tokens',
       value: tokenEstimate.toLocaleString(),
       subtext: 'Estimated system prompt payload',
       delta: tokenEstimate > 3000 ? 'High' : 'Optimal',
@@ -60,7 +60,7 @@ export function Dashboard() {
       progress: Math.min(100, (tokenEstimate / 4000) * 100)
     },
     {
-      label: 'ACTIVE SKILLS',
+      label: 'Active skills',
       value: skillsCount,
       subtext: `${toolsCount} permissioned tools attached`,
       delta: `+${skillsCount}`,
@@ -69,7 +69,7 @@ export function Dashboard() {
       progress: Math.min(100, (skillsCount / 8) * 100)
     },
     {
-      label: 'COMPLIANCE & RISK',
+      label: 'Compliance & risk',
       value: (state.manifest.compliance?.risk_tier || 'Tier 1').toUpperCase(),
       subtext: 'Security & policy guardrails active',
       delta: 'Audited',
@@ -78,7 +78,7 @@ export function Dashboard() {
       progress: 100
     },
     {
-      label: 'WORKFLOW PIPELINES',
+      label: 'Workflow pipelines',
       value: workflowsCount,
       subtext: `${docsCount} knowledge documents indexed`,
       delta: `${docsCount} Docs`,
@@ -92,7 +92,7 @@ export function Dashboard() {
   const actionModules = [
     {
       title: 'AI Architect Studio',
-      description: 'Conversational agent builder & synthesizer with natural language',
+      description: 'Build agents using natural language',
       icon: Sparkles,
       action: () => navigate('/workbench/agent?tab=architect'),
       tag: 'COMPUTE',
@@ -153,14 +153,14 @@ export function Dashboard() {
   return (
     <div className="h-full w-full overflow-y-auto bg-transparent text-foreground p-6 md:p-8 space-y-8 select-text">
       {/* Overview Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#A0D2EB]/15 pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-foreground font-sans">
-              GitAgent <span className="text-accent-warm font-mono font-black">WORKBENCH</span>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground font-sans">
+              GitAgent <span className="text-foreground/90 font-mono font-medium">Workbench</span>
             </h1>
             <Badge variant="outline" className="font-mono text-[10px] text-[#A0D2EB] border-[#A0D2EB]/30 uppercase px-2 py-0.5 bg-[#A0D2EB]/5">
-              CLI PRECISION v1.4
+              CLI Precision
             </Badge>
           </div>
           <p className="text-xs md:text-sm text-ice-overlay font-sans">
@@ -194,44 +194,44 @@ export function Dashboard() {
         {kpiStats.map((kpi, idx) => {
           const Icon = kpi.icon;
           return (
-            <Card key={idx} className="bg-[#1E2833]/85 border-[#A0D2EB]/15 rounded-sm shadow-xs p-4 flex flex-col justify-between hover:border-[#E76F51]/50 transition-colors">
+            <div key={idx} className="bg-[#1E2833]/70 rounded-md p-4 flex flex-col justify-between hover:bg-[#1E2833] transition-colors">
               <div className="flex items-center justify-between pb-2">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/60">
+                <span className="text-xs font-medium text-[#A0D2EB]/70">
                   {kpi.label}
                 </span>
-                <div className="size-7 rounded-sm bg-[#141A20]/60 border border-[#A0D2EB]/15 flex items-center justify-center text-[#E76F51]">
+                <div className="size-7 rounded-sm bg-[#141A20]/60 flex items-center justify-center text-[#A0D2EB]">
                   <Icon className="size-3.5" />
                 </div>
               </div>
 
               <div className="space-y-1 my-1">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-mono font-black tracking-tight text-foreground">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xl md:text-2xl font-mono font-bold tracking-tight text-foreground">
                     {kpi.value}
                   </span>
                   <Badge 
                     variant="outline" 
                     className={cn(
-                      "text-[9px] font-mono font-bold uppercase px-1.5 py-0",
-                      kpi.deltaType === 'success' && "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",
-                      kpi.deltaType === 'warning' && "text-[#E9C46A] border-[#E9C46A]/30 bg-[#E9C46A]/10",
-                      kpi.deltaType === 'primary' && "text-[#E76F51] border-[#E76F51]/30 bg-[#E76F51]/10"
+                      "text-[10px] font-mono font-medium px-1.5 py-0.2 rounded-sm border-0",
+                      kpi.deltaType === 'success' && "text-emerald-300 bg-emerald-500/15",
+                      kpi.deltaType === 'warning' && "text-amber-300 bg-amber-500/15",
+                      kpi.deltaType === 'primary' && "text-[#A0D2EB] bg-[#A0D2EB]/15"
                     )}
                   >
                     {kpi.delta}
                   </Badge>
                 </div>
-                <p className="text-[10px] font-mono text-[#A0D2EB]/60 truncate">{kpi.subtext}</p>
+                <p className="text-xs text-[#A0D2EB]/60 truncate">{kpi.subtext}</p>
               </div>
 
               {/* Mini progress meter */}
-              <div className="w-full h-1 bg-[#141A20] rounded-full overflow-hidden mt-2">
+              <div className="w-full h-1 bg-[#141A20] rounded-full overflow-hidden mt-3">
                 <div 
-                  className="h-full bg-gradient-to-r from-[#E76F51] to-[#E9C46A] rounded-full transition-all duration-500" 
+                  className="h-full bg-[#A0D2EB]/40 rounded-full transition-all duration-500" 
                   style={{ width: `${kpi.progress}%` }} 
                 />
               </div>
-            </Card>
+            </div>
           );
         })}
       </div>

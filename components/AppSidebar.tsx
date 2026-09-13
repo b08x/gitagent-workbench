@@ -60,31 +60,27 @@ export function AppSidebar({
 
   const navSections: NavSection[] = [
     {
-      title: "OVERVIEW",
+      title: "Workspace",
       items: [
         { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-        { title: "Documentation", url: "/docs", icon: BookOpen },
-      ]
-    },
-    {
-      title: "AGENT CORE",
-      items: [
-        { title: "Agent Builder", url: "/workbench/agent", icon: Cpu, badge: "Core" },
-        { title: "Prompts", url: "/workbench/prompts", icon: Terminal },
-        { title: "Skills", url: "/workbench/skills", icon: Zap, badge: `${state.manifest.skills?.length || 0}` },
-        { title: "Workflows", url: "/workbench/workflows", icon: Workflow, badge: `${Object.keys(state.workflows || {}).length}` },
-        { title: "Knowledge", url: "/workbench/knowledge", icon: Database, badge: `${state.knowledge?.documents?.length || 0}` },
-      ]
-    },
-    {
-      title: "EXECUTION & OPS",
-      items: [
+        { title: "Agent Builder", url: "/workbench/agent", icon: Cpu, badge: "Stepper" },
         { title: "Test Lab", url: "/workbench/chat", icon: MessageSquare },
-        { title: "File Editor", url: "/editor", icon: FileCode },
+        { title: "Release & Export", url: "/export", icon: Download },
+      ]
+    },
+    {
+      title: "Repository",
+      items: [
         { title: "Version History", url: "/workbench/history", icon: History },
         { title: "Git Sync", url: "/workbench/git", icon: GitBranch },
-        { title: "Export ZIP", url: "/export", icon: Download },
         { title: "Import Agent", url: "/import", icon: UploadCloud },
+      ]
+    },
+    {
+      title: "Preferences",
+      items: [
+        { title: "Settings", url: "/settings", icon: Settings },
+        { title: "Documentation", url: "/docs", icon: BookOpen },
       ]
     }
   ];
@@ -103,13 +99,13 @@ export function AppSidebar({
       )}>
         {!collapsed ? (
           <Link to="/dashboard" className="flex items-center gap-2.5 group overflow-hidden">
-            <div className="size-8 rounded-sm bg-gradient-to-r from-[#E76F51] to-[#E9C46A] flex items-center justify-center text-[#141A20] font-mono font-black text-sm tracking-tighter warm-glow-sm shrink-0">
+            <div className="size-8 rounded-sm bg-[#1E2833] border border-[#A0D2EB]/30 flex items-center justify-center text-[#F2F7FA] font-mono font-bold text-sm tracking-tighter shrink-0">
               GA
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-sm tracking-tight text-foreground font-sans">GitAgent</span>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#E76F51] px-1 py-0.2 bg-[#E76F51]/15 border border-[#E76F51]/30 rounded-sm">
+                <span className="text-[10px] font-mono text-[#A0D2EB]/70 px-1 py-0.2 bg-[#A0D2EB]/10 rounded-sm">
                   OS
                 </span>
               </div>
@@ -120,7 +116,7 @@ export function AppSidebar({
           </Link>
         ) : (
           <Link to="/dashboard" title="GitAgent Workbench">
-            <div className="size-8 rounded-sm bg-gradient-to-r from-[#E76F51] to-[#E9C46A] flex items-center justify-center text-[#141A20] font-mono font-black text-sm tracking-tighter warm-glow-sm">
+            <div className="size-8 rounded-sm bg-[#1E2833] border border-[#A0D2EB]/30 flex items-center justify-center text-[#F2F7FA] font-mono font-bold text-sm tracking-tighter">
               GA
             </div>
           </Link>
@@ -156,9 +152,8 @@ export function AppSidebar({
         {navSections.map((section) => (
           <div key={section.title} className="space-y-1">
             {!collapsed && (
-              <div className="px-2 pb-1 text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/50 flex items-center gap-1.5">
-                <span className="text-[#A0D2EB]/40">$</span>
-                <span>{section.title}</span>
+              <div className="px-2 pb-1 text-xs font-semibold text-[#A0D2EB]/70">
+                {section.title}
               </div>
             )}
 
@@ -176,13 +171,13 @@ export function AppSidebar({
                       "flex items-center gap-3 rounded-sm text-xs font-medium transition-all group relative font-sans",
                       collapsed ? "justify-center h-9 px-0" : "h-8.5 px-2.5",
                       isActive
-                        ? "bg-[#A0D2EB]/10 text-foreground border-l-2 border-[#E76F51] font-semibold shadow-xs"
+                        ? "bg-white/10 text-white border-l-2 border-[#A0D2EB] font-semibold shadow-xs"
                         : "text-[#A0D2EB]/70 hover:text-foreground hover:bg-[#A0D2EB]/5"
                     )}
                   >
                     <Icon className={cn(
                       "size-4 shrink-0 transition-colors",
-                      isActive ? "text-[#E76F51]" : "text-[#A0D2EB]/60 group-hover:text-foreground"
+                      isActive ? "text-[#A0D2EB]" : "text-[#A0D2EB]/60 group-hover:text-foreground"
                     )} />
                     
                     {!collapsed && (
@@ -191,10 +186,10 @@ export function AppSidebar({
 
                     {!collapsed && item.badge && (
                       <span className={cn(
-                        "text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-sm shrink-0",
+                        "text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-sm shrink-0",
                         isActive 
-                          ? "bg-gradient-to-r from-[#E76F51]/20 to-[#E9C46A]/20 text-[#E76F51] border border-[#E76F51]/30" 
-                          : "bg-[#A0D2EB]/10 text-[#A0D2EB]/80 border border-[#A0D2EB]/15 group-hover:text-foreground"
+                          ? "bg-[#A0D2EB]/20 text-[#F2F7FA]" 
+                          : "bg-[#A0D2EB]/10 text-[#A0D2EB]/80 group-hover:text-foreground"
                       )}>
                         {item.badge}
                       </span>
@@ -211,17 +206,17 @@ export function AppSidebar({
       <div className="mt-auto border-t border-[#A0D2EB]/15 p-2 space-y-1.5 bg-[#172129]/60">
         {/* Active Agent Status Pill */}
         {!collapsed && (
-          <div className="px-2.5 py-1.5 rounded-sm bg-[#1A2630]/90 border border-[#A0D2EB]/20 flex items-center justify-between shadow-xs">
+          <div className="px-2.5 py-1.5 rounded-sm bg-[#1A2630]/90 flex items-center justify-between shadow-xs">
             <div className="flex items-center gap-2 min-w-0">
               <span className="size-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
               <div className="truncate">
-                <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#A0D2EB]/60">Active Agent</p>
+                <p className="text-[10px] font-mono text-[#A0D2EB]/60">Active Agent</p>
                 <p className="text-xs font-mono font-semibold text-foreground truncate">
                   {state.manifest.name || "untitled-agent"}
                 </p>
               </div>
             </div>
-            <Badge variant="outline" className="text-[9px] font-mono font-bold text-[#E76F51] bg-[#E76F51]/10 border-[#E76F51]/30 px-1 py-0 uppercase">
+            <Badge variant="outline" className="text-[9px] font-mono font-medium text-[#A0D2EB] bg-[#A0D2EB]/10 border-0 px-1.5 py-0.5">
               {state.manifest.compliance?.risk_tier || "T1"}
             </Badge>
           </div>

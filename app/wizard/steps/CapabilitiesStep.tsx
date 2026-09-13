@@ -39,7 +39,9 @@ import {
   Sparkles, 
   Shield, 
   RefreshCw,
-  Eye
+  Eye,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -69,6 +71,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
   const [showAllTools, setShowAllTools] = useState(false);
   const [showMatrixModal, setShowMatrixModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [expandedToolsSkill, setExpandedToolsSkill] = useState<number | null>(null);
 
   // Active framework is the persisted agent specification setting
   const activeFramework: AgentFramework = (state.targetFramework as AgentFramework) || 'hermes_agent';
@@ -644,67 +647,117 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                             </div>
                           )}
 
-                          <TooltipProvider delayDuration={200}>
-                            <div className="flex flex-wrap gap-1.5 p-3 border rounded-md bg-muted/30 max-h-48 overflow-y-auto">
-                              {displayTools.map(tool => {
-                                const isSupportedByHarness = frameworkAllowedTools.includes(tool);
-                                const isChecked = currentSkillTools.includes(tool);
-                                const toolEntry = TOOL_MATRIX.find(t => t.framework === previewFramework && t.name === tool);
-                                const toolDesc = toolEntry?.functionDesc || TOOL_DESCRIPTIONS[tool] || 'Framework tool capability';
-
-                                return (
-                                  <Tooltip key={tool}>
-                                    <TooltipTrigger asChild>
-                                      <div 
-                                        className={cn(
-                                          "flex items-center space-x-1.5 px-2 py-1 rounded-sm border transition-colors cursor-pointer select-none text-xs",
-                                          isChecked 
-                                            ? "bg-primary/10 border-primary/40 text-foreground font-medium" 
-                                            : "bg-background border-border/60 text-muted-foreground hover:bg-muted/60",
-                                          !isSupportedByHarness && "opacity-60 border-dashed"
-                                        )}
-                                        onClick={() => toggleSkillTool(index, tool)}
-                                      >
-                                        <Checkbox 
-                                          id={`skill-${index}-tool-${tool}`}
-                                          checked={isChecked}
-                                          onCheckedChange={() => toggleSkillTool(index, tool)}
-                                          className="h-3.5 w-3.5"
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                        <label 
-                                          htmlFor={`skill-${index}-tool-${tool}`} 
-                                          className="text-[11px] font-mono cursor-pointer select-none leading-none"
-                                        >
-                                          {tool}
-                                        </label>
-                                        {!isSupportedByHarness && (
-                                          <span className="text-[9px] text-amber-500 font-sans ml-1">
-                                            (external)
-                                          </span>
-                                        )}
-                                      </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="max-w-xs text-xs space-y-1">
-                                      <p className="font-semibold font-mono text-primary">{tool}</p>
-                                      <p className="text-foreground/90">{toolDesc}</p>
-                                      {toolEntry?.permissions && (
-                                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground pt-1 border-t">
-                                          <Shield className="h-3 w-3 text-amber-500" />
-                                          <span>{toolEntry.permissions}</span>
-                                        </div>
-                                      )}
-                                      {toolEntry?.circumstances && (
-                                        <p className="text-[10px] text-muted-foreground italic">
-                                          Used: {toolEntry.circumstances}
-                                        </p>
-                                      )}
-                                    </TooltipContent>
-                                  </Tooltip>
-                                );
-                              })}
+                          {/* Capped Badge Summary / Collapsible Tool Matrix */}
+                          {expandedToolsSkill !== index ? (
+                            <div className="flex items-center justify-between p-2.5 rounded-sm bg-muted/20 gap-2">
+                              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                {currentSkillTools.length === 0 ? (
+                                  <span className="text-xs text-muted-foreground italic">No specific tools assigned (inherits harness defaults)</span>
+                                ) : (
+                                  <>
+                                    <span className="text-xs text-muted-foreground font-medium">Tools:</span>
+                                    {currentSkillTools.slice(0, 3).map(t => (
+                                      <Badge key={t} variant="secondary" className="text-[10px] font-mono px-1.5 py-0">
+                                        {t}
+                                      </Badge>
+                                    ))}
+                                    {currentSkillTools.length > 3 && (
+                                      <span className="text-[10px] font-mono text-muted-foreground/80 px-1 py-0.5 bg-muted/40 rounded-xs">
+                                        +{currentSkillTools.length - 3} more
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => setExpandedToolsSkill(index)}
+                                className="h-6 text-xs text-muted-foreground hover:text-foreground shrink-0 gap-1"
+                              >
+                                Configure ({currentSkillTools.length})
+                                <ChevronDown className="h-3 w-3" />
+                              </Button>
                             </div>
-                          </TooltipProvider>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Select framework capabilities:</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="xs"
+                                  onClick={() => setExpandedToolsSkill(null)}
+                                  className="h-6 text-xs text-muted-foreground hover:text-foreground gap-1"
+                                >
+                                  Done
+                                  <ChevronUp className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <TooltipProvider delayDuration={200}>
+                                <div className="flex flex-wrap gap-1.5 p-3 rounded-md bg-muted/30 max-h-48 overflow-y-auto">
+                                  {displayTools.map(tool => {
+                                    const isSupportedByHarness = frameworkAllowedTools.includes(tool);
+                                    const isChecked = currentSkillTools.includes(tool);
+                                    const toolEntry = TOOL_MATRIX.find(t => t.framework === previewFramework && t.name === tool);
+                                    const toolDesc = toolEntry?.functionDesc || TOOL_DESCRIPTIONS[tool] || 'Framework tool capability';
+
+                                    return (
+                                      <Tooltip key={tool}>
+                                        <TooltipTrigger asChild>
+                                          <div 
+                                            className={cn(
+                                              "flex items-center space-x-1.5 px-2 py-1 rounded-sm border transition-colors cursor-pointer select-none text-xs",
+                                              isChecked 
+                                                ? "bg-white/10 text-foreground font-medium" 
+                                                : "bg-background/40 border-border/40 text-muted-foreground hover:bg-muted/60",
+                                              !isSupportedByHarness && "opacity-60 border-dashed"
+                                            )}
+                                            onClick={() => toggleSkillTool(index, tool)}
+                                          >
+                                            <Checkbox 
+                                              id={`skill-${index}-tool-${tool}`}
+                                              checked={isChecked}
+                                              onCheckedChange={() => toggleSkillTool(index, tool)}
+                                              className="h-3.5 w-3.5"
+                                              onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <label 
+                                              htmlFor={`skill-${index}-tool-${tool}`} 
+                                              className="text-[11px] font-mono cursor-pointer select-none leading-none"
+                                            >
+                                              {tool}
+                                            </label>
+                                            {!isSupportedByHarness && (
+                                              <span className="text-[9px] text-amber-400 font-sans ml-1">
+                                                (external)
+                                              </span>
+                                            )}
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" className="max-w-xs text-xs space-y-1">
+                                          <p className="font-semibold font-mono text-primary">{tool}</p>
+                                          <p className="text-foreground/90">{toolDesc}</p>
+                                          {toolEntry?.permissions && (
+                                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground pt-1 border-t">
+                                              <Shield className="h-3 w-3 text-amber-500" />
+                                              <span>{toolEntry.permissions}</span>
+                                            </div>
+                                          )}
+                                          {toolEntry?.circumstances && (
+                                            <p className="text-[10px] text-muted-foreground italic">
+                                              Used: {toolEntry.circumstances}
+                                            </p>
+                                          )}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    );
+                                  })}
+                                </div>
+                              </TooltipProvider>
+                            </div>
+                          )}
                         </div>
 
                         <div className="grid gap-2">

@@ -52,9 +52,9 @@ export function SettingsPanel() {
 
       <TabsContent value="global" className="space-y-6">
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
             <div className="flex items-center gap-3">
-              {settings.theme === 'dark' ? <Moon className="h-5 w-5 text-primary" /> : <Sun className="h-5 w-5 text-primary" />}
+              {settings.theme === 'dark' ? <Moon className="h-5 w-5 text-[#A0D2EB]" /> : <Sun className="h-5 w-5 text-amber-400" />}
               <div>
                 <p className="text-sm font-medium">Dark Mode</p>
                 <p className="text-xs text-muted-foreground">Toggle between light and dark themes.</p>
@@ -66,9 +66,9 @@ export function SettingsPanel() {
             />
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
             <div className="flex items-center gap-3">
-              <Monitor className="h-5 w-5 text-primary" />
+              <Monitor className="h-5 w-5 text-[#A0D2EB]" />
               <div>
                 <p className="text-sm font-medium">Debug Logging</p>
                 <p className="text-xs text-muted-foreground">Enable verbose logs in the browser console.</p>
@@ -80,22 +80,22 @@ export function SettingsPanel() {
             />
           </div>
 
-          <div className="bg-muted/30 border rounded-lg p-4 space-y-3">
+          <div className="bg-muted/30 rounded-lg p-4 space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
-              <Settings2 className="h-4 w-4" />
+              <Settings2 className="h-4 w-4 text-[#A0D2EB]" />
               Persistence Status
             </h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              API keys entered manually are session-only. To persist them, use the <span className="font-bold text-foreground underline decoration-primary/50 underline-offset-2">Secrets</span> button in the AI Studio header.
+              API keys entered manually are session-only. To persist them, use the <span className="font-semibold text-foreground underline decoration-[#A0D2EB]/50 underline-offset-2">Secrets</span> button in the AI Studio header.
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               {settings.envProviders?.map(pid => (
-                <Badge key={pid} variant="secondary" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/20 capitalize font-mono px-2 py-0.5">
-                  {pid} ACTIVE
+                <Badge key={pid} variant="secondary" className="text-xs font-semibold bg-emerald-500/20 text-emerald-300 capitalize font-mono px-2 py-0.5 border-0 rounded-sm">
+                  {pid} Active
                 </Badge>
               ))}
               {(!settings.envProviders || settings.envProviders.length === 0) && (
-                <p className="text-[10px] text-muted-foreground italic bg-muted/50 px-2 py-1 rounded">No persistent keys found.</p>
+                <p className="text-xs text-muted-foreground italic bg-muted/50 px-2 py-1 rounded">No persistent keys found.</p>
               )}
             </div>
           </div>

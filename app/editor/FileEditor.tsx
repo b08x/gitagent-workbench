@@ -54,24 +54,27 @@ export function FileEditor() {
 
   return (
     <div className="h-full w-full overflow-hidden flex flex-row bg-background text-foreground select-text">
-      {/* File Tree Sidebar */}
-      <div className="w-64 shrink-0 border-r border-border/80 bg-sidebar/50 flex flex-col overflow-hidden select-none">
-        <div className="h-11 px-4 border-b border-border/80 bg-muted/30 flex items-center justify-between shrink-0">
-          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-            <Code2 className="size-3 text-primary" /> Repository Tree
+      {/* File Tree Sidebar with adequate breathing room */}
+      <div className="w-72 md:w-80 shrink-0 border-r border-[#A0D2EB]/15 bg-[#141A20]/80 flex flex-col overflow-hidden select-none">
+        <div className="h-11 px-4 border-b border-[#A0D2EB]/15 bg-[#141A20] flex items-center justify-between shrink-0">
+          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70 flex items-center gap-2">
+            <Code2 className="size-3.5 text-[#E76F51]" /> Repository Tree
           </span>
+          <Badge variant="outline" className="text-[9px] font-mono text-[#A0D2EB]/60 border-[#A0D2EB]/20">
+            {1 + (state.rules ? 1 : 0) + (state.soul ? 1 : 0) + (state.prompt_md ? 1 : 0) + Object.keys(state.skills || {}).length} files
+          </Badge>
         </div>
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
           <FileTree selectedFile={selectedFile} onSelect={setSelectedFile} />
         </div>
       </div>
 
       {/* Editor & Validation Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="h-11 border-b border-border/80 bg-card/60 px-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <FileText className="size-3.5 text-primary" />
-            <span className="text-xs font-mono font-bold text-foreground">{selectedFile}</span>
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
+        <div className="h-11 border-b border-[#A0D2EB]/15 bg-[#141A20]/60 px-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText className="size-3.5 text-[#E76F51] shrink-0" />
+            <span className="text-xs font-mono font-semibold text-foreground truncate">{selectedFile}</span>
           </div>
           <div className="flex gap-2 items-center">
             {state.validationResult?.errors.some(e => e.file === selectedFile) && (
@@ -80,15 +83,15 @@ export function FileEditor() {
             <Button 
               variant="ghost"
               size="xs"
-              className={cn("text-xs font-mono", showChat && "bg-muted/80 text-foreground")}
+              className={cn("text-xs font-mono text-[#A0D2EB]/70 hover:text-foreground", showChat && "bg-[#A0D2EB]/10 text-foreground")}
               onClick={() => setShowChat(!showChat)}
             >
-              <MessageSquare className="mr-1 size-3 text-primary" />
+              <MessageSquare className="mr-1 size-3 text-[#E76F51]" />
               {showChat ? 'Hide AI Assistant' : 'AI Assistant'}
             </Button>
             <Button 
               size="xs" 
-              className="bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs rounded-sm shadow-xs" 
+              className="bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs rounded-sm shadow-xs" 
               onClick={() => navigate('/export')}
             >
               <Download className="mr-1 size-3" /> Export ZIP
@@ -97,7 +100,7 @@ export function FileEditor() {
         </div>
 
         <textarea
-          className="flex-1 p-5 font-mono text-xs leading-relaxed resize-none focus:outline-none bg-background text-foreground selection:bg-primary/20"
+          className="flex-1 p-5 font-mono text-xs leading-relaxed resize-none focus:outline-none bg-background text-foreground selection:bg-[#E76F51]/20"
           value={selectedFile ? getFileContent(selectedFile) : ''}
           onChange={e => updateFileContent(e.target.value)}
           spellCheck={false}
@@ -123,11 +126,13 @@ function FileTree({ selectedFile, onSelect }: { selectedFile: string | null, onS
     <div 
       className={cn(
         "flex items-center gap-2 px-3 py-1.5 text-xs font-mono rounded-sm cursor-pointer transition-colors",
-        selectedFile === path ? "bg-muted/90 text-foreground font-bold border-l-2 border-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+        selectedFile === path 
+          ? "bg-[#1E2833] text-foreground font-semibold border-l-2 border-[#E76F51]" 
+          : "text-[#A0D2EB]/70 hover:text-foreground hover:bg-[#A0D2EB]/5"
       )}
       onClick={() => onSelect(path)}
     >
-      <FileText className="size-3.5 shrink-0 text-primary" />
+      <FileText className="size-3.5 shrink-0 text-[#E76F51]" />
       <span className="truncate">{label}</span>
     </div>
   );
