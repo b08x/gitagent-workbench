@@ -92,7 +92,7 @@ export function Dashboard() {
   const actionModules = [
     {
       title: 'AI Architect Studio',
-      description: 'Conversational agent builder & synthesizer with natural language',
+      description: 'Build agents using natural language',
       icon: Sparkles,
       action: () => navigate('/workbench/agent?tab=architect'),
       tag: 'COMPUTE',
@@ -193,9 +193,9 @@ export function Dashboard() {
         {kpiStats.map((kpi, idx) => {
           const Icon = kpi.icon;
           return (
-            <Card key={idx} className="bg-card border-border/80 rounded-sm shadow-xs p-4 flex flex-col justify-between hover:border-primary/50 transition-colors">
+            <Card key={idx} className="bg-card border border-transparent rounded-sm shadow-sm p-4 flex flex-col justify-between hover:border-primary/30 transition-colors">
               <div className="flex items-center justify-between pb-2">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+                <span className="text-sm font-medium text-muted-foreground">
                   {kpi.label}
                 </span>
                 <div className="size-7 rounded-sm bg-muted/60 flex items-center justify-center text-primary">
@@ -204,8 +204,8 @@ export function Dashboard() {
               </div>
 
               <div className="space-y-1 my-1">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-mono font-black tracking-tight text-foreground">
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-mono font-bold tracking-tight text-foreground">
                     {kpi.value}
                   </span>
                   <Badge 
@@ -256,7 +256,7 @@ export function Dashboard() {
                 <div
                   key={idx}
                   onClick={mod.action}
-                  className="group cursor-pointer bg-card border border-border/80 hover:border-primary/60 rounded-sm p-4 flex flex-col justify-between transition-all hover:shadow-xs"
+                  className="group cursor-pointer bg-muted/20 border border-transparent hover:bg-muted/40 hover:border-primary/30 rounded-sm p-4 flex flex-col justify-between transition-all hover:shadow-xs"
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -295,10 +295,10 @@ export function Dashboard() {
             </Badge>
           </div>
 
-          <Card className="bg-card border-border/80 rounded-sm p-4 space-y-4 shadow-xs">
+          <Card className="bg-card border border-transparent ring-1 ring-border/30 rounded-sm p-4 space-y-4 shadow-xs">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">Manifest Identity</span>
+                <span className="text-sm font-medium text-muted-foreground">Manifest Identity</span>
                 <span className="text-xs font-mono font-semibold text-primary">{state.manifest.name || "untitled"}</span>
               </div>
               <p className="text-xs text-muted-foreground line-clamp-2">
@@ -367,7 +367,7 @@ export function Dashboard() {
         <div className="border border-border/80 rounded-sm bg-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-muted/40 border-b border-border/80 text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+              <thead className="bg-muted/40 border-b border-border/80 text-sm font-medium text-muted-foreground">
                 <tr>
                   <th className="py-2.5 px-4">Snapshot / Event</th>
                   <th className="py-2.5 px-4">Target Agent</th>

@@ -508,7 +508,7 @@ export function ModelStep({ fieldErrors = {}, hideGeneration = false, hideRuntim
 
             {/* Vertical Stack of Runtime Constraints */}
             <div className="flex flex-col gap-3 w-full bg-muted/20 p-4 rounded-sm border border-border/70">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+              <span className="text-sm font-medium text-muted-foreground">
                 Sampling Constraints
               </span>
 
@@ -583,7 +583,7 @@ export function ModelStep({ fieldErrors = {}, hideGeneration = false, hideRuntim
 
             {/* Runtime Execution Settings */}
             <div className="flex flex-col gap-3 w-full bg-muted/20 p-4 rounded-sm border border-border/70">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+              <span className="text-sm font-medium text-muted-foreground">
                 Execution Limits
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">

@@ -266,67 +266,34 @@ export function AgentWorkbench() {
         </div>
       </div>
 
-      {/* Horizontal Tabs Header Bar on Top */}
-      <div className="h-11 border-b border-border/80 bg-card/40 px-5 flex items-center justify-between shrink-0 overflow-x-auto gap-3 select-none">
-        <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto">
-          {sections.map((sec) => {
+      {/* Wizard Stepper Header */}
+      <div className="h-16 border-b border-border/80 bg-card/40 px-5 flex items-center shrink-0 overflow-x-auto gap-4 select-none">
+        <div className="flex items-center w-full max-w-5xl mx-auto justify-between">
+          {sections.map((sec, index) => {
             const Icon = sec.icon;
             const isActive = activeTab === sec.id;
-
+            const isPast = sections.findIndex(s => s.id === activeTab) > index;
+            
             return (
-              <button
-                key={sec.id}
-                onClick={() => handleTabChange(sec.id)}
-                className={cn(
-                  "h-8 px-3 rounded-sm text-xs font-medium transition-all flex items-center gap-2 shrink-0 border cursor-pointer",
-                  isActive 
-                    ? "bg-card border-primary/50 text-foreground font-semibold shadow-xs" 
-                    : "bg-transparent border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              <div key={sec.id} className="flex items-center">
+                <button
+                  onClick={() => handleTabChange(sec.id)}
+                  className={`flex items-center gap-2 transition-all ${isActive ? 'text-primary opacity-100' : isPast ? 'text-muted-foreground opacity-100 hover:text-foreground' : 'text-muted-foreground opacity-50 hover:opacity-100'}`}
+                >
+                  <div className={`size-6 rounded-full flex items-center justify-center text-[10px] font-bold border ${isActive ? 'bg-primary text-primary-foreground border-primary' : isPast ? 'bg-muted border-muted-foreground/30 text-muted-foreground' : 'bg-transparent border-muted-foreground/30 text-muted-foreground'}`}>
+                    {isPast ? <CheckCircle2 className="size-3.5 text-emerald-500" /> : index + 1}
+                  </div>
+                  <span className={`text-xs font-semibold ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>{sec.title}</span>
+                </button>
+                {index < sections.length - 1 && (
+                  <div className={`w-8 sm:w-12 h-px mx-2 sm:mx-4 ${isPast ? 'bg-primary/50' : 'bg-border/60'}`} />
                 )}
-              >
-                <Icon className={cn("size-3.5 transition-colors", isActive ? "text-primary" : "text-muted-foreground")} />
-                <span>{sec.title}</span>
-                <span className={cn(
-                  "text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-sm transition-all",
-                  getBadgeClasses(sec.badgeType, isActive)
-                )}>
-                  {sec.badge}
-                </span>
-              </button>
+              </div>
             );
           })}
         </div>
-
-        {/* Quick Workbench Links */}
-        <div className="hidden xl:flex items-center gap-2 shrink-0 pl-2 border-l border-border/60">
-          <button
-            onClick={() => navigate('/workbench/prompts')}
-            className="text-[11px] font-mono text-muted-foreground hover:text-foreground px-2 py-1 rounded-sm hover:bg-muted/50 transition-colors flex items-center gap-1"
-          >
-            <Terminal className="size-3 text-primary" /> Prompts
-          </button>
-          <button
-            onClick={() => navigate('/workbench/skills')}
-            className="text-[11px] font-mono text-muted-foreground hover:text-foreground px-2 py-1 rounded-sm hover:bg-muted/50 transition-colors flex items-center gap-1"
-          >
-            <Zap className="size-3 text-primary" /> Skills
-          </button>
-          <button
-            onClick={() => navigate('/workbench/workflows')}
-            className="text-[11px] font-mono text-muted-foreground hover:text-foreground px-2 py-1 rounded-sm hover:bg-muted/50 transition-colors flex items-center gap-1"
-          >
-            <Workflow className="size-3 text-primary" /> Pipelines
-          </button>
-          <button
-            onClick={() => navigate('/workbench/knowledge')}
-            className="text-[11px] font-mono text-muted-foreground hover:text-foreground px-2 py-1 rounded-sm hover:bg-muted/50 transition-colors flex items-center gap-1"
-          >
-            <Database className="size-3 text-primary" /> Knowledge
-          </button>
-        </div>
       </div>
-
-      {/* Main Work Area: Center Content + Right Inspector */}
+{/* Main Work Area: Center Content + Right Inspector */}
       <div className="flex-1 flex flex-row overflow-hidden min-h-0">
         {/* Center Primary Viewport (Flex-1) */}
         <div className="flex-1 flex flex-col overflow-hidden bg-background min-w-0">
@@ -403,6 +370,33 @@ export function AgentWorkbench() {
               </div>
             )}
           </div>
+          
+          {/* Wizard Navigation Footer */}
+          <div className="p-4 border-t border-border/80 bg-muted/20 flex items-center justify-between shrink-0">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                const idx = sections.findIndex(s => s.id === activeTab);
+                if (idx > 0) handleTabChange(sections[idx - 1].id);
+              }}
+              disabled={sections.findIndex(s => s.id === activeTab) === 0}
+            >
+              Back
+            </Button>
+            <Button 
+              onClick={() => {
+                const idx = sections.findIndex(s => s.id === activeTab);
+                if (idx < sections.length - 1) {
+                  handleTabChange(sections[idx + 1].id);
+                } else {
+                  navigate('/generating');
+                }
+              }}
+              className="bg-primary hover:bg-primary-hover text-primary-foreground font-medium"
+            >
+              {sections.findIndex(s => s.id === activeTab) === sections.length - 1 ? 'Generate Agent' : 'Continue'}
+            </Button>
+          </div>
         </div>
 
         {/* Right Inspector / Action Panel (~280px-320px) */}
@@ -411,7 +405,7 @@ export function AgentWorkbench() {
             {/* Inspector Header */}
             <div className="h-11 px-4 border-b border-border/80 bg-muted/30 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
                   <Sliders className="size-3 text-primary" /> Inspector & Specs
                 </span>
                 {state.isCompilingSpec && (
@@ -437,7 +431,7 @@ export function AgentWorkbench() {
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() => setShowHealthBreakdown(prev => !prev)}
                 >
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
                     Specification Health
                   </span>
                   <div className="flex items-center gap-1.5">
@@ -511,7 +505,7 @@ export function AgentWorkbench() {
 
               {/* Manifest Metadata */}
               <div className="space-y-3">
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+                <div className="text-sm font-medium text-muted-foreground">
                   Manifest Metadata
                 </div>
 
@@ -607,7 +601,7 @@ export function AgentWorkbench() {
 
               {/* Memory & Ingestion */}
               <div className="space-y-3">
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+                <div className="text-sm font-medium text-muted-foreground">
                   Memory & State
                 </div>
 
@@ -650,7 +644,7 @@ export function AgentWorkbench() {
 
               {/* File Injection Slots Overview */}
               <div className="space-y-2">
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+                <div className="text-sm font-medium text-muted-foreground">
                   File Injection Slots
                 </div>
                 <div className="space-y-1 text-xs font-mono">

@@ -76,7 +76,7 @@ export function DocsPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <div className="px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+          <div className="px-2 py-1 text-sm font-medium text-muted-foreground">
             Reference Guides
           </div>
           {docs.map((doc) => {

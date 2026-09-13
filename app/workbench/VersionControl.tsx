@@ -86,7 +86,7 @@ export function VersionControl() {
       {/* Snapshot History Stream */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+          <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
             <Clock className="size-3 text-primary" /> Repository History Log
           </span>
         </div>

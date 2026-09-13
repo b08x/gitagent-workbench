@@ -209,7 +209,7 @@ export function PromptWorkbench() {
 
           {/* Prompt List */}
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            <div className="px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+            <div className="px-2 py-1 text-sm font-medium text-muted-foreground">
               Templates ({filteredPrompts.length})
             </div>
 
@@ -329,7 +329,7 @@ export function PromptWorkbench() {
         {/* Right Pane (Inspector / Action Panel, ~23% width, 280px) */}
         <div className="w-72 shrink-0 border-l border-border/80 bg-card/40 flex flex-col overflow-hidden select-none">
           <div className="h-11 px-4 border-b border-border/80 bg-muted/30 flex items-center justify-between shrink-0">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+            <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
               <Sliders className="size-3 text-primary" /> Prompt Metadata
             </span>
             <Badge variant="outline" className="text-[9px] font-mono font-bold text-primary border-primary/20">

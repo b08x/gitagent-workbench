@@ -375,7 +375,7 @@ export function ChatWorkbench() {
         {showSystemPrompt && (
           <div className="w-80 shrink-0 border-r border-border/80 bg-sidebar/50 flex flex-col overflow-hidden select-none animate-in slide-in-from-left duration-200">
             <div className="h-11 px-4 border-b border-border/80 bg-muted/30 flex items-center justify-between shrink-0">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+              <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
                 <Terminal className="size-3 text-primary" /> Active System Prompt
               </span>
               <Button 
@@ -426,7 +426,7 @@ export function ChatWorkbench() {
                 </div>
 
                 <div className="space-y-2 w-full">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
+                  <span className="text-sm font-medium text-muted-foreground">
                     Try Asking:
                   </span>
                   <div className="flex flex-col gap-1.5">

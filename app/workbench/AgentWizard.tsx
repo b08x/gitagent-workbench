@@ -1276,7 +1276,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
 
             {/* Step 2: Choose Prompt / Intent */}
             <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground px-1">
+              <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground px-1">
                 <Lightbulb className="size-3 text-warning" />
                 <span>2. Recommended Starting Blueprints</span>
               </div>

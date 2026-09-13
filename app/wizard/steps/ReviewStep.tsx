@@ -55,13 +55,35 @@ export function ReviewStep({ fieldErrors = {} }: { fieldErrors?: Record<string, 
             <div>
               <span className="text-muted-foreground block mb-2">Skills:</span>
               <div className="flex flex-wrap gap-1">
-                {(state.manifest.skills || []).map(s => <Badge key={s} variant="secondary">{s}</Badge>)}
+                {(() => {
+                  const skills = state.manifest.skills || [];
+                  if (skills.length === 0) return <span className="text-muted-foreground text-xs italic">None</span>;
+                  const visible = skills.slice(0, 3);
+                  const remaining = skills.length - 3;
+                  return (
+                    <span className="text-sm font-medium text-foreground">
+                      {visible.join(', ')}
+                      {remaining > 0 && <span className="text-muted-foreground">, +{remaining} more</span>}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
             <div>
               <span className="text-muted-foreground block mb-2">Tools:</span>
               <div className="flex flex-wrap gap-1">
-                {(state.manifest.tools || []).map(t => <Badge key={t} variant="secondary">{t}</Badge>)}
+                {(() => {
+                  const tools = state.manifest.tools || [];
+                  if (tools.length === 0) return <span className="text-muted-foreground text-xs italic">None</span>;
+                  const visible = tools.slice(0, 3);
+                  const remaining = tools.length - 3;
+                  return (
+                    <span className="text-sm font-medium text-foreground">
+                      {visible.join(', ')}
+                      {remaining > 0 && <span className="text-muted-foreground">, +{remaining} more</span>}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
           </CardContent>
