@@ -27,7 +27,11 @@ export function buildGenerationPrompt(
   
   if (fieldName) {
     systemPrompt += `Specifically, you are generating the content for the field: "${fieldName}".\n`;
-    systemPrompt += `DO NOT generate a complete markdown file. ONLY generate the text content for this specific field.\n\n`;
+    systemPrompt += `CRITICAL INSTRUCTIONS:\n`;
+    systemPrompt += `1. DO NOT generate a complete markdown file.\n`;
+    systemPrompt += `2. DO NOT include markdown headings like "## ${fieldName}".\n`;
+    systemPrompt += `3. DO NOT echo the prompt or include conversational filler.\n`;
+    systemPrompt += `4. ONLY output the raw text content that belongs inside this specific field.\n\n`;
   } else {
     systemPrompt += `You are generating a complete ${file}.\n\n`;
   }
@@ -62,7 +66,7 @@ export function buildGenerationPrompt(
       });
     }
 
-    if (profile.recommended_sections) {
+    if (profile.recommended_sections && !fieldName) {
       systemPrompt += `Recommended Sections:\n${profile.recommended_sections.map((s: string) => `- ${s}`).join('\n')}\n\n`;
     }
 
@@ -88,7 +92,7 @@ export function buildGenerationPrompt(
   }
 
   const fieldTarget = fieldName ? `the "${fieldName}" field` : file;
-  const userPrompt = `Agent Context:\n${JSON.stringify(workspace.manifest, null, 2)}\n\nGenerate the content for ${fieldTarget}.`;
+  const userPrompt = `Agent Context:\n${JSON.stringify(workspace.manifest, null, 2)}\n\nGenerate ONLY the content for ${fieldTarget}. No intro, no outro, just the exact content.`;
 
   return {
     system: systemPrompt,
