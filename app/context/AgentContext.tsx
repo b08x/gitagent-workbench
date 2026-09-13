@@ -272,10 +272,12 @@ const initialState: ExtendedWorkspace = {
   runtimeProviderId: 'anthropic',
 };
 
+import { saveToLibrary } from '../../lib/gitagent/agentLibrary';
+
 function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspace {
   switch (action.type) {
     case 'SET_WORKSPACE':
-      return { 
+      const newWorkspaceState = { 
         ...action.payload, 
         selectedTemplate: state.selectedTemplate,
         modelConfig: (action.payload as any).modelConfig || initialState.modelConfig,
@@ -300,6 +302,8 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         history: (action.payload as any).history || initialState.history,
         runtimeProviderId: (action.payload as any).runtimeProviderId || initialState.runtimeProviderId,
       };
+      saveToLibrary(newWorkspaceState);
+      return newWorkspaceState;
     case 'UPDATE_META':
       const newState = { ...state, meta: { ...state.meta, ...action.payload } };
       if (action.payload.structureType && ['minimal', 'standard', 'full', 'data-analyst', 'web-scraper', 'researcher'].includes(action.payload.structureType)) {
@@ -394,7 +398,7 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
     case 'REMOVE_SCAFFOLD_CONTEXT':
       return { ...state, scaffoldContext: state.scaffoldContext.filter(f => f.name !== action.payload) };
     case 'SAVE_SNAPSHOT':
-      return {
+      const snapshotState = {
         ...state,
         history: {
           ...state.history,
@@ -404,6 +408,8 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
           ].slice(0, 20) // Keep last 20
         }
       };
+      saveToLibrary(snapshotState);
+      return snapshotState;
     case 'RESTORE_SNAPSHOT':
       const snapshot = state.history.snapshots.find(s => s.timestamp === action.payload);
       if (!snapshot) return state;

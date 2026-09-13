@@ -13,6 +13,7 @@ import { KnowledgeWorkbench } from '../app/workbench/KnowledgeWorkbench';
 import { ChatWorkbench } from '../app/workbench/ChatWorkbench';
 import { AgentWorkbench } from '../app/workbench/AgentWorkbench';
 import { Dashboard } from '../app/workbench/Dashboard';
+import { AgentLibrary } from '../app/workbench/AgentLibrary';
 import { PromptWorkbench } from '../app/workbench/PromptWorkbench';
 import { VersionControl } from '../app/workbench/VersionControl';
 import { GitIntegration } from '../app/workbench/GitIntegration';
@@ -51,6 +52,7 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/library" element={<AgentLibrary />} />
         <Route path="/docs" element={<DocsPage />} />
         <Route path="/workbench/agent" element={<AgentWorkbench />} />
         <Route path="/workbench/prompts" element={<PromptWorkbench />} />
