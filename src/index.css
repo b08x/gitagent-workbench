@@ -9,7 +9,7 @@
   --font-mono: "Geist Mono Variable", "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   --color-ice-blue: #A0D2EB;
-  --color-burnt-orange: #E76F51;
+  --color-amber-gold: #E5A93C;
   --color-soft-gold: #E9C46A;
   --color-slate-dark: #1A2630;
   --color-soft-black: #232323;
@@ -71,10 +71,11 @@
     --popover: #1E2833;
     --popover-foreground: #F2F7FA;
 
-    /* Accent Warm: Burnt Orange (#E76F51) to Soft Gold (#E9C46A) */
-    --primary: #E76F51;
+    /* Primary Accent: Amber Gold (#E5A93C, Hue 42°) - 7.9:1 WCAG AAA contrast with dark neutral #141A20 */
+    /* Separated by 42° from destructive red (Hue 0°), completely resolving hue collision */
+    --primary: #E5A93C;
     --primary-foreground: #141A20;
-    --primary-hover: #E9C46A;
+    --primary-hover: #F3C262;
 
     --secondary: #222E39;
     --secondary-foreground: #E0EEF5;
@@ -86,7 +87,8 @@
     --accent: rgba(160, 210, 235, 0.08);
     --accent-foreground: #A0D2EB;
 
-    --destructive: #F87171;
+    /* Destructive: Pure Crimson Red (Hue 0°) - 4.71:1 contrast with white, distinct from primary */
+    --destructive: #DC2626;
     --destructive-foreground: #FFFFFF;
 
     --success: #34D399;
@@ -95,17 +97,18 @@
     /* Command-line precision borders: low-opacity Ice Blue overlay */
     --border: rgba(160, 210, 235, 0.15);
     --input: rgba(160, 210, 235, 0.14);
-    --ring: #E76F51;
+    --ring: #E5A93C;
     --radius: 0.25rem;
 
+    /* Sidebar tokens: Neutral grays and Ice-Blue, preventing color overloading with --primary */
     --sidebar: #1B242D;
     --sidebar-foreground: #E2EFF5;
-    --sidebar-primary: #E76F51;
+    --sidebar-primary: #A0D2EB;
     --sidebar-primary-foreground: #141A20;
     --sidebar-accent: rgba(160, 210, 235, 0.08);
     --sidebar-accent-foreground: #A0D2EB;
     --sidebar-border: rgba(160, 210, 235, 0.15);
-    --sidebar-ring: #E76F51;
+    --sidebar-ring: #A0D2EB;
   }
 
   .dark {
@@ -116,9 +119,9 @@
     --popover: #1E2833;
     --popover-foreground: #F2F7FA;
 
-    --primary: #E76F51;
+    --primary: #E5A93C;
     --primary-foreground: #141A20;
-    --primary-hover: #E9C46A;
+    --primary-hover: #F3C262;
 
     --secondary: #222E39;
     --secondary-foreground: #E0EEF5;
@@ -129,7 +132,7 @@
     --accent: rgba(160, 210, 235, 0.08);
     --accent-foreground: #A0D2EB;
 
-    --destructive: #F87171;
+    --destructive: #DC2626;
     --destructive-foreground: #FFFFFF;
 
     --success: #34D399;
@@ -137,17 +140,17 @@
 
     --border: rgba(160, 210, 235, 0.15);
     --input: rgba(160, 210, 235, 0.14);
-    --ring: #E76F51;
+    --ring: #E5A93C;
     --radius: 0.25rem;
 
     --sidebar: #1B242D;
     --sidebar-foreground: #E2EFF5;
-    --sidebar-primary: #E76F51;
+    --sidebar-primary: #A0D2EB;
     --sidebar-primary-foreground: #141A20;
     --sidebar-accent: rgba(160, 210, 235, 0.08);
     --sidebar-accent-foreground: #A0D2EB;
     --sidebar-border: rgba(160, 210, 235, 0.15);
-    --sidebar-ring: #E76F51;
+    --sidebar-ring: #A0D2EB;
   }
 
   * {
@@ -209,38 +212,38 @@
   background-size: 28px 28px;
 }
 
-/* Accent Warm Gradient: linear-gradient(90deg, #E76F51 0%, #E9C46A 100%) */
+/* Accent Warm Gradient: linear-gradient(90deg, #E5A93C 0%, #E9C46A 100%) */
 .bg-accent-warm {
-  background: linear-gradient(90deg, #E76F51 0%, #E9C46A 100%) !important;
+  background: linear-gradient(90deg, #E5A93C 0%, #E9C46A 100%) !important;
 }
 
 .text-accent-warm {
-  background: linear-gradient(90deg, #E76F51 0%, #E9C46A 100%);
+  background: linear-gradient(90deg, #E5A93C 0%, #E9C46A 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 /* Warm Glow Effects for critical eye-catching action sparks */
 .warm-glow {
-  box-shadow: 0 0 16px -2px rgba(231, 111, 81, 0.40), 0 0 8px -1px rgba(233, 196, 106, 0.25);
+  box-shadow: 0 0 16px -2px rgba(229, 169, 60, 0.35), 0 0 8px -1px rgba(233, 196, 106, 0.25);
 }
 
 .warm-glow-sm {
-  box-shadow: 0 0 8px -1px rgba(231, 111, 81, 0.35);
+  box-shadow: 0 0 8px -1px rgba(229, 169, 60, 0.30);
 }
 
-/* Primary Button with Warm Accent Gradient */
+/* Primary Button with Warm Accent Gradient: Exclusively for primary action */
 .btn-warm-action {
-  background: linear-gradient(90deg, #E76F51 0%, #E9C46A 100%);
+  background: linear-gradient(90deg, #E5A93C 0%, #E9C46A 100%);
   color: #141A20 !important;
   font-weight: 600;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 0 14px -2px rgba(231, 111, 81, 0.4);
+  box-shadow: 0 0 14px -2px rgba(229, 169, 60, 0.35);
 }
 
 .btn-warm-action:hover {
-  box-shadow: 0 0 20px -1px rgba(231, 111, 81, 0.6), 0 0 10px rgba(233, 196, 106, 0.4);
-  filter: brightness(1.05);
+  box-shadow: 0 0 20px -1px rgba(229, 169, 60, 0.5), 0 0 10px rgba(233, 196, 106, 0.35);
+  filter: brightness(1.04);
 }
 
 /* Ice Blue (#A0D2EB) low-opacity text overlays */

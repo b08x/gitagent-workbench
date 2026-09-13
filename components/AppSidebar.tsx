@@ -72,7 +72,14 @@ export function AppSidebar({
       title: "Repository",
       items: [
         { title: "Version History", url: "/workbench/history", icon: History },
-        { title: "Git Sync", url: "/workbench/git", icon: GitBranch },
+        { 
+          title: "Git Repository", 
+          url: "/workbench/git", 
+          icon: GitBranch, 
+          badge: state.git?.isInitialized 
+            ? (state.git.sync.ahead > 0 ? `↑${state.git.sync.ahead} ${state.git.currentBranch}` : state.git.currentBranch)
+            : undefined 
+        },
         { title: "Import Agent", url: "/import", icon: UploadCloud },
       ]
     },
@@ -241,7 +248,7 @@ export function AppSidebar({
               </>
             ) : (
               <>
-                <Moon className="size-4 text-[#E76F51]" />
+                <Moon className="size-4 text-[#A0D2EB]" />
                 {!collapsed && <span>Dark Mode</span>}
               </>
             )}
@@ -254,7 +261,7 @@ export function AppSidebar({
             title="Settings"
             className={cn(
               "text-[#A0D2EB]/70 hover:text-foreground hover:bg-[#A0D2EB]/10",
-              location.pathname === '/settings' && "bg-[#A0D2EB]/10 text-foreground border-l-2 border-[#E76F51]",
+              location.pathname === '/settings' && "bg-[#A0D2EB]/10 text-foreground border-l-2 border-[#A0D2EB]",
               !collapsed && "flex-1 justify-start gap-2 text-xs"
             )}
           >

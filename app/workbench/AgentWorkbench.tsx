@@ -171,13 +171,13 @@ export function AgentWorkbench() {
       {/* Top Action & Breadcrumb Bar */}
       <div className="h-14 border-b border-[#A0D2EB]/15 bg-[#172129]/85 backdrop-blur-md px-5 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="size-8 rounded-sm bg-[#E76F51]/15 text-[#E76F51] border border-[#E76F51]/30 flex items-center justify-center warm-glow-sm shrink-0">
+          <div className="size-8 rounded-sm bg-[#1E2833] text-[#A0D2EB] border border-[#A0D2EB]/30 flex items-center justify-center shadow-xs shrink-0">
             <Cpu className="size-4.5" />
           </div>
           <div className="flex items-center gap-2 truncate">
             <span className="font-bold text-sm tracking-tight text-foreground font-sans">Agent Builder</span>
             <span className="text-[#A0D2EB]/40 text-xs">/</span>
-            <span className="font-mono text-xs font-bold text-[#E76F51] truncate">
+            <span className="font-mono text-xs font-bold text-foreground truncate">
               {state.manifest.name || "untitled-agent"}
             </span>
             <Badge 
@@ -199,24 +199,39 @@ export function AgentWorkbench() {
           <div className="hidden lg:flex items-center gap-3 px-3 py-1 bg-[#141A20]/80 border border-[#A0D2EB]/15 rounded-sm text-[11px] font-mono">
             <span className="text-[#A0D2EB]/60">TOKENS: <strong className="text-foreground font-bold">{tokenEstimate.toLocaleString()}</strong></span>
             <span className="text-[#A0D2EB]/20">|</span>
-            <span className="text-[#A0D2EB]/60">SKILLS: <strong className="text-[#E76F51] font-bold">{state.manifest.skills?.length || 0}</strong></span>
+            <span className="text-[#A0D2EB]/60">SKILLS: <strong className="text-foreground font-bold">{state.manifest.skills?.length || 0}</strong></span>
             <span className="text-[#A0D2EB]/20">|</span>
             <span className="text-[#A0D2EB]/60">RISK: <strong className="text-foreground font-bold">{state.manifest.compliance?.risk_tier || 'T1'}</strong></span>
           </div>
 
+          {/* Git Branch & Status Pill */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/workbench/git')}
+            className="text-xs font-mono gap-1.5 border-[#A0D2EB]/20 text-[#A0D2EB] hover:bg-[#A0D2EB]/10"
+            title="Git Repository & Sync"
+          >
+            <GitBranch className="size-3.5 text-[#A0D2EB]" />
+            <span className="hidden md:inline">{state.git?.currentBranch || 'main'}</span>
+            {state.git?.sync?.ahead > 0 && (
+              <span className="text-[10px] font-bold text-primary">↑{state.git.sync.ahead}</span>
+            )}
+          </Button>
+
           <Button 
-            variant={isArchitectMode ? "default" : "outline"}
+            variant="outline"
             size="sm" 
             onClick={() => setSearchParams({ tab: isArchitectMode ? activeStep : 'architect' })}
             className={cn(
               "text-xs font-medium gap-1.5",
               isArchitectMode 
-                ? "bg-[#E76F51] text-white hover:bg-[#d96b43]" 
+                ? "bg-[#A0D2EB]/20 text-white border-[#A0D2EB]/40 font-semibold" 
                 : "border-[#A0D2EB]/20 text-[#A0D2EB] hover:bg-[#A0D2EB]/10"
             )}
             title="Toggle Conversational AI Architect Studio"
           >
-            <Sparkles className="size-3.5 text-[#E76F51]" />
+            <Sparkles className="size-3.5 text-[#A0D2EB]" />
             <span className="hidden sm:inline">AI Architect</span>
           </Button>
 
@@ -226,7 +241,7 @@ export function AgentWorkbench() {
             onClick={() => navigate('/workbench/chat')}
             className="text-xs font-medium gap-1.5 border-[#A0D2EB]/20 text-[#A0D2EB] hover:bg-[#A0D2EB]/10"
           >
-            <MessageSquare className="size-3.5 text-[#E76F51]" />
+            <MessageSquare className="size-3.5 text-[#A0D2EB]" />
             <span className="hidden sm:inline">Test in Lab</span>
           </Button>
 
@@ -278,14 +293,14 @@ export function AgentWorkbench() {
                     className={cn(
                       "flex items-center gap-2.5 px-3 py-1.5 rounded-sm transition-all cursor-pointer text-left group",
                       isCurrent 
-                        ? "bg-[#1E2833] border border-[#E76F51]/50 shadow-[0_0_12px_rgba(231,111,81,0.12)]" 
+                        ? "bg-[#1E2833] border border-[#A0D2EB]/35 shadow-xs" 
                         : "hover:bg-[#A0D2EB]/5 border border-transparent"
                     )}
                   >
                     <div className={cn(
                       "size-6 rounded-full flex items-center justify-center text-[11px] font-mono font-bold transition-all shrink-0",
                       isCurrent 
-                        ? "bg-gradient-to-r from-[#E76F51] to-[#E9C46A] text-[#141A20] shadow-xs" 
+                        ? "bg-[#A0D2EB] text-[#141A20] shadow-xs" 
                         : isPast 
                         ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
                         : "bg-[#1E2833] text-[#A0D2EB]/50 border border-[#A0D2EB]/20 group-hover:text-foreground"
