@@ -1,0 +1,47 @@
+{
+  "stage": "facts",
+  "title": "Local Agent Context Management",
+  "goalSlug": "local-agent-context-management",
+  "facts": [
+    {
+      "id": "fact-install-script",
+      "text": "The installation process is a `curl | bash` script that features a rich Terminal User Interface (TUI) designed using `gum`.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-host-scan",
+      "text": "The system scans the host environment to detect configurations for Antigravity, Claude Code, Hermes-agent (including profiles), mistral-vibe, and opencode.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-harness-distinctions",
+      "text": "The system's importer logic distinguishes between how each supported harness handles its agents, sub-agents, skills, and plugins, applying specific parsing rules for each.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-hybrid-backend",
+      "text": "The imported context is stored and managed using a hybrid contextual backend comprising a Vector Database and a Relational Database (e.g., Chroma + SQLite).",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-ax-debate",
+      "text": "The project includes an explicit architectural exploration phase to evaluate the inclusion of specific `ax-` libraries, specifically prioritizing `ax-agent-memory-skills`, `ax-agent-optimize`, and `ax-agent-observability` alongside core DSPy patterns.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": false,
+      "automatedVerification": false
+    }
+  ]
+}

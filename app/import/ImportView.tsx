@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAgentWorkspace } from '../context/AgentContext';
-import { parseCLAUDEmd } from '../../lib/gitagent/parseCLAUDEmd';
-import { parseGeminiSettings } from '../../lib/gitagent/parseGeminiSettings';
+import { getAdapter } from '../../lib/gitagent/adapters';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -20,7 +19,7 @@ export function ImportView() {
   const { state, dispatch } = useAgentWorkspace();
   const navigate = useNavigate();
   const [content, setContent] = useState('');
-  const [parsed, setParsed] = useState<ReturnType<typeof parseCLAUDEmd> | null>(null);
+  const [parsed, setParsed] = useState<any | null>(null);
   const [selectedFields, setSelectedFields] = useState<Record<string, boolean>>({});
   const [strategies, setStrategies] = useState<Record<string, MergeStrategy>>({});
   const [importSuccess, setImportSuccess] = useState(false);
@@ -29,21 +28,22 @@ export function ImportView() {
   const [geminiMd, setGeminiMd] = useState('');
   const [geminiSettings, setGeminiSettings] = useState('');
 
-  const handleParse = () => {
+  const handleParse = async () => {
     if (!content.trim()) return;
-    const result = parseCLAUDEmd(content);
+    const adapter = getAdapter('claude_code');
+    const result = await adapter.import({ rawContent: content });
     setParsed(result);
     
     // Default selections
     const initialSelected: Record<string, boolean> = {};
     const initialStrategies: Record<string, MergeStrategy> = {};
     
-    if (result.partial.manifest) initialSelected.manifest = true;
-    if (result.partial.soul) initialSelected.soul = true;
-    if (result.partial.rules) initialSelected.rules = true;
-    if (Object.keys(result.partial.skills || {}).length > 0) initialSelected.skills = true;
-    if (Object.keys(result.partial.tools || {}).length > 0) initialSelected.tools = true;
-    if (result.partial.memoryBootstrap) initialSelected.memory = true;
+    if (result.partialWorkspace.manifest) initialSelected.manifest = true;
+    if (result.partialWorkspace.soul) initialSelected.soul = true;
+    if (result.partialWorkspace.rules) initialSelected.rules = true;
+    if (Object.keys(result.partialWorkspace.skills || {}).length > 0) initialSelected.skills = true;
+    if (Object.keys(result.partialWorkspace.tools || {}).length > 0) initialSelected.tools = true;
+    if (result.partialWorkspace.memoryBootstrap) initialSelected.memory = true;
 
     Object.keys(initialSelected).forEach(key => {
       initialStrategies[key] = 'overwrite';
@@ -54,30 +54,19 @@ export function ImportView() {
     setImportSuccess(false);
   };
 
-  const handleGeminiParse = () => {
+  const handleGeminiParse = async () => {
     if (!geminiMd.trim()) return;
     
-    const mdResult = parseCLAUDEmd(geminiMd);
-    const settingsResult = parseGeminiSettings(geminiSettings);
+    const claudeAdapter = getAdapter('claude_code');
+    const antigravityAdapter = getAdapter('google_antigravity');
+
+    const mdResult = await claudeAdapter.import({ rawContent: geminiMd });
+    const settingsResult = await antigravityAdapter.import({ rawContent: geminiSettings });
     
-    const combinedPartial = { ...mdResult.partial };
+    const combinedPartial = { ...mdResult.partialWorkspace, ...settingsResult.partialWorkspace };
     const combinedWarnings = [...mdResult.warnings, ...settingsResult.warnings];
 
-    if (settingsResult.modelPreferred || settingsResult.tools || settingsResult.humanInTheLoop) {
-      combinedPartial.manifest = {
-        ...combinedPartial.manifest,
-        name: combinedPartial.manifest?.name || 'agent',
-        version: combinedPartial.manifest?.version || '0.1.0',
-        description: combinedPartial.manifest?.description || '',
-        model: settingsResult.modelPreferred ? { preferred: settingsResult.modelPreferred } : combinedPartial.manifest?.model,
-        tools: settingsResult.tools || combinedPartial.manifest?.tools,
-        compliance: settingsResult.humanInTheLoop ? {
-          ...combinedPartial.manifest?.compliance,
-          risk_tier: combinedPartial.manifest?.compliance?.risk_tier || 'low',
-          supervision: { human_in_the_loop: settingsResult.humanInTheLoop }
-        } : combinedPartial.manifest?.compliance
-      };
-    }
+    // The adapters now return proper partialWorkspaces that are already merged above.
 
     setParsed({ partial: combinedPartial, warnings: combinedWarnings });
 
@@ -104,7 +93,7 @@ export function ImportView() {
   const handleImport = () => {
     if (!parsed) return;
 
-    const { partial } = parsed;
+    const { partialWorkspace: partial } = parsed;
     let newWorkspace = { ...state };
 
     const applyField = (key: string, value: any) => {
@@ -229,8 +218,8 @@ export function ImportView() {
                             <Label htmlFor={`select-${field}`} className="font-bold capitalize">{field}</Label>
                           </div>
                           <Badge variant="secondary">
-                            {field === 'skills' ? Object.keys(parsed.partial.skills || {}).length : 
-                             field === 'tools' ? Object.keys(parsed.partial.tools || {}).length : 1} items
+                            {field === 'skills' ? Object.keys(parsed.partialWorkspace.skills || {}).length : 
+                             field === 'tools' ? Object.keys(parsed.partialWorkspace.tools || {}).length : 1} items
                           </Badge>
                         </div>
 
@@ -357,8 +346,8 @@ export function ImportView() {
                             <Label htmlFor={`gemini-select-${field}`} className="font-bold capitalize">{field}</Label>
                           </div>
                           <Badge variant="secondary">
-                            {field === 'skills' ? Object.keys(parsed.partial.skills || {}).length : 
-                             field === 'tools' ? Object.keys(parsed.partial.tools || {}).length : 1} items
+                            {field === 'skills' ? Object.keys(parsed.partialWorkspace.skills || {}).length : 
+                             field === 'tools' ? Object.keys(parsed.partialWorkspace.tools || {}).length : 1} items
                           </Badge>
                         </div>
 

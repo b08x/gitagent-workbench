@@ -1,0 +1,28 @@
+{
+	"version": 1,
+	"name": "gitagent-workbench",
+	"people": [
+		{
+			"id": "person_01M0G0ZEKE9K3FATX8A2HBSSBX",
+			"displayName": "Robert Pannick",
+			"gitEmails": [
+				"rwpannick@gmail.com"
+			],
+			"gitNames": [
+				"Robert Pannick"
+			]
+		}
+	],
+	"agents": [
+		{
+			"id": "agent_01M0F46GJK1XVWGVS50ZWYCF02",
+			"name": "git-history-agent",
+			"description": "Historical board retrofit from git history"
+		},
+		{
+			"id": "agent_01M0D7WDPYD7QXGG2TQ9QDN4HX",
+			"name": "Antigravity",
+			"description": "Antigravity Agent"
+		}
+	]
+}

@@ -1,0 +1,48 @@
+{
+  "stage": "facts",
+  "title": "Local Agent Context Management",
+  "goalSlug": "local-agent-context-management",
+  "facts": [
+    {
+      "id": "fact-install-script",
+      "text": "The installation process is a `curl | bash` script that features a rich Terminal User Interface (TUI) designed using `gum`.",
+      "accepted": true,
+      "removed": false,
+      "automatedVerification": true,
+      "recommendedAutomatedVerification": true
+    },
+    {
+      "id": "fact-host-scan",
+      "text": "The system scans the host environment to detect configurations for Antigravity, Claude Code, Hermes-agent (including profiles), mistral-vibe, and opencode.",
+      "accepted": true,
+      "removed": false,
+      "automatedVerification": true,
+      "recommendedAutomatedVerification": true
+    },
+    {
+      "id": "fact-harness-distinctions",
+      "text": "The system's importer logic distinguishes between how each supported harness handles its agents, sub-agents, skills, and plugins, applying specific parsing rules for each.",
+      "accepted": true,
+      "removed": false,
+      "automatedVerification": true,
+      "recommendedAutomatedVerification": true
+    },
+    {
+      "id": "fact-hybrid-backend",
+      "text": "The imported context is stored and managed using a hybrid contextual backend comprising a Vector Database and a Relational Database (e.g., Chroma + SQLite).",
+      "accepted": true,
+      "removed": false,
+      "comment": "## Chunking strategy\n\nRecursive delimiter descent. Delimiter priority `['\\n\\n','\\n','.','?','!',',',' ']`; within a\n`maxLength` window take the *last* occurrence of the highest-priority delimiter present, include the\ndelimiter in the chunk, advance. No delimiter → hard cut at `maxLength`. Character-based, not token-based.\n\n## RRF fusion\n\nConstant `k = 60` in both implementations. Score per candidate: `Σ 1/(k + rank_i + 1)` over each\nretriever that returned it. No per-retriever weighting.\n\nRetrievers:\n\n1. **BM25** — FTS5 `MATCH`, `ORDER BY bm25(...) ASC` (lower is better), `LIMIT 20`.\n2. **Vector KNN** — sqlite-vec `embedding MATCH ? ORDER BY distance`, `LIMIT topK*10`, then\n   dedupe chunk→entity keeping the nearest chunk per entity (this is the over-fetch that makes\n   child-chunk embedding safe).\n3. **SQL LIKE fallback** (`agent.ts` only) — AND-ed `LIKE` across session metadata columns; additive,\n   not conditional on BM25 failing.\n\nKnown rough edges - `chunkText` is character-based; a token-based cap is more accurate for embedding models with a\n  real token limit.\n- `agent.ts` docstring says \"top 2 sessions per query\" but the code slices `.slice(0, 1)`.\n- `search.ts` `queryCommand` passes the raw query to FTS5 `MATCH`; `agent.ts` sanitizes via\n  `buildSafeFtsQuery` (quote-escape + phrase-wrap). Use the sanitizing path everywhere.\n- `k = 60` and the `LIMIT 20` / `topK*10` fan-outs are hardcoded; make them config.",
+      "automatedVerification": true,
+      "recommendedAutomatedVerification": true
+    },
+    {
+      "id": "fact-ax-debate",
+      "text": "The project includes an explicit architectural exploration phase to evaluate the inclusion of specific `ax-` libraries, specifically  `ax-agent-optimize`, and `ax-agent-observability` alongside core DSPy patterns.",
+      "accepted": true,
+      "removed": false,
+      "automatedVerification": false,
+      "recommendedAutomatedVerification": false
+    }
+  ]
+}

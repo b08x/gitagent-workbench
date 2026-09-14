@@ -4,7 +4,7 @@ import { useAgentWorkspace } from '../context/AgentContext';
 import { serializeWorkspace, downloadZip } from '../../lib/gitagent/serializer';
 import { assembleCLAUDEmd } from '../../lib/gitagent/assembleCLAUDEmd';
 import { exportGeminiZip } from '../../lib/gitagent/exportGemini';
-import { exportToHermesPython } from '../../lib/gitagent/adapters/hermes-python';
+import { getAdapter } from '../../lib/gitagent/adapters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -53,9 +53,14 @@ export function ExportView() {
     URL.revokeObjectURL(url);
   };
 
-  const handleGeneratePython = () => {
-    const result = exportToHermesPython(state);
-    setPythonExport(result);
+  const handleGeneratePython = async () => {
+    try {
+      const adapter = getAdapter('hermes_agent');
+      const result = await adapter.export({ workspace: state });
+      setPythonExport({ source: result.files[0].content, filename: result.files[0].filename });
+    } catch (error) {
+      console.error('Failed to generate Hermes python:', error);
+    }
   };
 
   const handleDownloadPython = () => {

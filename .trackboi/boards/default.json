@@ -1,0 +1,24 @@
+{
+	"id": "default",
+	"version": 1,
+	"name": "gitagent-workbench",
+	"columns": [
+		{
+			"id": "backlog",
+			"name": "Backlog"
+		},
+		{
+			"id": "todo",
+			"name": "To Do"
+		},
+		{
+			"id": "doing",
+			"name": "Doing"
+		},
+		{
+			"id": "done",
+			"name": "Done"
+		}
+	],
+	"customFields": []
+}

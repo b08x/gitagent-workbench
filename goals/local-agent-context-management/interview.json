@@ -1,0 +1,64 @@
+{
+  "stage": "interview",
+  "title": "Local Agent Context Management",
+  "goalSlug": "local-agent-context-management",
+  "questions": [
+    {
+      "id": "host-scanning",
+      "prompt": "Which host directories or agent configurations should the Docker container target for scanning and importing?",
+      "description": "We need to mount these into the container to read them.",
+      "answerMode": "multi-custom",
+      "recommendedAnswer": "Antigravity and Hermes config directories.",
+      "recommendedOptionIds": ["antigravity", "hermes"],
+      "options": [
+        { "id": "antigravity", "label": "Antigravity (~/.gemini)" },
+        { "id": "hermes", "label": "Hermes-agent (~/.config/hermes or similar)" },
+        { "id": "claude", "label": "Claude Code (~/.claude)" }
+      ],
+      "required": true
+    },
+    {
+      "id": "ax-libraries",
+      "prompt": "Which ax- libraries (advanced agentic patterns) should we prioritize evaluating for inclusion?",
+      "description": "You mentioned this should be up for debate. Let's select the candidates to research.",
+      "answerMode": "multi-custom",
+      "recommendedAnswer": "Evaluate all for applicability, but prioritize ax-llm as the foundation.",
+      "recommendedOptionIds": ["ax-llm", "ax-signature", "ax-refine", "ax-gepa"],
+      "options": [
+        { "id": "ax-llm", "label": "ax-llm (Core LLM abstractions)" },
+        { "id": "ax-signature", "label": "ax-signature (DSPy-style signatures)" },
+        { "id": "ax-refine", "label": "ax-refine (Iterative refinement loops)" },
+        { "id": "ax-gepa", "label": "ax-gepa (General Purpose Agent architecture)" }
+      ],
+      "required": true
+    },
+    {
+      "id": "hybrid-backend",
+      "prompt": "What should the 'hybrid contextual backend' consist of?",
+      "description": "This stores the imported context and makes it available to agents.",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "A vector database (for semantic search) combined with a graph database (for entity relationships).",
+      "recommendedOptionIds": ["vector-graph"],
+      "options": [
+        { "id": "vector-graph", "label": "Vector DB + Graph DB (e.g. pgvector + Neo4j/Graphify)" },
+        { "id": "vector-sql", "label": "Vector DB + Relational DB (e.g. Chroma + SQLite)" },
+        { "id": "file-vector", "label": "Local File System + Vector DB" }
+      ],
+      "required": true
+    },
+    {
+      "id": "installation",
+      "prompt": "What is the preferred 'one-line install' experience?",
+      "description": "How will the user run this system?",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "A docker run command that automatically mounts the necessary host directories.",
+      "recommendedOptionIds": ["docker-run"],
+      "options": [
+        { "id": "docker-run", "label": "Direct `docker run` command with volume mounts" },
+        { "id": "curl-bash", "label": "`curl | bash` script that sets up the container and mounts" },
+        { "id": "docker-compose", "label": "`docker compose up` from a downloaded url" }
+      ],
+      "required": true
+    }
+  ]
+}
