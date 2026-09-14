@@ -1,18 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
-  Bot, 
-  Terminal, 
-  Zap, 
-  Workflow, 
-  Database, 
-  MessageSquare, 
-  FileCode, 
-  History, 
-  GitBranch, 
-  Download, 
-  UploadCloud, 
   Settings, 
   Sun, 
   Moon, 
@@ -20,8 +9,11 @@ import {
   ChevronLeft, 
   ChevronRight,
   Sparkles,
-  ShieldCheck,
-  CheckCircle2,
+  History, 
+  GitBranch, 
+  Download, 
+  UploadCloud, 
+  MessageSquare, 
   Cpu
 } from 'lucide-react';
 import { useAgentWorkspace } from '../app/context/AgentContext';
@@ -63,7 +55,7 @@ export function AppSidebar({
       title: "Workspace",
       items: [
         { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-        { title: "Agent Builder", url: "/workbench/agent", icon: Cpu, badge: "Stepper" },
+        { title: "Agent Builder", url: "/workbench/agent", icon: Cpu, badge: "SPEC" },
         { title: "Test Lab", url: "/workbench/chat", icon: MessageSquare },
         { title: "Release & Export", url: "/export", icon: Download },
       ]
@@ -95,35 +87,35 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "h-screen shrink-0 border-r border-[#A0D2EB]/15 bg-gradient-to-b from-[#232323] to-[#1A2630] text-sidebar-foreground flex flex-col transition-all duration-200 z-30 select-none shadow-md",
-        collapsed ? "w-16" : "w-64"
+        "h-screen shrink-0 border-r border-border bg-surface-container-low text-foreground flex flex-col transition-none z-30 select-none",
+        collapsed ? "w-14" : "w-60"
       )}
     >
       {/* Brand & Collapse Header */}
       <div className={cn(
-        "h-14 border-b border-[#A0D2EB]/15 flex items-center px-3 gap-2.5",
+        "h-12 border-b border-border flex items-center px-3 gap-2 bg-surface-container",
         collapsed ? "justify-center" : "justify-between"
       )}>
         {!collapsed ? (
-          <Link to="/dashboard" className="flex items-center gap-2.5 group overflow-hidden">
-            <div className="size-8 rounded-sm bg-[#1E2833] border border-[#A0D2EB]/30 flex items-center justify-center text-[#F2F7FA] font-mono font-bold text-sm tracking-tighter shrink-0">
+          <Link to="/dashboard" className="flex items-center gap-2 group overflow-hidden">
+            <div className="size-7 bg-[#171611] border border-[#171611] flex items-center justify-center text-[#fcf9f2] font-mono font-bold text-xs tracking-tighter shrink-0">
               GA
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-sm tracking-tight text-foreground font-sans">GitAgent</span>
-                <span className="text-[10px] font-mono text-[#A0D2EB]/70 px-1 py-0.2 bg-[#A0D2EB]/10 rounded-sm">
-                  OS
+                <span className="font-bold text-xs tracking-tight text-foreground font-sans">GitAgent</span>
+                <span className="text-[9px] font-mono text-muted-foreground px-1 py-0.2 bg-surface-container-high border border-border/50">
+                  PAPER&INK
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-[#A0D2EB]/60 truncate">
+              <span className="text-[9px] font-mono text-muted-foreground truncate">
                 Workbench v1.4
               </span>
             </div>
           </Link>
         ) : (
           <Link to="/dashboard" title="GitAgent Workbench">
-            <div className="size-8 rounded-sm bg-[#1E2833] border border-[#A0D2EB]/30 flex items-center justify-center text-[#F2F7FA] font-mono font-bold text-sm tracking-tighter">
+            <div className="size-7 bg-[#171611] border border-[#171611] flex items-center justify-center text-[#fcf9f2] font-mono font-bold text-xs tracking-tighter">
               GA
             </div>
           </Link>
@@ -133,21 +125,21 @@ export function AppSidebar({
           onClick={() => setCollapsed(prev => !prev)}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className={cn(
-            "size-7 rounded-sm flex items-center justify-center text-[#A0D2EB]/60 hover:text-foreground hover:bg-[#A0D2EB]/10 transition-colors shrink-0",
+            "size-6 border border-border flex items-center justify-center text-foreground hover:bg-surface-container-highest transition-none shrink-0 cursor-pointer bg-surface",
             collapsed && "hidden"
           )}
         >
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className="size-3.5" />
         </button>
       </div>
 
       {/* When collapsed, a tiny uncollapse button strip */}
       {collapsed && (
-        <div className="py-1 flex justify-center border-b border-[#A0D2EB]/10">
+        <div className="py-1 flex justify-center border-b border-border bg-surface-container-low">
           <button
             onClick={() => setCollapsed(false)}
             title="Expand sidebar"
-            className="size-6 rounded-sm flex items-center justify-center text-[#A0D2EB]/60 hover:text-foreground hover:bg-[#A0D2EB]/10 transition-colors"
+            className="size-6 border border-border flex items-center justify-center text-foreground hover:bg-surface-container-highest transition-none cursor-pointer bg-surface"
           >
             <ChevronRight className="size-3.5" />
           </button>
@@ -155,16 +147,16 @@ export function AppSidebar({
       )}
 
       {/* Navigation List */}
-      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-5">
+      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
         {navSections.map((section) => (
           <div key={section.title} className="space-y-1">
             {!collapsed && (
-              <div className="px-2 pb-1 text-xs font-semibold text-[#A0D2EB]/70">
+              <div className="px-2 pb-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {section.title}
               </div>
             )}
 
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {section.items.map(item => {
                 const isActive = location.pathname === item.url || (item.url !== '/dashboard' && location.pathname.startsWith(item.url));
                 const Icon = item.icon;
@@ -175,16 +167,16 @@ export function AppSidebar({
                     to={item.url}
                     title={collapsed ? item.title : undefined}
                     className={cn(
-                      "flex items-center gap-3 rounded-sm text-xs font-medium transition-all group relative font-sans",
-                      collapsed ? "justify-center h-9 px-0" : "h-8.5 px-2.5",
+                      "flex items-center gap-2.5 text-xs font-sans font-medium transition-none group relative",
+                      collapsed ? "justify-center h-8 px-0" : "h-7.5 px-2.5",
                       isActive
-                        ? "bg-white/10 text-white border-l-2 border-[#A0D2EB] font-semibold shadow-xs"
-                        : "text-[#A0D2EB]/70 hover:text-foreground hover:bg-[#A0D2EB]/5"
+                        ? "bg-[#171611] text-[#fcf9f2] border border-[#171611] font-semibold"
+                        : "text-foreground hover:bg-surface-container-high border border-transparent"
                     )}
                   >
                     <Icon className={cn(
-                      "size-4 shrink-0 transition-colors",
-                      isActive ? "text-[#A0D2EB]" : "text-[#A0D2EB]/60 group-hover:text-foreground"
+                      "size-3.5 shrink-0",
+                      isActive ? "text-[#fcf9f2]" : "text-muted-foreground group-hover:text-foreground"
                     )} />
                     
                     {!collapsed && (
@@ -193,10 +185,10 @@ export function AppSidebar({
 
                     {!collapsed && item.badge && (
                       <span className={cn(
-                        "text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-sm shrink-0",
+                        "text-[9px] font-mono font-medium px-1 py-0.2 shrink-0 border",
                         isActive 
-                          ? "bg-[#A0D2EB]/20 text-[#F2F7FA]" 
-                          : "bg-[#A0D2EB]/10 text-[#A0D2EB]/80 group-hover:text-foreground"
+                          ? "bg-[#a03e3d] text-white border-[#a03e3d]" 
+                          : "bg-surface-container-highest text-muted-foreground border-border"
                       )}>
                         {item.badge}
                       </span>
@@ -210,62 +202,62 @@ export function AppSidebar({
       </div>
 
       {/* Bottom Pinned Utilities */}
-      <div className="mt-auto border-t border-[#A0D2EB]/15 p-2 space-y-1.5 bg-[#172129]/60">
-        {/* Active Agent Status Pill */}
+      <div className="mt-auto border-t border-border p-2 space-y-2 bg-surface-container">
+        {/* Active Agent Status Card */}
         {!collapsed && (
-          <div className="px-2.5 py-1.5 rounded-sm bg-[#1A2630]/90 flex items-center justify-between shadow-xs">
+          <div className="p-2 border border-border bg-surface flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="size-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="size-2 bg-[#1f2f00] border border-[#2c2a25] status-circle shrink-0" />
               <div className="truncate">
-                <p className="text-[10px] font-mono text-[#A0D2EB]/60">Active Agent</p>
-                <p className="text-xs font-mono font-semibold text-foreground truncate">
+                <p className="text-[9px] font-mono uppercase text-muted-foreground">ACTIVE MANIFEST</p>
+                <p className="text-xs font-mono font-bold text-foreground truncate">
                   {state.manifest.name || "untitled-agent"}
                 </p>
               </div>
             </div>
-            <Badge variant="outline" className="text-[9px] font-mono font-medium text-[#A0D2EB] bg-[#A0D2EB]/10 border-0 px-1.5 py-0.5">
+            <span className="text-[9px] font-mono font-bold text-[#a03e3d] bg-secondary-fixed px-1.5 py-0.5 border border-[#a03e3d]">
               {state.manifest.compliance?.risk_tier || "T1"}
-            </Badge>
+            </span>
           </div>
         )}
 
         {/* Global Actions */}
         <div className={cn("flex items-center gap-1", collapsed ? "flex-col" : "justify-between")}>
           <Button
-            variant="ghost"
+            variant="outline"
             size={collapsed ? "icon-sm" : "sm"}
             onClick={toggleTheme}
-            title={settings.theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            title={settings.theme === 'dark' ? "Switch to Paper & Ink Light Mode" : "Switch to Inverse Charcoal Mode"}
             className={cn(
-              "text-[#A0D2EB]/70 hover:text-foreground hover:bg-[#A0D2EB]/10",
-              !collapsed && "flex-1 justify-start gap-2 text-xs"
+              "border-border bg-surface text-foreground hover:bg-surface-container-high",
+              !collapsed && "flex-1 justify-start gap-1.5 text-xs font-sans h-7"
             )}
           >
             {settings.theme === 'dark' ? (
               <>
-                <Sun className="size-4 text-[#E9C46A]" />
-                {!collapsed && <span>Light Mode</span>}
+                <Sun className="size-3.5 text-[#a03e3d]" />
+                {!collapsed && <span>Paper Mode</span>}
               </>
             ) : (
               <>
-                <Moon className="size-4 text-[#A0D2EB]" />
-                {!collapsed && <span>Dark Mode</span>}
+                <Moon className="size-3.5 text-[#171611]" />
+                {!collapsed && <span>Ink Mode</span>}
               </>
             )}
           </Button>
 
           <Button
-            variant="ghost"
+            variant="outline"
             size={collapsed ? "icon-sm" : "sm"}
             onClick={() => navigate('/settings')}
             title="Settings"
             className={cn(
-              "text-[#A0D2EB]/70 hover:text-foreground hover:bg-[#A0D2EB]/10",
-              location.pathname === '/settings' && "bg-[#A0D2EB]/10 text-foreground border-l-2 border-[#A0D2EB]",
-              !collapsed && "flex-1 justify-start gap-2 text-xs"
+              "border-border bg-surface text-foreground hover:bg-surface-container-high",
+              location.pathname === '/settings' && "bg-[#171611] text-[#fcf9f2] border-[#171611]",
+              !collapsed && "flex-1 justify-start gap-1.5 text-xs font-sans h-7"
             )}
           >
-            <Settings className="size-4" />
+            <Settings className="size-3.5" />
             {!collapsed && <span>Settings</span>}
           </Button>
         </div>

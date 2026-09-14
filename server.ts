@@ -702,8 +702,39 @@ async function startServer() {
     // Execute LLM for refined specification if API key is present
     let finalSpec = baseSpec;
     if (apiKey) {
+      let heartbeatCount = 0;
+      const heartbeatStages = [
+        { label: `Synthesizing deep instructions & persona values for ${framework}...`, progress: 94 },
+        { label: `Formulating operational boundaries, safety invariants, and constraints (RULES.md)...`, progress: 95 },
+        { label: `Mapping executable tool signatures and schema definitions to ${framework} runtime...`, progress: 96 },
+        { label: `Executing deep reasoning pass for domain skills and parameter contracts...`, progress: 97 },
+        { label: `Validating output schema against ${framework} agent harness matrix...`, progress: 98 },
+        { label: `Compiling multi-document injection slots (MANIFEST, SOUL, RULES)...`, progress: 98 },
+        { label: `Deep LLM generation in progress: parsing structured specification tokens...`, progress: 99 },
+        { label: `Finalizing specification integrity checks and preparing live workspace...`, progress: 99 },
+      ];
+
+      const heartbeatInterval = setInterval(() => {
+        if (res.writableEnded || res.destroyed) {
+          clearInterval(heartbeatInterval);
+          return;
+        }
+        heartbeatCount++;
+        const item = heartbeatStages[Math.min(heartbeatCount - 1, heartbeatStages.length - 1)];
+        sendEvent('stage', {
+          stage: 'finalizing',
+          label: item.label,
+          progress: item.progress
+        });
+      }, 4500);
+
+      req.on('close', () => {
+        clearInterval(heartbeatInterval);
+      });
+
       try {
         const llmResult = await executeUniversalGeneration(providerId, cleanModelId, apiKey, prompt, options);
+        clearInterval(heartbeatInterval);
         if (llmResult?.object?.manifest) {
           finalSpec = {
             ...baseSpec,
@@ -715,6 +746,7 @@ async function startServer() {
           };
         }
       } catch (e: any) {
+        clearInterval(heartbeatInterval);
         console.warn("Stream LLM refinement fell back to built-in synthesis:", e.message);
       }
     }

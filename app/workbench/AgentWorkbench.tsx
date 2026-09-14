@@ -499,70 +499,70 @@ export function AgentWorkbench() {
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() => setShowHealthBreakdown(prev => !prev)}
                 >
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70 flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
                     Specification Health
                   </span>
                   <div className="flex items-center gap-1.5">
                     <span className={cn(
                       "text-xs font-mono font-bold",
-                      completeness === 100 ? "text-emerald-400" : completeness > 50 ? "text-[#E9C46A]" : "text-[#E76F51]"
+                      completeness === 100 ? "text-[#1f2f00]" : completeness > 50 ? "text-foreground" : "text-[#a03e3d]"
                     )}>
                       {completeness}%
                     </span>
-                    <span className="text-[10px] text-[#A0D2EB]/60">
+                    <span className="text-[10px] text-muted-foreground">
                       {showHealthBreakdown ? '▲' : '▼'}
                     </span>
                   </div>
                 </div>
 
                 {state.isCompilingSpec && (
-                  <div className="flex items-center justify-between text-[10px] font-mono text-[#E76F51] bg-[#E76F51]/5 px-2 py-1 rounded-sm border border-[#E76F51]/20 animate-pulse">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-[#a03e3d] bg-surface-container px-2 py-1 rounded-none border border-border">
                     <span className="flex items-center gap-1.5 truncate">
                       <Loader2 className="size-2.5 animate-spin shrink-0" />
-                      <span className="truncate">{state.compilationStage || 'Streaming partial specification...'}</span>
+                      <span className="truncate font-medium">{state.compilationStage || 'Synthesizing specification...'}</span>
                     </span>
-                    <span className="text-[#A0D2EB]/60 shrink-0 ml-1">⏱ {((state.compilationElapsed || 0) / 10).toFixed(1)}s</span>
+                    <span className="text-muted-foreground shrink-0 ml-1">⏱ {((state.compilationElapsed || 0) / 10).toFixed(1)}s</span>
                   </div>
                 )}
 
-                <div className="w-full h-1.5 bg-[#1E2833] rounded-full overflow-hidden">
+                <div className="w-full h-1.5 bg-muted rounded-none overflow-hidden">
                   <div 
                     className={cn(
-                      "h-full transition-all duration-300 rounded-full",
-                      completeness === 100 ? "bg-emerald-400" : "bg-gradient-to-r from-[#E76F51] to-[#E9C46A]"
+                      "h-full transition-all duration-300 rounded-none",
+                      completeness === 100 ? "bg-[#1f2f00]" : "bg-[#a03e3d]"
                     )}
                     style={{ width: `${completeness}%` }}
                   />
                 </div>
 
-                <p className="text-[10px] text-[#A0D2EB]/60 leading-tight">
+                <p className="text-[10px] text-muted-foreground leading-tight">
                   {completeness === 100 
-                    ? "✓ Full specification configured. Ready to synthesize or export." 
+                    ? "✓ Full specification configured. Ready to test in lab or inspect files." 
                     : `${metCriteriaCount} of ${healthChecklist.length} requirements met. Click items to complete.`}
                 </p>
 
                 {showHealthBreakdown && (
-                  <div className="pt-2 border-t border-[#A0D2EB]/15 space-y-1.5 animate-in fade-in duration-150">
+                  <div className="pt-2 border-t border-border space-y-1.5">
                     {healthChecklist.map((item) => (
                       <div 
                         key={item.id}
                         onClick={() => handleStepChange(item.step)}
                         className={cn(
-                          "p-1.5 rounded text-[10px] font-mono flex items-center justify-between cursor-pointer transition-colors",
+                          "p-1.5 rounded-none text-[10px] font-mono flex items-center justify-between cursor-pointer transition-none",
                           item.met 
-                            ? "bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/10" 
-                            : "bg-[#1E2833]/50 text-[#A0D2EB]/70 hover:bg-[#1E2833] hover:text-foreground"
+                            ? "bg-surface-container text-[#1f2f00] hover:bg-surface-container-high" 
+                            : "bg-surface-container-low text-muted-foreground hover:bg-surface-container hover:text-foreground border border-border/50"
                         )}
                       >
                         <div className="flex items-center gap-1.5 truncate">
                           {item.met ? (
-                            <Check className="size-3 text-emerald-400 shrink-0" />
+                            <Check className="size-3 text-[#1f2f00] shrink-0" />
                           ) : (
-                            <span className="size-3 rounded-full border border-[#A0D2EB]/30 shrink-0 inline-block" />
+                            <span className="size-3 rounded-none border border-border shrink-0 inline-block" />
                           )}
                           <span className={cn("font-medium truncate", !item.met && "text-foreground")}>{item.label}</span>
                         </div>
-                        <span className="text-[9px] opacity-75 shrink-0 ml-1 text-[#A0D2EB]/60">
+                        <span className="text-[9px] opacity-75 shrink-0 ml-1 text-muted-foreground">
                           {item.met ? "Pass" : "Missing →"}
                         </span>
                       </div>
@@ -708,61 +708,116 @@ export function AgentWorkbench() {
                 </div>
               </div>
 
-              <div className="h-px bg-[#A0D2EB]/15" />
+              <div className="h-px bg-border" />
 
               {/* File Injection Slots Overview */}
               <div className="space-y-2">
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70">
+                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
                   File Injection Slots
                 </div>
                 <div className="space-y-1 text-xs font-mono">
-                  <div className="flex items-center justify-between p-2 rounded-sm bg-[#1E2833]/40 border border-[#A0D2EB]/10">
-                    <span className="text-[#A0D2EB]/70 flex items-center gap-1.5">
-                      <FileCode className="size-3 text-[#E76F51]" /> SOUL.md
+                  <button
+                    type="button"
+                    onClick={() => handleStepChange('review')}
+                    className="w-full flex items-center justify-between p-2 rounded-none bg-surface-container-low border border-border hover:border-[#171611] transition-none text-left cursor-pointer group"
+                  >
+                    <span className="text-foreground flex items-center gap-1.5 group-hover:text-[#a03e3d]">
+                      <FileCode className="size-3 text-[#a03e3d]" /> SOUL.md
                     </span>
-                    <Badge variant={state.soul ? "secondary" : "outline"} className="text-[9px]">
-                      {state.soul ? `${Math.round(state.soul.length / 4)} tok` : 'EMPTY'}
-                    </Badge>
-                  </div>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant={state.soul ? "olive" : "outline"} className="text-[9px]">
+                        {state.soul ? `${Math.round(state.soul.length / 4)} tok` : 'EMPTY'}
+                      </Badge>
+                      <ChevronRight className="size-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                    </div>
+                  </button>
 
-                  <div className="flex items-center justify-between p-2 rounded-sm bg-[#1E2833]/40 border border-[#A0D2EB]/10">
-                    <span className="text-[#A0D2EB]/70 flex items-center gap-1.5">
-                      <FileCode className="size-3 text-[#E76F51]" /> RULES.md
+                  <button
+                    type="button"
+                    onClick={() => handleStepChange('review')}
+                    className="w-full flex items-center justify-between p-2 rounded-none bg-surface-container-low border border-border hover:border-[#171611] transition-none text-left cursor-pointer group"
+                  >
+                    <span className="text-foreground flex items-center gap-1.5 group-hover:text-[#a03e3d]">
+                      <FileCode className="size-3 text-[#a03e3d]" /> RULES.md
                     </span>
-                    <Badge variant={state.rules ? "secondary" : "outline"} className="text-[9px]">
-                      {state.rules ? `${Math.round(state.rules.length / 4)} tok` : 'EMPTY'}
-                    </Badge>
-                  </div>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant={state.rules ? "olive" : "outline"} className="text-[9px]">
+                        {state.rules ? `${Math.round(state.rules.length / 4)} tok` : 'EMPTY'}
+                      </Badge>
+                      <ChevronRight className="size-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                    </div>
+                  </button>
 
-                  <div className="flex items-center justify-between p-2 rounded-sm bg-[#1E2833]/40 border border-[#A0D2EB]/10">
-                    <span className="text-[#A0D2EB]/70 flex items-center gap-1.5">
-                      <FileCode className="size-3 text-[#E76F51]" /> PROMPT.md
+                  <button
+                    type="button"
+                    onClick={() => handleStepChange('review')}
+                    className="w-full flex items-center justify-between p-2 rounded-none bg-surface-container-low border border-border hover:border-[#171611] transition-none text-left cursor-pointer group"
+                  >
+                    <span className="text-foreground flex items-center gap-1.5 group-hover:text-[#a03e3d]">
+                      <FileCode className="size-3 text-[#a03e3d]" /> PROMPT.md
                     </span>
-                    <Badge variant={state.prompt_md ? "secondary" : "outline"} className="text-[9px]">
-                      {state.prompt_md ? `${Math.round(state.prompt_md.length / 4)} tok` : 'EMPTY'}
-                    </Badge>
-                  </div>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant={state.prompt_md ? "olive" : "outline"} className="text-[9px]">
+                        {state.prompt_md ? `${Math.round(state.prompt_md.length / 4)} tok` : 'EMPTY'}
+                      </Badge>
+                      <ChevronRight className="size-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                    </div>
+                  </button>
                 </div>
               </div>
 
-              {/* Quick Actions Footer */}
+              {/* Next Recommended Steps Card */}
               <div className="pt-2 space-y-2">
-                <Button 
-                  onClick={() => handleStepChange('review')}
-                  variant="outline" 
-                  className="w-full h-8 rounded-sm text-xs font-medium gap-1.5 justify-center border-[#A0D2EB]/20 text-[#A0D2EB] hover:text-foreground"
-                >
-                  <Code2 className="size-3.5 text-[#E76F51]" />
-                  <span>Open Step 6: File Editor</span>
-                </Button>
+                <div className="p-3 border-2 border-[#171611] bg-card space-y-2.5 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                      <ArrowRight className="size-3.5 text-[#a03e3d]" /> Next Recommended Step
+                    </span>
+                    <Badge variant="maroon" className="text-[9px]">
+                      READY
+                    </Badge>
+                  </div>
 
-                <Button 
-                  onClick={() => navigate('/export')}
-                  className="w-full h-8.5 rounded-sm bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5"
-                >
-                  <Download className="size-3.5" />
-                  <span>Export Agent Bundle</span>
-                </Button>
+                  {/* Primary Next Action */}
+                  <Button 
+                    onClick={() => navigate('/workbench/chat')}
+                    variant="maroon"
+                    className="w-full h-8.5 rounded-none text-xs font-semibold gap-1.5 justify-center shadow-xs"
+                  >
+                    <MessageSquare className="size-3.5" />
+                    <span>1. Test in Agent Lab →</span>
+                  </Button>
+
+                  {/* Secondary Next Action */}
+                  <Button 
+                    onClick={() => handleStepChange('review')}
+                    variant="outline" 
+                    className="w-full h-8 rounded-none text-xs font-medium gap-1.5 justify-center border-border hover:border-[#171611] text-foreground"
+                  >
+                    <Code2 className="size-3.5 text-[#a03e3d]" />
+                    <span>2. Review in File Editor</span>
+                  </Button>
+
+                  {/* Other Actions Row */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-border/50">
+                    <Button 
+                      onClick={() => navigate('/workbench/skills')}
+                      variant="ghost" 
+                      size="xs"
+                      className="h-7 text-[10px] font-mono gap-1 justify-center text-muted-foreground hover:text-foreground hover:bg-surface-container"
+                    >
+                      <Zap className="size-3 text-[#a03e3d]" /> Skills
+                    </Button>
+                    <Button 
+                      onClick={() => navigate('/export')}
+                      variant="ghost" 
+                      size="xs"
+                      className="h-7 text-[10px] font-mono gap-1 justify-center text-muted-foreground hover:text-foreground hover:bg-surface-container"
+                    >
+                      <Download className="size-3 text-[#a03e3d]" /> Export ZIP
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
