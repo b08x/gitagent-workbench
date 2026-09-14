@@ -36,8 +36,26 @@ export function synthesizeAgentSpec(promptText: string, contextSummary: string =
   let domain = 'general-assistant';
   let title = 'Agent';
   let description = '';
+  let name = 'custom-agent';
 
-  if (lower.includes('research') || lower.includes('pdf') || lower.includes('search') || lower.includes('rag') || lower.includes('scrape') || lower.includes('scraping')) {
+  // Attempt to extract existing manifest JSON from the prompt
+  let existingManifest: any = null;
+  const jsonMatch = promptText.match(/```json\s*([\s\S]*?)\s*```/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[1]);
+      if (parsed.name || parsed.description) {
+        existingManifest = parsed;
+      }
+    } catch (e) {}
+  }
+
+  if (existingManifest) {
+    name = existingManifest.name || 'custom-agent';
+    description = existingManifest.description || 'Autonomous specialist agent.';
+    title = name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    domain = name;
+  } else if (lower.includes('research') || lower.includes('pdf') || lower.includes('search') || lower.includes('rag') || lower.includes('scrape') || lower.includes('scraping')) {
     domain = 'research-analyst';
     title = 'Deep Research & Document Intelligence Specialist';
     description = 'Analyzes multi-source documents, verifies citations, and produces structured technical research dossiers.';
@@ -66,11 +84,13 @@ export function synthesizeAgentSpec(promptText: string, contextSummary: string =
     const words = cleanPrompt.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).slice(0, 4).filter(Boolean);
     domain = words.join('-').toLowerCase() || 'custom-agent';
     title = words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Custom Specialist Agent';
-    description = `An autonomous AI specialist engineered to execute: ${cleanPrompt.slice(0, 120)}.`;
+    description = `An autonomous AI specialist engineered to execute: ${cleanPrompt.slice(0, 120).replace(/```.*/gs, '').trim()}.`;
   }
 
   // Sanitize kebab-case name
-  const name = domain.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'custom-agent';
+  if (!existingManifest) {
+    name = domain.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'custom-agent';
+  }
 
   // Automatically infer framework tools for primary skills
   const coreSkillName = `${name}-core-ops`;
@@ -94,7 +114,8 @@ export function synthesizeAgentSpec(promptText: string, contextSummary: string =
   const auditToolsStr = auditSkillInference.tools.map(t => `\`${t}\``).join(', ');
 
   const soul = `## Core Identity
-You are **${title}**, an autonomous AI specialist purpose-built to execute high-precision workflows: "${cleanPrompt}".
+You are **${title}**, an autonomous AI specialist purpose-built to execute high-precision workflows.
+${description}
 
 ## Emotional Baseline & Temperament
 - **Composed & Analytical**: Calm, measured, and resolute when evaluating edge cases or encountering system faults.
@@ -354,6 +375,15 @@ For extended documentation and error runbooks, use:
   // 6. Check for Specific Markdown Files / Fields (SOUL.md, RULES.md, DUTIES.md, PROMPT.md, SKILL.md)
   const spec = synthesizeAgentSpec(userText || 'Specialist Agent', '', targetFramework);
 
+  // 6. Single field drafting / improvement (e.g. description, role, etc.)
+  if (systemText.includes('field:') || systemText.includes('specifically, you are generating')) {
+    if (systemText.includes('name') || systemText.includes('Name')) return { text: spec.manifest.name };
+    if (systemText.includes('description') || systemText.includes('Core Identity')) return { text: spec.manifest.description };
+    if (systemText.includes('soul') || systemText.includes('Values') || systemText.includes('Communication') || systemText.includes('Domain Expertise')) return { text: spec.soul };
+    if (systemText.includes('rules') || systemText.includes('Must Always') || systemText.includes('Must Never')) return { text: spec.rules };
+  }
+
+  // 7. Check for Specific Markdown Files (SOUL.md, RULES.md, DUTIES.md, PROMPT.md, SKILL.md)
   if (systemText.includes('soul-md') || systemText.includes('SOUL.md') || userText.includes('SOUL.md') || userText.includes('Emotion Matrix')) {
     return { text: spec.soul };
   }
@@ -397,14 +427,6 @@ You are **${spec.manifest.name}**, an autonomous specialist agent.
 
   if (systemText.includes('skill-md') || systemText.includes('SKILL.md') || userText.includes('SKILL.md')) {
     return { text: spec.skills };
-  }
-
-  // Single field drafting / improvement (e.g. description, role, etc.)
-  if (systemText.includes('field:') || systemText.includes('specifically, you are generating')) {
-    if (systemText.includes('name') || systemText.includes('Name')) return { text: spec.manifest.name };
-    if (systemText.includes('description') || systemText.includes('Core Identity')) return { text: spec.manifest.description };
-    if (systemText.includes('soul') || systemText.includes('Values') || systemText.includes('Communication') || systemText.includes('Domain Expertise')) return { text: spec.soul };
-    if (systemText.includes('rules') || systemText.includes('Must Always') || systemText.includes('Must Never')) return { text: spec.rules };
   }
 
   // Default fallback text response
