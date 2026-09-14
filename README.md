@@ -22,24 +22,66 @@ A visual development environment for creating production-ready AI agents through
 - **Compliance Framework** — Risk assessment and governance controls for enterprise deployment
 - **Export System** — Complete agent packages delivered as downloadable ZIP archives
 
-## Installation
+## Installation & Setup (After Initial Clone)
 
-<details>
-<summary>Development Setup (Recommended)</summary>
+### 1. Frontend Setup (React Application)
+
+The frontend provides the main visual wizard and workbenches for configuring agents.
 
 ```bash
-git clone <repository-url>
-cd gitagent-workbench
+# From the repository root
 npm install
 npm run dev
 ```
 
 The development server runs on `http://localhost:3000` with external access enabled.
 
-</details>
+### 2. Environment Variables
+
+Create `.env.local` in the project root with your AI provider credentials. These are used by the frontend for the AI generation pipeline:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-proj-...
+GOOGLE_API_KEY=AIza...       # Or GEMINI_API_KEY
+MISTRAL_API_KEY=...
+OPENROUTER_API_KEY=sk-or-...
+```
+
+### 3. Local Context Backend Setup (Semantic Search & RAG)
+
+The repository now includes `local-context-backend`, a standalone containerized service that acts as a unified knowledge graph and context backend for your local AI agent configurations (Hermes, Claude Code, Antigravity, etc.).
+
+This service uses `tiktoken` for accurate text chunking and `sqlite-vec` / `FTS5` for Hybrid Reciprocal Rank Fusion (RRF) retrieval.
+
+**To run the backend locally:**
+
+```bash
+cd local-context-backend
+npm install
+npm run build
+npm start
+```
+
+*Note: The backend requires `sqlite3` and `sqlite-vec` native bindings, which will compile during `npm install`. Make sure you have python and build-essential/g++ installed on your host if building outside of Docker.*
+
+**To run the backend via Docker (Recommended):**
+
+```bash
+cd local-context-backend
+docker build -t local-context-backend .
+docker run -d -p 3000:3000 \
+  -v ~/.gemini:/configs/antigravity \
+  -v ~/.claude:/configs/claude \
+  -v ~/.hermes:/configs/hermes \
+  -v local_context_db:/data \
+  local-context-backend
+```
+
+*This automatically mounts your host configuration paths into the container so the ingestion pipeline can access them.*
 
 <details>
-<summary>Production Build</summary>
+<summary>Production Build (Frontend)</summary>
 
 ```bash
 npm run build
@@ -89,21 +131,6 @@ npm run clean    # Remove build artifacts
 ```
 
 ## Configuration
-
-### Environment Variables
-
-Create `.env.local` in the project root with AI provider credentials:
-
-```bash
-# Choose one or more providers
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-proj-...
-GOOGLE_API_KEY=AIza...
-MISTRAL_API_KEY=...
-OPENROUTER_API_KEY=sk-or-...
-```
-
-The application validates available providers at runtime and surfaces configuration options through the settings interface.
 
 ### Settings Management
 
