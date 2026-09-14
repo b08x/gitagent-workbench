@@ -29,3 +29,24 @@ services:
       - VITE_PORT=3000
     env_file:
       - .env.local
+
+  # Local Agent Context Backend
+  context-backend:
+    build:
+      context: ./local-context-backend
+      dockerfile: Dockerfile
+    container_name: local-context-backend
+    ports:
+      - "3001:3000"
+    volumes:
+      - ~/.gemini:/configs/antigravity:ro
+      - ~/.claude:/configs/claude:ro
+      - ~/.hermes:/configs/hermes:ro
+      - local_context_db:/data
+    environment:
+      - DATABASE_PATH=/data/context.db
+      - PORT=3000
+    restart: unless-stopped
+
+volumes:
+  local_context_db:
