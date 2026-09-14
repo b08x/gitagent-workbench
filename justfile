@@ -66,6 +66,18 @@ up:
 up-build:
     docker-compose up -d --build
 
+# Hard rebuild: Stop containers, remove orphans, clear build cache & dangling images, then force recreate
+rebuild:
+    docker-compose down --remove-orphans
+    docker image prune -f
+    docker builder prune -f
+    docker-compose up -d --build --force-recreate
+
+# Nuke Docker state for this project: Remove containers, volumes, all project images, and prune system cache
+docker-nuke:
+    docker-compose down -v --rmi all --remove-orphans
+    docker system prune -f
+
 # View logs for all services
 logs:
     docker-compose logs -f
