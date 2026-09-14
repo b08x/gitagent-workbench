@@ -172,39 +172,34 @@ export function AgentWorkbench() {
   return (
     <div className="h-full w-full overflow-hidden flex flex-col bg-transparent text-foreground select-text">
       {/* Top Action & Breadcrumb Bar */}
-      <div className="h-14 border-b border-[#A0D2EB]/15 bg-[#172129]/85 backdrop-blur-md px-5 flex items-center justify-between shrink-0 z-20">
+      <div className="h-14 border-b border-border bg-background px-5 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="size-8 rounded-sm bg-[#1E2833] text-[#A0D2EB] border border-[#A0D2EB]/30 flex items-center justify-center shadow-xs shrink-0">
+          <div className="size-8 rounded-none bg-muted text-foreground border border-border flex items-center justify-center shrink-0">
             <Cpu className="size-4.5" />
           </div>
           <div className="flex items-center gap-2 truncate">
-            <span className="font-bold text-sm tracking-tight text-foreground font-sans">Agent Builder</span>
-            <span className="text-[#A0D2EB]/40 text-xs">/</span>
+            <span className="font-mono font-bold text-xs uppercase tracking-wider text-foreground">Agent Builder</span>
+            <span className="text-muted-foreground text-xs">/</span>
             <span className="font-mono text-xs font-bold text-foreground truncate">
               {state.manifest.name || "untitled-agent"}
             </span>
             <Badge 
-              variant="outline" 
-              className={cn(
-                "font-mono text-[9px] px-1.5 py-0 uppercase",
-                completeness === 100 
-                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" 
-                  : "bg-[#E9C46A]/10 text-[#E9C46A] border-[#E9C46A]/30"
-              )}
+              variant={completeness === 100 ? "green" : "amber"} 
+              className="text-[9px] px-1.5 py-0"
             >
-              {completeness}% Configured
+              {completeness}% SPECIFIED
             </Badge>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Quick Metrics Bar */}
-          <div className="hidden lg:flex items-center gap-3 px-3 py-1 bg-[#141A20]/80 border border-[#A0D2EB]/15 rounded-sm text-[11px] font-mono">
-            <span className="text-[#A0D2EB]/60">TOKENS: <strong className="text-foreground font-bold">{tokenEstimate.toLocaleString()}</strong></span>
-            <span className="text-[#A0D2EB]/20">|</span>
-            <span className="text-[#A0D2EB]/60">SKILLS: <strong className="text-foreground font-bold">{state.manifest.skills?.length || 0}</strong></span>
-            <span className="text-[#A0D2EB]/20">|</span>
-            <span className="text-[#A0D2EB]/60">RISK: <strong className="text-foreground font-bold">{state.manifest.compliance?.risk_tier || 'T1'}</strong></span>
+          {/* Quick Metrics Bar: Entity-first */}
+          <div className="hidden lg:flex items-center gap-3 px-3 py-1 bg-muted border border-border rounded-none text-[11px] font-mono">
+            <span className="text-muted-foreground">PAYLOAD // <strong className="text-foreground font-bold">{tokenEstimate.toLocaleString()} tok</strong></span>
+            <span className="text-border">|</span>
+            <span className="text-muted-foreground">HARNESS // <strong className="text-foreground font-bold">{state.manifest.skills?.length || 0} skills</strong></span>
+            <span className="text-border">|</span>
+            <span className="text-muted-foreground">GOVERNANCE // <strong className="text-foreground font-bold">{state.manifest.compliance?.risk_tier || 'T1'}</strong></span>
           </div>
 
           {/* Git Branch & Status Pill */}
@@ -212,29 +207,29 @@ export function AgentWorkbench() {
             variant="outline"
             size="sm"
             onClick={() => navigate('/workbench/git')}
-            className="text-xs font-mono gap-1.5 border-[#A0D2EB]/20 text-[#A0D2EB] hover:bg-[#A0D2EB]/10"
+            className="text-xs font-mono gap-1.5 border-border text-foreground hover:bg-muted"
             title="Git Repository & Sync"
           >
-            <GitBranch className="size-3.5 text-[#A0D2EB]" />
+            <GitBranch className="size-3.5 text-foreground" />
             <span className="hidden md:inline">{state.git?.currentBranch || 'main'}</span>
             {state.git?.sync?.ahead > 0 && (
-              <span className="text-[10px] font-bold text-primary">↑{state.git.sync.ahead}</span>
+              <span className="text-[10px] font-bold text-[#b45309]">↑{state.git.sync.ahead}</span>
             )}
           </Button>
 
           <Button 
-            variant="outline"
+            variant="outline" 
             size="sm" 
             onClick={() => setSearchParams({ tab: isArchitectMode ? activeStep : 'architect' })}
             className={cn(
-              "text-xs font-medium gap-1.5",
+              "text-xs font-medium gap-1.5 font-sans",
               isArchitectMode 
-                ? "bg-[#A0D2EB]/20 text-white border-[#A0D2EB]/40 font-semibold" 
-                : "border-[#A0D2EB]/20 text-[#A0D2EB] hover:bg-[#A0D2EB]/10"
+                ? "bg-muted text-foreground border-primary font-semibold" 
+                : "border-border text-foreground hover:bg-muted"
             )}
             title="Toggle Conversational AI Architect Studio"
           >
-            <Sparkles className="size-3.5 text-[#A0D2EB]" />
+            <Sparkles className="size-3.5 text-[#b45309]" />
             <span className="hidden sm:inline">AI Architect</span>
           </Button>
 
@@ -242,9 +237,9 @@ export function AgentWorkbench() {
             variant="outline" 
             size="sm" 
             onClick={() => navigate('/workbench/chat')}
-            className="text-xs font-medium gap-1.5 border-[#A0D2EB]/20 text-[#A0D2EB] hover:bg-[#A0D2EB]/10"
+            className="text-xs font-medium gap-1.5 border-border text-foreground hover:bg-muted font-sans"
           >
-            <MessageSquare className="size-3.5 text-[#A0D2EB]" />
+            <MessageSquare className="size-3.5 text-foreground" />
             <span className="hidden sm:inline">Test in Lab</span>
           </Button>
 
@@ -253,17 +248,17 @@ export function AgentWorkbench() {
             size="sm" 
             onClick={() => setShowResetDialog(true)}
             title="Reset or restart agent builder session"
-            className="text-xs font-mono gap-1.5 border-border text-foreground hover:border-[#171611]"
+            className="text-xs font-mono gap-1.5 border-border text-foreground hover:border-primary"
           >
-            <RotateCcw className="size-3.5 text-[#a03e3d]" />
+            <RotateCcw className="size-3.5 text-muted-foreground" />
             <span className="hidden md:inline">Reset</span>
           </Button>
 
           <Button 
-            variant="warm"
+            variant="default"
             size="sm" 
             onClick={() => dispatch({ type: 'SAVE_SNAPSHOT', payload: 'Manual Save' })}
-            className="text-xs gap-1.5"
+            className="text-xs gap-1.5 font-sans"
           >
             <Save className="size-3.5" />
             <span className="hidden sm:inline">Snapshot</span>
@@ -274,7 +269,7 @@ export function AgentWorkbench() {
             size="icon-sm" 
             onClick={() => navigate('/export')}
             title="Export Repository ZIP"
-            className="text-[#A0D2EB]/70 hover:text-foreground border-[#A0D2EB]/20 hover:bg-[#A0D2EB]/10"
+            className="text-muted-foreground hover:text-foreground border-border hover:bg-muted"
           >
             <Download className="size-3.5" />
           </Button>
@@ -284,7 +279,7 @@ export function AgentWorkbench() {
             size="icon-sm" 
             onClick={() => setShowInspector(prev => !prev)}
             title={showInspector ? "Hide Inspector Panel" : "Show Inspector Panel"}
-            className={cn("text-[#A0D2EB]/70 hover:text-foreground", showInspector && "bg-[#A0D2EB]/10 text-foreground")}
+            className={cn("text-muted-foreground hover:text-foreground", showInspector && "bg-muted text-foreground")}
           >
             <SlidersHorizontal className="size-4" />
           </Button>
@@ -293,7 +288,7 @@ export function AgentWorkbench() {
 
       {/* Explicit Stepper Component Header */}
       {!isArchitectMode && (
-        <div className="border-b border-[#A0D2EB]/15 bg-[#141A20]/70 px-4 sm:px-6 py-2.5 shrink-0 overflow-x-auto select-none">
+        <div className="border-b border-border bg-muted/30 px-4 sm:px-6 py-2.5 shrink-0 overflow-x-auto select-none">
           <nav className="flex items-center justify-between min-w-max gap-2 sm:gap-4">
             {WIZARD_STEPS.map((step, index) => {
               const Icon = step.icon;
@@ -305,19 +300,19 @@ export function AgentWorkbench() {
                   <button
                     onClick={() => handleStepChange(step.id)}
                     className={cn(
-                      "flex items-center gap-2.5 px-3 py-1.5 rounded-sm transition-all cursor-pointer text-left group",
+                      "flex items-center gap-2.5 px-3 py-1.5 rounded-none transition-none cursor-pointer text-left group",
                       isCurrent 
-                        ? "bg-[#1E2833] border border-[#A0D2EB]/35 shadow-xs" 
-                        : "hover:bg-[#A0D2EB]/5 border border-transparent"
+                        ? "bg-card border border-primary shadow-xs" 
+                        : "hover:bg-muted border border-transparent"
                     )}
                   >
                     <div className={cn(
-                      "size-6 rounded-full flex items-center justify-center text-[11px] font-mono font-bold transition-all shrink-0",
+                      "size-6 rounded-none flex items-center justify-center text-[11px] font-mono font-bold transition-none shrink-0",
                       isCurrent 
-                        ? "bg-[#A0D2EB] text-[#141A20] shadow-xs" 
+                        ? "bg-primary text-primary-foreground" 
                         : isPast 
-                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
-                        : "bg-[#1E2833] text-[#A0D2EB]/50 border border-[#A0D2EB]/20 group-hover:text-foreground"
+                        ? "bg-[#1f6a38]/15 text-[#1f6a38] border border-[#1f6a38]/30" 
+                        : "bg-background text-muted-foreground border border-border group-hover:text-foreground"
                     )}>
                       {isPast ? <Check className="size-3.5 stroke-[2.5]" /> : step.number}
                     </div>
@@ -325,18 +320,18 @@ export function AgentWorkbench() {
                     <div className="flex flex-col min-w-0">
                       <span className={cn(
                         "text-xs font-semibold font-sans leading-none",
-                        isCurrent ? "text-foreground" : isPast ? "text-foreground/90" : "text-[#A0D2EB]/60 group-hover:text-foreground"
+                        isCurrent ? "text-foreground" : isPast ? "text-foreground/90" : "text-muted-foreground group-hover:text-foreground"
                       )}>
                         {step.title}
                       </span>
-                      <span className="text-[10px] text-[#A0D2EB]/40 font-mono hidden md:inline leading-tight mt-0.5">
+                      <span className="text-[10px] text-muted-foreground font-mono hidden md:inline leading-tight mt-0.5">
                         {step.subtitle}
                       </span>
                     </div>
                   </button>
 
                   {index < WIZARD_STEPS.length - 1 && (
-                    <div className="h-px w-6 sm:w-10 bg-[#A0D2EB]/15 shrink-0 hidden sm:block" />
+                    <div className="h-px w-6 sm:w-10 bg-border shrink-0 hidden sm:block" />
                   )}
                 </React.Fragment>
               );
@@ -358,7 +353,7 @@ export function AgentWorkbench() {
               <>
                 {activeStep === 'runtime' && (
                   <div className="max-w-4xl mx-auto space-y-6">
-                    <div className="p-4 bg-[#141A20]/40 border border-[#A0D2EB]/15 rounded-md">
+                    <div className="p-4 bg-card border border-border rounded-none">
                       <RuntimeFrameworkStep />
                     </div>
                   </div>
@@ -366,7 +361,7 @@ export function AgentWorkbench() {
 
                 {activeStep === 'identity' && (
                   <div className="max-w-4xl mx-auto space-y-6">
-                    <div className="p-4 bg-[#141A20]/40 border border-[#A0D2EB]/15 rounded-md">
+                    <div className="p-4 bg-card border border-border rounded-none">
                       <IdentityStep />
                     </div>
                   </div>
@@ -374,7 +369,7 @@ export function AgentWorkbench() {
 
                 {activeStep === 'capabilities' && (
                   <div className="max-w-4xl mx-auto space-y-6">
-                    <div className="p-4 bg-[#141A20]/40 border border-[#A0D2EB]/15 rounded-md">
+                    <div className="p-4 bg-card border border-border rounded-none">
                       <CapabilitiesStep />
                     </div>
                   </div>
@@ -382,17 +377,17 @@ export function AgentWorkbench() {
 
                 {activeStep === 'model' && (
                   <div className="max-w-4xl mx-auto space-y-6">
-                    <div className="p-4 bg-[#141A20]/40 border border-[#A0D2EB]/15 rounded-md">
+                    <div className="p-4 bg-card border border-border rounded-none">
                       <ModelStep hideGeneration={true} />
                     </div>
 
                     {/* Live Compiled System Prompt Preview */}
-                    <div className="p-4 bg-[#141A20]/60 border border-[#A0D2EB]/15 rounded-md space-y-3">
+                    <div className="p-4 bg-card border border-border rounded-none space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Terminal className="size-4 text-[#E76F51]" />
+                          <Terminal className="size-4 text-[#b45309]" />
                           <span className="text-xs font-mono font-semibold text-foreground">Compiled System Instructions</span>
-                          <Badge variant="outline" className="text-[10px] font-mono border-[#A0D2EB]/20 text-[#A0D2EB]/80">
+                          <Badge variant="outline" className="text-[10px] font-mono border-border">
                             {tokenEstimate} tokens
                           </Badge>
                         </div>
@@ -400,13 +395,13 @@ export function AgentWorkbench() {
                           variant="ghost" 
                           size="xs" 
                           onClick={copySystemPrompt}
-                          className="text-xs font-mono text-[#A0D2EB]/70 hover:text-foreground"
+                          className="text-xs font-mono text-muted-foreground hover:text-foreground"
                         >
-                          {copiedPrompt ? <Check className="size-3 text-emerald-400 mr-1" /> : <Copy className="size-3 mr-1" />}
+                          {copiedPrompt ? <Check className="size-3 text-[#1f6a38] mr-1" /> : <Copy className="size-3 mr-1" />}
                           {copiedPrompt ? "Copied" : "Copy Instructions"}
                         </Button>
                       </div>
-                      <pre className="font-mono text-[11px] leading-relaxed text-[#A0D2EB]/90 whitespace-pre-wrap max-h-56 overflow-y-auto p-3 bg-[#172129] rounded-sm border border-[#A0D2EB]/10">
+                      <pre className="font-mono text-[11px] leading-relaxed text-foreground whitespace-pre-wrap max-h-56 overflow-y-auto p-3 bg-muted rounded-none border border-border">
                         {assembledPrompt}
                       </pre>
                     </div>
@@ -430,27 +425,28 @@ export function AgentWorkbench() {
 
           {/* Sticky Stepper Action Footer */}
           {!isArchitectMode && (
-            <div className="h-14 border-t border-[#A0D2EB]/15 bg-[#172129]/90 backdrop-blur-md px-6 flex items-center justify-between shrink-0 z-10 select-none">
+            <div className="h-14 border-t border-border bg-background px-6 flex items-center justify-between shrink-0 z-10 select-none">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handlePrevStep}
                 disabled={currentStepIndex === 0}
-                className="text-xs border-[#A0D2EB]/20 text-[#A0D2EB]/80 hover:text-foreground disabled:opacity-30"
+                className="text-xs border-border text-foreground hover:bg-muted disabled:opacity-30 font-mono"
               >
                 <ChevronLeft className="size-3.5 mr-1" /> Back
               </Button>
 
-              <div className="flex items-center gap-2 text-xs font-mono text-[#A0D2EB]/70">
-                <span>Step {currentStepIndex + 1} of {WIZARD_STEPS.length}:</span>
-                <span className="font-semibold text-foreground">{currentStep.title}</span>
+              <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+                <span>STEP {currentStepIndex + 1} OF {WIZARD_STEPS.length}:</span>
+                <span className="font-bold text-foreground">{currentStep.title.toUpperCase()}</span>
               </div>
 
               <div>
                 {currentStepIndex < 4 && (
                   <Button
                     onClick={handleNextStep}
-                    className="bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs h-9 px-4 rounded-sm shadow-md flex items-center gap-1.5"
+                    variant="amber"
+                    className="font-semibold text-xs h-9 px-4 rounded-none shadow-xs flex items-center gap-1.5"
                   >
                     Continue to {WIZARD_STEPS[currentStepIndex + 1].title}
                     <ChevronRight className="size-3.5" />
@@ -460,7 +456,8 @@ export function AgentWorkbench() {
                 {currentStepIndex === 4 && (
                   <Button
                     onClick={handleNextStep}
-                    className="bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs h-9 px-4 rounded-sm shadow-md flex items-center gap-1.5"
+                    variant="amber"
+                    className="font-semibold text-xs h-9 px-4 rounded-none shadow-xs flex items-center gap-1.5"
                   >
                     Continue to Review & Edit
                     <ChevronRight className="size-3.5" />
@@ -470,7 +467,8 @@ export function AgentWorkbench() {
                 {currentStepIndex === 5 && (
                   <Button
                     onClick={() => navigate('/export')}
-                    className="bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs h-9 px-4 rounded-sm shadow-md flex items-center gap-1.5"
+                    variant="amber"
+                    className="font-semibold text-xs h-9 px-4 rounded-none shadow-xs flex items-center gap-1.5"
                   >
                     Export Agent Bundle (ZIP)
                     <Download className="size-3.5" />
@@ -483,22 +481,22 @@ export function AgentWorkbench() {
 
         {/* Right Inspector / Action Panel */}
         {showInspector && (
-          <div className="w-80 shrink-0 border-l border-[#A0D2EB]/15 bg-[#141A20]/80 flex flex-col overflow-hidden select-none">
+          <div className="w-80 shrink-0 border-l border-border bg-card flex flex-col overflow-hidden select-none">
             {/* Inspector Header */}
-            <div className="h-11 px-4 border-b border-[#A0D2EB]/15 bg-[#141A20] flex items-center justify-between shrink-0">
+            <div className="h-11 px-4 border-b border-border bg-muted flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70 flex items-center gap-1.5">
-                  <Sliders className="size-3 text-[#E76F51]" /> Inspector & Specs
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <Sliders className="size-3 text-[#b45309]" /> Inspector & Specs
                 </span>
                 {state.isCompilingSpec && (
-                  <Badge variant="outline" className="text-[9px] font-mono text-[#E76F51] bg-[#E76F51]/10 border-[#E76F51]/30 flex items-center gap-1 py-0 px-1.5 h-4">
-                    <span className="size-1.5 rounded-full bg-[#E76F51] animate-ping" /> Live
+                  <Badge variant="outline" className="text-[9px] font-mono text-[#b45309] bg-[#b45309]/10 border-[#b45309]/30 flex items-center gap-1 py-0 px-1.5 h-4">
+                    <span className="size-1.5 rounded-none bg-[#b45309] animate-ping" /> Live
                   </Badge>
                 )}
               </div>
               <button 
                 onClick={() => setShowInspector(false)}
-                className="text-[#A0D2EB]/50 hover:text-foreground text-xs"
+                className="text-muted-foreground hover:text-foreground text-xs"
                 title="Close Inspector"
               >
                 ✕
@@ -508,7 +506,7 @@ export function AgentWorkbench() {
             {/* Inspector Form Controls */}
             <div className="flex-1 overflow-y-auto p-4 space-y-5">
               {/* Specification Health Interactive Checklist Card */}
-              <div className="p-3 rounded-sm bg-[#172129] border border-[#A0D2EB]/15 space-y-2.5">
+              <div className="p-3 rounded-none bg-background border border-border space-y-2.5">
                 <div 
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() => setShowHealthBreakdown(prev => !prev)}
@@ -519,7 +517,7 @@ export function AgentWorkbench() {
                   <div className="flex items-center gap-1.5">
                     <span className={cn(
                       "text-xs font-mono font-bold",
-                      completeness === 100 ? "text-[#1f2f00]" : completeness > 50 ? "text-foreground" : "text-[#a03e3d]"
+                      completeness === 100 ? "text-[#1f6a38]" : "text-[#b45309]"
                     )}>
                       {completeness}%
                     </span>
@@ -530,7 +528,7 @@ export function AgentWorkbench() {
                 </div>
 
                 {state.isCompilingSpec && (
-                  <div className="flex items-center justify-between text-[10px] font-mono text-[#a03e3d] bg-surface-container px-2 py-1 rounded-none border border-border">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-[#b45309] bg-muted px-2 py-1 rounded-none border border-border">
                     <span className="flex items-center gap-1.5 truncate">
                       <Loader2 className="size-2.5 animate-spin shrink-0" />
                       <span className="truncate font-medium">{state.compilationStage || 'Synthesizing specification...'}</span>
@@ -543,7 +541,7 @@ export function AgentWorkbench() {
                   <div 
                     className={cn(
                       "h-full transition-all duration-300 rounded-none",
-                      completeness === 100 ? "bg-[#1f2f00]" : "bg-[#a03e3d]"
+                      completeness === 100 ? "bg-[#1f6a38]" : "bg-[#b45309]"
                     )}
                     style={{ width: `${completeness}%` }}
                   />
@@ -564,19 +562,19 @@ export function AgentWorkbench() {
                         className={cn(
                           "p-1.5 rounded-none text-[10px] font-mono flex items-center justify-between cursor-pointer transition-none",
                           item.met 
-                            ? "bg-surface-container text-[#1f2f00] hover:bg-surface-container-high" 
-                            : "bg-surface-container-low text-muted-foreground hover:bg-surface-container hover:text-foreground border border-border/50"
+                            ? "bg-muted/60 text-[#1f6a38] hover:bg-muted" 
+                            : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground border border-border"
                         )}
                       >
                         <div className="flex items-center gap-1.5 truncate">
                           {item.met ? (
-                            <Check className="size-3 text-[#1f2f00] shrink-0" />
+                            <Check className="size-3 text-[#1f6a38] shrink-0" />
                           ) : (
                             <span className="size-3 rounded-none border border-border shrink-0 inline-block" />
                           )}
                           <span className={cn("font-medium truncate", !item.met && "text-foreground")}>{item.label}</span>
                         </div>
-                        <span className="text-[9px] opacity-75 shrink-0 ml-1 text-muted-foreground">
+                        <span className={cn("text-[9px] shrink-0 ml-1", item.met ? "text-[#1f6a38]" : "text-[#b45309]")}>
                           {item.met ? "Pass" : "Missing →"}
                         </span>
                       </div>
@@ -587,18 +585,18 @@ export function AgentWorkbench() {
 
               {/* Manifest Metadata */}
               <div className="space-y-3">
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70">
+                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
                   Manifest Metadata
                 </div>
 
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[11px] font-semibold text-foreground">Agent Name</Label>
+                    <Label className="text-[11px] font-semibold text-foreground font-sans">Agent Name</Label>
                     <span className={cn(
                       "text-[9px] font-mono font-bold uppercase",
-                      !hasAgentName ? "text-[#A0D2EB]/50" : isKebabCaseValid ? "text-emerald-400" : "text-destructive"
+                      !hasAgentName ? "text-muted-foreground" : isKebabCaseValid ? "text-[#1f6a38]" : "text-[#b45309]"
                     )}>
-                      {!hasAgentName ? "Draft (Optional)" : isKebabCaseValid ? "Valid Kebab-Case" : "Invalid Format"}
+                      {!hasAgentName ? "Draft (Optional)" : isKebabCaseValid ? "Valid Kebab-Case" : "Format Warning"}
                     </span>
                   </div>
                   <Input 
@@ -608,28 +606,25 @@ export function AgentWorkbench() {
                       payload: { name: e.target.value }
                     })}
                     placeholder="my-agent-name"
-                    className={cn(
-                      "h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20",
-                      hasAgentName && !isKebabCaseValid && "border-destructive focus-visible:ring-destructive/30"
-                    )}
+                    className="h-8 text-xs font-mono rounded-none bg-background border-border"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-foreground">Version</Label>
+                    <Label className="text-[11px] font-semibold text-foreground font-sans">Version</Label>
                     <Input 
                       value={state.manifest.version || '1.0.0'} 
                       onChange={(e) => dispatch({
                         type: 'UPDATE_MANIFEST',
                         payload: { version: e.target.value }
                       })}
-                      className="h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20"
+                      className="h-8 text-xs font-mono rounded-none bg-background border-border"
                     />
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-foreground">Risk Tier</Label>
+                    <Label className="text-[11px] font-semibold text-foreground font-sans">Risk Tier</Label>
                     <Select 
                       value={state.manifest.compliance?.risk_tier || 'T1'}
                       onValueChange={(val) => dispatch({
@@ -637,7 +632,7 @@ export function AgentWorkbench() {
                         payload: { compliance: { ...state.manifest.compliance, risk_tier: val as any } }
                       })}
                     >
-                      <SelectTrigger className="h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20">
+                      <SelectTrigger className="h-8 text-xs font-mono rounded-none bg-background border-border">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -651,8 +646,8 @@ export function AgentWorkbench() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold text-foreground">
-                    Author <span className="text-[10px] font-normal text-[#A0D2EB]/60">(Optional)</span>
+                  <Label className="text-[11px] font-semibold text-foreground font-sans">
+                    Author <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
                   </Label>
                   <Input 
                     value={state.manifest.author || ''} 
@@ -661,12 +656,12 @@ export function AgentWorkbench() {
                       payload: { author: e.target.value }
                     })}
                     placeholder="Author name or team"
-                    className="h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20"
+                    className="h-8 text-xs font-mono rounded-none bg-background border-border"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold text-foreground">Description</Label>
+                  <Label className="text-[11px] font-semibold text-foreground font-sans">Description</Label>
                   <Textarea 
                     value={state.manifest.description || ''} 
                     onChange={(e) => dispatch({
@@ -674,21 +669,21 @@ export function AgentWorkbench() {
                       payload: { description: e.target.value }
                     })}
                     placeholder="Brief description of the agent's responsibilities..."
-                    className="min-h-[64px] text-xs resize-none rounded-sm bg-background border-[#A0D2EB]/20"
+                    className="min-h-[64px] text-xs resize-none rounded-none bg-background border-border font-serif"
                   />
                 </div>
               </div>
 
-              <div className="h-px bg-[#A0D2EB]/15" />
+              <div className="h-px bg-border" />
 
               {/* Memory & Ingestion */}
               <div className="space-y-3">
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70">
+                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
                   Memory & State
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold text-foreground">Memory Strategy</Label>
+                  <Label className="text-[11px] font-semibold text-foreground font-sans">Memory Strategy</Label>
                   <Select 
                     value={state.manifest.memory?.strategy || 'ephemeral'}
                     onValueChange={(val) => dispatch({
@@ -696,7 +691,7 @@ export function AgentWorkbench() {
                       payload: { memory: { ...state.manifest.memory, strategy: val as any } }
                     })}
                   >
-                    <SelectTrigger className="h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20">
+                    <SelectTrigger className="h-8 text-xs font-mono rounded-none bg-background border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -709,7 +704,7 @@ export function AgentWorkbench() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold text-foreground">Max Context Tokens</Label>
+                  <Label className="text-[11px] font-semibold text-foreground font-sans">Max Context Tokens</Label>
                   <Input 
                     type="number"
                     value={state.manifest.memory?.max_tokens || 8192} 
@@ -717,7 +712,7 @@ export function AgentWorkbench() {
                       type: 'UPDATE_MANIFEST',
                       payload: { memory: { ...state.manifest.memory, max_tokens: parseInt(e.target.value) || 8192 } }
                     })}
-                    className="h-8 text-xs font-mono rounded-sm bg-background border-[#A0D2EB]/20"
+                    className="h-8 text-xs font-mono rounded-none bg-background border-border"
                   />
                 </div>
               </div>
@@ -733,13 +728,13 @@ export function AgentWorkbench() {
                   <button
                     type="button"
                     onClick={() => handleStepChange('review')}
-                    className="w-full flex items-center justify-between p-2 rounded-none bg-surface-container-low border border-border hover:border-[#171611] transition-none text-left cursor-pointer group"
+                    className="w-full flex items-center justify-between p-2 rounded-none bg-muted/40 border border-border hover:border-primary transition-none text-left cursor-pointer group"
                   >
-                    <span className="text-foreground flex items-center gap-1.5 group-hover:text-[#a03e3d]">
-                      <FileCode className="size-3 text-[#a03e3d]" /> SOUL.md
+                    <span className="text-foreground flex items-center gap-1.5 group-hover:text-primary">
+                      <FileCode className="size-3 text-muted-foreground" /> SOUL.md
                     </span>
                     <div className="flex items-center gap-1.5">
-                      <Badge variant={state.soul ? "olive" : "outline"} className="text-[9px]">
+                      <Badge variant={state.soul ? "green" : "outline"} className="text-[9px]">
                         {state.soul ? `${Math.round(state.soul.length / 4)} tok` : 'EMPTY'}
                       </Badge>
                       <ChevronRight className="size-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
@@ -749,13 +744,13 @@ export function AgentWorkbench() {
                   <button
                     type="button"
                     onClick={() => handleStepChange('review')}
-                    className="w-full flex items-center justify-between p-2 rounded-none bg-surface-container-low border border-border hover:border-[#171611] transition-none text-left cursor-pointer group"
+                    className="w-full flex items-center justify-between p-2 rounded-none bg-muted/40 border border-border hover:border-primary transition-none text-left cursor-pointer group"
                   >
-                    <span className="text-foreground flex items-center gap-1.5 group-hover:text-[#a03e3d]">
-                      <FileCode className="size-3 text-[#a03e3d]" /> RULES.md
+                    <span className="text-foreground flex items-center gap-1.5 group-hover:text-primary">
+                      <FileCode className="size-3 text-muted-foreground" /> RULES.md
                     </span>
                     <div className="flex items-center gap-1.5">
-                      <Badge variant={state.rules ? "olive" : "outline"} className="text-[9px]">
+                      <Badge variant={state.rules ? "green" : "outline"} className="text-[9px]">
                         {state.rules ? `${Math.round(state.rules.length / 4)} tok` : 'EMPTY'}
                       </Badge>
                       <ChevronRight className="size-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
@@ -765,13 +760,13 @@ export function AgentWorkbench() {
                   <button
                     type="button"
                     onClick={() => handleStepChange('review')}
-                    className="w-full flex items-center justify-between p-2 rounded-none bg-surface-container-low border border-border hover:border-[#171611] transition-none text-left cursor-pointer group"
+                    className="w-full flex items-center justify-between p-2 rounded-none bg-muted/40 border border-border hover:border-primary transition-none text-left cursor-pointer group"
                   >
-                    <span className="text-foreground flex items-center gap-1.5 group-hover:text-[#a03e3d]">
-                      <FileCode className="size-3 text-[#a03e3d]" /> PROMPT.md
+                    <span className="text-foreground flex items-center gap-1.5 group-hover:text-primary">
+                      <FileCode className="size-3 text-muted-foreground" /> PROMPT.md
                     </span>
                     <div className="flex items-center gap-1.5">
-                      <Badge variant={state.prompt_md ? "olive" : "outline"} className="text-[9px]">
+                      <Badge variant={state.prompt_md ? "green" : "outline"} className="text-[9px]">
                         {state.prompt_md ? `${Math.round(state.prompt_md.length / 4)} tok` : 'EMPTY'}
                       </Badge>
                       <ChevronRight className="size-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
@@ -782,12 +777,12 @@ export function AgentWorkbench() {
 
               {/* Next Recommended Steps Card */}
               <div className="pt-2 space-y-2">
-                <div className="p-3 border-2 border-[#171611] bg-card space-y-2.5 shadow-xs">
+                <div className="p-3 border border-border bg-muted/30 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                      <ArrowRight className="size-3.5 text-[#a03e3d]" /> Next Recommended Step
+                      <ArrowRight className="size-3.5 text-[#b45309]" /> Next Recommended Step
                     </span>
-                    <Badge variant="maroon" className="text-[9px]">
+                    <Badge variant="amber" className="text-[9px]">
                       READY
                     </Badge>
                   </div>
@@ -795,8 +790,8 @@ export function AgentWorkbench() {
                   {/* Primary Next Action */}
                   <Button 
                     onClick={() => navigate('/workbench/chat')}
-                    variant="maroon"
-                    className="w-full h-8.5 rounded-none text-xs font-semibold gap-1.5 justify-center shadow-xs"
+                    variant="amber"
+                    className="w-full h-8.5 rounded-none text-xs font-semibold gap-1.5 justify-center shadow-xs font-sans"
                   >
                     <MessageSquare className="size-3.5" />
                     <span>1. Test in Agent Lab →</span>
@@ -806,38 +801,38 @@ export function AgentWorkbench() {
                   <Button 
                     onClick={() => handleStepChange('review')}
                     variant="outline" 
-                    className="w-full h-8 rounded-none text-xs font-medium gap-1.5 justify-center border-border hover:border-[#171611] text-foreground"
+                    className="w-full h-8 rounded-none text-xs font-medium gap-1.5 justify-center border-border hover:border-primary text-foreground font-sans"
                   >
-                    <Code2 className="size-3.5 text-[#a03e3d]" />
+                    <Code2 className="size-3.5 text-[#b45309]" />
                     <span>2. Review in File Editor</span>
                   </Button>
 
                   {/* Other Actions Row */}
-                  <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-border/50">
+                  <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-border">
                     <Button 
                       onClick={() => navigate('/workbench/skills')}
                       variant="ghost" 
                       size="xs"
-                      className="h-7 text-[10px] font-mono gap-1 justify-center text-muted-foreground hover:text-foreground hover:bg-surface-container"
+                      className="h-7 text-[10px] font-mono gap-1 justify-center text-muted-foreground hover:text-foreground hover:bg-muted"
                     >
-                      <Zap className="size-3 text-[#a03e3d]" /> Skills
+                      <Zap className="size-3 text-[#b45309]" /> Skills
                     </Button>
                     <Button 
                       onClick={() => navigate('/export')}
                       variant="ghost" 
                       size="xs"
-                      className="h-7 text-[10px] font-mono gap-1 justify-center text-muted-foreground hover:text-foreground hover:bg-surface-container"
+                      className="h-7 text-[10px] font-mono gap-1 justify-center text-muted-foreground hover:text-foreground hover:bg-muted"
                     >
-                      <Download className="size-3 text-[#a03e3d]" /> Export
+                      <Download className="size-3 text-muted-foreground" /> Export
                     </Button>
                     <Button 
                       onClick={() => setShowResetDialog(true)}
                       variant="ghost" 
                       size="xs"
-                      className="h-7 text-[10px] font-mono gap-1 justify-center text-[#a03e3d] hover:bg-[#a03e3d]/10"
+                      className="h-7 text-[10px] font-mono gap-1 justify-center text-muted-foreground hover:text-foreground hover:bg-muted"
                       title="Reset or restart agent builder"
                     >
-                      <RotateCcw className="size-3 text-[#a03e3d]" /> Reset
+                      <RotateCcw className="size-3 text-muted-foreground" /> Reset
                     </Button>
                   </div>
                 </div>

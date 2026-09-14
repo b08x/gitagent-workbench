@@ -87,25 +87,25 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "h-screen shrink-0 border-r border-border bg-surface-container-low text-foreground flex flex-col transition-none z-30 select-none",
+        "h-screen shrink-0 border-r border-border bg-background text-foreground flex flex-col transition-none z-30 select-none",
         collapsed ? "w-14" : "w-60"
       )}
     >
-      {/* Brand & Collapse Header */}
+      {/* Brand & Collapse Header - Seamless Paper Canvas */}
       <div className={cn(
-        "h-12 border-b border-border flex items-center px-3 gap-2 bg-surface-container",
+        "h-12 border-b border-border flex items-center px-3 gap-2 bg-background",
         collapsed ? "justify-center" : "justify-between"
       )}>
         {!collapsed ? (
           <Link to="/dashboard" className="flex items-center gap-2 group overflow-hidden">
-            <div className="size-7 bg-[#171611] border border-[#171611] flex items-center justify-center text-[#fcf9f2] font-mono font-bold text-xs tracking-tighter shrink-0">
+            <div className="size-7 bg-primary border border-primary flex items-center justify-center text-primary-foreground font-mono font-bold text-xs tracking-tighter shrink-0">
               GA
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-xs tracking-tight text-foreground font-sans">GitAgent</span>
-                <span className="text-[9px] font-mono text-muted-foreground px-1 py-0.2 bg-surface-container-high border border-border/50">
-                  PAPER&INK
+                <span className="text-[9px] font-mono text-muted-foreground px-1 py-0.2 bg-muted border border-border">
+                  SPEC
                 </span>
               </div>
               <span className="text-[9px] font-mono text-muted-foreground truncate">
@@ -115,7 +115,7 @@ export function AppSidebar({
           </Link>
         ) : (
           <Link to="/dashboard" title="GitAgent Workbench">
-            <div className="size-7 bg-[#171611] border border-[#171611] flex items-center justify-center text-[#fcf9f2] font-mono font-bold text-xs tracking-tighter">
+            <div className="size-7 bg-primary border border-primary flex items-center justify-center text-primary-foreground font-mono font-bold text-xs tracking-tighter">
               GA
             </div>
           </Link>
@@ -125,7 +125,7 @@ export function AppSidebar({
           onClick={() => setCollapsed(prev => !prev)}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className={cn(
-            "size-6 border border-border flex items-center justify-center text-foreground hover:bg-surface-container-highest transition-none shrink-0 cursor-pointer bg-surface",
+            "size-6 border border-border flex items-center justify-center text-foreground hover:bg-muted transition-none shrink-0 cursor-pointer bg-background",
             collapsed && "hidden"
           )}
         >
@@ -135,11 +135,11 @@ export function AppSidebar({
 
       {/* When collapsed, a tiny uncollapse button strip */}
       {collapsed && (
-        <div className="py-1 flex justify-center border-b border-border bg-surface-container-low">
+        <div className="py-1 flex justify-center border-b border-border bg-background">
           <button
             onClick={() => setCollapsed(false)}
             title="Expand sidebar"
-            className="size-6 border border-border flex items-center justify-center text-foreground hover:bg-surface-container-highest transition-none cursor-pointer bg-surface"
+            className="size-6 border border-border flex items-center justify-center text-foreground hover:bg-muted transition-none cursor-pointer bg-background"
           >
             <ChevronRight className="size-3.5" />
           </button>
@@ -170,13 +170,13 @@ export function AppSidebar({
                       "flex items-center gap-2.5 text-xs font-sans font-medium transition-none group relative",
                       collapsed ? "justify-center h-8 px-0" : "h-7.5 px-2.5",
                       isActive
-                        ? "bg-[#171611] text-[#fcf9f2] border border-[#171611] font-semibold"
-                        : "text-foreground hover:bg-surface-container-high border border-transparent"
+                        ? "bg-primary text-primary-foreground border border-primary font-semibold"
+                        : "text-foreground hover:bg-muted border border-transparent"
                     )}
                   >
                     <Icon className={cn(
                       "size-3.5 shrink-0",
-                      isActive ? "text-[#fcf9f2]" : "text-muted-foreground group-hover:text-foreground"
+                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
                     )} />
                     
                     {!collapsed && (
@@ -187,8 +187,8 @@ export function AppSidebar({
                       <span className={cn(
                         "text-[9px] font-mono font-medium px-1 py-0.2 shrink-0 border",
                         isActive 
-                          ? "bg-[#a03e3d] text-white border-[#a03e3d]" 
-                          : "bg-surface-container-highest text-muted-foreground border-border"
+                          ? "bg-[#b45309] text-white border-[#b45309]" 
+                          : "bg-muted text-muted-foreground border-border"
                       )}>
                         {item.badge}
                       </span>
@@ -202,12 +202,12 @@ export function AppSidebar({
       </div>
 
       {/* Bottom Pinned Utilities */}
-      <div className="mt-auto border-t border-border p-2 space-y-2 bg-surface-container">
+      <div className="mt-auto border-t border-border p-2 space-y-2 bg-background">
         {/* Active Agent Status Card */}
         {!collapsed && (
-          <div className="p-2 border border-border bg-surface flex items-center justify-between">
+          <div className="p-2 border border-border bg-card flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="size-2 bg-[#1f2f00] border border-[#2c2a25] status-circle shrink-0" />
+              <span className="size-2 bg-[#1f6a38] border border-[#2c2a25] status-circle shrink-0" />
               <div className="truncate">
                 <p className="text-[9px] font-mono uppercase text-muted-foreground">ACTIVE MANIFEST</p>
                 <p className="text-xs font-mono font-bold text-foreground truncate">
@@ -215,7 +215,7 @@ export function AppSidebar({
                 </p>
               </div>
             </div>
-            <span className="text-[9px] font-mono font-bold text-[#a03e3d] bg-secondary-fixed px-1.5 py-0.5 border border-[#a03e3d]">
+            <span className="text-[9px] font-mono font-bold text-[#b45309] bg-[#fef3c7] dark:bg-[#332712] px-1.5 py-0.5 border border-[#b45309]/40">
               {state.manifest.compliance?.risk_tier || "T1"}
             </span>
           </div>
@@ -229,13 +229,13 @@ export function AppSidebar({
             onClick={toggleTheme}
             title={settings.theme === 'dark' ? "Switch to Paper & Ink Light Mode" : "Switch to Inverse Charcoal Mode"}
             className={cn(
-              "border-border bg-surface text-foreground hover:bg-surface-container-high",
+              "border-border bg-background text-foreground hover:bg-muted",
               !collapsed && "flex-1 justify-start gap-1.5 text-xs font-sans h-7"
             )}
           >
             {settings.theme === 'dark' ? (
               <>
-                <Sun className="size-3.5 text-[#a03e3d]" />
+                <Sun className="size-3.5 text-[#b45309]" />
                 {!collapsed && <span>Paper Mode</span>}
               </>
             ) : (
@@ -252,8 +252,8 @@ export function AppSidebar({
             onClick={() => navigate('/settings')}
             title="Settings"
             className={cn(
-              "border-border bg-surface text-foreground hover:bg-surface-container-high",
-              location.pathname === '/settings' && "bg-[#171611] text-[#fcf9f2] border-[#171611]",
+              "border-border bg-background text-foreground hover:bg-muted",
+              location.pathname === '/settings' && "bg-primary text-primary-foreground border-primary",
               !collapsed && "flex-1 justify-start gap-1.5 text-xs font-sans h-7"
             )}
           >

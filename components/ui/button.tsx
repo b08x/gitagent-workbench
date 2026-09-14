@@ -8,22 +8,30 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Primary: Solid fill of Accent Maroon (#a03e3d) or Ink (#171611) with Paper text
-        default: "bg-primary text-primary-foreground border-primary hover:bg-[#2c2a25] active:translate-y-px",
-        primary: "bg-[#171611] text-[#fcf9f2] border-[#171611] hover:bg-[#2c2a25]",
-        maroon: "bg-[#a03e3d] text-[#fcf9f2] border-[#a03e3d] hover:bg-[#741d1f]",
-        warm: "bg-[#a03e3d] text-[#fcf9f2] border-[#a03e3d] hover:bg-[#741d1f] font-semibold",
-        // Secondary: Transparent background with Ink border and text
+        // Neutral Primary: Solid fill of Carbon Ink with Paper text
+        default: "bg-primary text-primary-foreground border-primary hover:bg-primary/90 active:translate-y-px",
+        primary: "bg-[#171611] text-[#fcfaf4] border-[#171611] hover:bg-[#2c2a25]",
+        // Accent: 10% Amber CTA for primary forward momentum
+        amber: "bg-[#b45309] text-white border-[#b45309] hover:bg-[#92400e] active:translate-y-px",
+        warm: "bg-[#b45309] text-white border-[#b45309] hover:bg-[#92400e] font-semibold active:translate-y-px",
+        maroon: "bg-[#b45309] text-white border-[#b45309] hover:bg-[#92400e]",
+        // Neutral Secondary: Transparent background with Ink border and paper hover
         secondary:
-          "bg-transparent text-foreground border-border hover:bg-[#f1eee7]",
+          "bg-transparent text-foreground border-border hover:bg-[#f3efe6]",
         outline:
-          "border-border bg-transparent text-foreground hover:bg-[#f1eee7]",
+          "border-border bg-transparent text-foreground hover:bg-[#f3efe6]",
         ghost:
-          "border-transparent bg-transparent text-foreground hover:bg-[#f1eee7]",
+          "border-transparent bg-transparent text-foreground hover:bg-[#f3efe6]",
+        // State Warning: Amber alert tone
+        warning:
+          "bg-[#fef3c7] text-[#78350f] border-[#b45309]/40 hover:bg-[#fde68a]",
+        // State Destructive: STRICTLY reserved for Stop, Cancel, Delete, Wipe
         destructive:
-          "bg-[#ba1a1a] text-[#ffffff] border-[#ba1a1a] hover:bg-[#93000a]",
+          "bg-[#b91c1c] text-white border-[#b91c1c] hover:bg-[#991b1b] active:translate-y-px",
+        danger:
+          "bg-[#b91c1c] text-white border-[#b91c1c] hover:bg-[#991b1b] active:translate-y-px",
         link: "text-primary underline-offset-4 hover:underline border-none",
-        ice: "bg-[#f1eee7] text-foreground border-border hover:bg-[#ebe8e1] font-mono text-xs",
+        ice: "bg-[#f3efe6] text-foreground border-border hover:bg-[#ede8dc] font-mono text-xs",
       },
       size: {
         default:

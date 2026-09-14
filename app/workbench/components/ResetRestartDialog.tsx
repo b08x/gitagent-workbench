@@ -159,36 +159,36 @@ export function ResetRestartDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden bg-card border-2 border-[#171611] rounded-none shadow-2xl">
+      <DialogContent className="max-w-2xl p-0 overflow-hidden bg-card border border-border rounded-none shadow-2xl">
         {/* Header */}
-        <div className="p-5 border-b border-border bg-surface-container space-y-1">
+        <div className="p-5 border-b border-border bg-muted space-y-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="p-1.5 bg-[#a03e3d]/10 border border-[#a03e3d]/30 text-[#a03e3d] rounded-none">
+              <span className="p-1.5 bg-background border border-border text-foreground rounded-none">
                 <RotateCcw className="size-4" />
               </span>
-              <DialogTitle className="text-base font-bold tracking-tight text-foreground font-sans">
-                Reset or Restart Agent Builder
+              <DialogTitle className="text-base font-bold tracking-tight text-foreground font-mono">
+                RESET // RESTART AGENT BUILDER
               </DialogTitle>
             </div>
             <Badge variant="outline" className="text-[10px] font-mono border-border">
               {frameworkMeta.label}
             </Badge>
           </div>
-          <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
-            Choose how you want to restart your build session. You can restart the conversational architect, revert to a clean slate, or re-initialize from a starter template.
+          <DialogDescription className="type-doc text-xs text-muted-foreground leading-relaxed">
+            Select a reset mode. You can restart the conversational architect, revert to a clean slate, or re-initialize from a starter template.
           </DialogDescription>
         </div>
 
         {/* Current Workspace State Summary */}
-        <div className="px-5 py-2.5 bg-surface-container-low border-b border-border flex items-center justify-between text-xs font-mono">
+        <div className="px-5 py-2.5 bg-background border-b border-border flex items-center justify-between text-xs font-mono">
           <div className="flex items-center gap-2 truncate">
-            <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Active Agent:</span>
+            <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">ACTIVE AGENT:</span>
             <span className="text-foreground font-semibold truncate">{agentName}</span>
           </div>
           <div className="flex items-center gap-3 text-muted-foreground shrink-0 text-[11px]">
-            <span>SOUL: <strong className={state.soul ? "text-[#1f2f00]" : "text-muted-foreground"}>{state.soul ? 'Configured' : 'Empty'}</strong></span>
-            <span>RULES: <strong className={state.rules ? "text-[#1f2f00]" : "text-muted-foreground"}>{state.rules ? 'Configured' : 'Empty'}</strong></span>
+            <span>SOUL: <strong className={state.soul ? "text-[#1f6a38]" : "text-muted-foreground"}>{state.soul ? 'Configured' : 'Empty'}</strong></span>
+            <span>RULES: <strong className={state.rules ? "text-[#1f6a38]" : "text-muted-foreground"}>{state.rules ? 'Configured' : 'Empty'}</strong></span>
             <span>Skills: <strong className="text-foreground">{state.manifest.skills?.length || 0}</strong></span>
           </div>
         </div>
@@ -202,15 +202,15 @@ export function ResetRestartDialog({
               className={cn(
                 "p-3 text-left border rounded-none transition-none flex flex-col gap-1.5 cursor-pointer",
                 activeTab === 'chat'
-                  ? "border-[#171611] bg-surface-container text-foreground shadow-xs"
-                  : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-surface-container-low"
+                  ? "border-primary bg-muted text-foreground shadow-xs"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50"
               )}
             >
-              <div className="flex items-center gap-1.5 text-xs font-bold">
-                <MessageSquare className="size-3.5 text-[#a03e3d]" />
+              <div className="flex items-center gap-1.5 text-xs font-bold font-mono">
+                <MessageSquare className="size-3.5 text-[#b45309]" />
                 <span>Restart Chat</span>
               </div>
-              <span className="text-[11px] leading-snug opacity-80">
+              <span className="type-doc text-[11px] leading-snug opacity-80">
                 Clear chat thread & suggestions. Keeps all files intact.
               </span>
             </button>
@@ -221,15 +221,15 @@ export function ResetRestartDialog({
               className={cn(
                 "p-3 text-left border rounded-none transition-none flex flex-col gap-1.5 cursor-pointer",
                 activeTab === 'full'
-                  ? "border-[#171611] bg-surface-container text-foreground shadow-xs"
-                  : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-surface-container-low"
+                  ? "border-destructive bg-destructive/10 text-foreground shadow-xs"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50"
               )}
             >
-              <div className="flex items-center gap-1.5 text-xs font-bold">
-                <RefreshCw className="size-3.5 text-[#a03e3d]" />
+              <div className="flex items-center gap-1.5 text-xs font-bold font-mono">
+                <RefreshCw className="size-3.5 text-destructive" />
                 <span>Clean Slate</span>
               </div>
-              <span className="text-[11px] leading-snug opacity-80">
+              <span className="type-doc text-[11px] leading-snug opacity-80">
                 Wipe all files and start a brand new blank agent.
               </span>
             </button>
@@ -240,15 +240,15 @@ export function ResetRestartDialog({
               className={cn(
                 "p-3 text-left border rounded-none transition-none flex flex-col gap-1.5 cursor-pointer",
                 activeTab === 'template'
-                  ? "border-[#171611] bg-surface-container text-foreground shadow-xs"
-                  : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-surface-container-low"
+                  ? "border-[#b45309] bg-[#b45309]/10 text-foreground shadow-xs"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50"
               )}
             >
-              <div className="flex items-center gap-1.5 text-xs font-bold">
-                <Sparkles className="size-3.5 text-[#a03e3d]" />
+              <div className="flex items-center gap-1.5 text-xs font-bold font-mono">
+                <Sparkles className="size-3.5 text-[#b45309]" />
                 <span>From Template</span>
               </div>
-              <span className="text-[11px] leading-snug opacity-80">
+              <span className="type-doc text-[11px] leading-snug opacity-80">
                 Reset and populate from a proven agent archetype.
               </span>
             </button>
@@ -256,14 +256,14 @@ export function ResetRestartDialog({
 
           {/* Tab 1: Restart Chat Detail */}
           {activeTab === 'chat' && (
-            <div className="p-3.5 bg-surface-container-low border border-border space-y-2 font-sans">
+            <div className="p-3.5 bg-muted border border-border space-y-2">
               <div className="flex items-start gap-2.5">
-                <div className="p-1.5 bg-[#1f2f00]/10 border border-[#1f2f00]/20 text-[#1f2f00] mt-0.5">
+                <div className="p-1.5 bg-[#1f6a38]/10 border border-[#1f6a38]/30 text-[#1f6a38] mt-0.5">
                   <Check className="size-3.5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-foreground">Safe Conversation Refresh</h4>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                  <h4 className="text-xs font-bold font-mono text-foreground">SAFE CONVERSATION REFRESH</h4>
+                  <p className="type-doc text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
                     This clears the prompt history and re-arms the AI Architect with initial suggestions. Your current agent configuration, files, and repository state will <strong>not</strong> be modified.
                   </p>
                 </div>
@@ -271,15 +271,15 @@ export function ResetRestartDialog({
             </div>
           )}
 
-          {/* Tab 2: Full Reset Detail */}
+          {/* Tab 2: Full Reset Detail (DESTRUCTIVE - strictly red) */}
           {activeTab === 'full' && (
-            <div className="space-y-3 font-sans">
-              <div className="p-3.5 bg-[#a03e3d]/5 border border-[#a03e3d]/30 space-y-2">
+            <div className="space-y-3">
+              <div className="p-3.5 bg-destructive/10 border border-destructive/30 space-y-2">
                 <div className="flex items-start gap-2.5">
-                  <AlertTriangle className="size-4 text-[#a03e3d] shrink-0 mt-0.5" />
+                  <AlertTriangle className="size-4 text-destructive shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <h4 className="text-xs font-bold text-[#a03e3d]">Destructive Action: Clean Slate</h4>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    <h4 className="text-xs font-bold font-mono text-destructive">DESTRUCTIVE ACTION: CLEAN SLATE</h4>
+                    <p className="type-doc text-[11px] text-muted-foreground leading-relaxed">
                       This action completely clears the current agent draft (SOUL.md, RULES.md, PROMPT.md, manifests, and skills), returning the builder to a blank starting state.
                     </p>
                   </div>
@@ -293,7 +293,7 @@ export function ResetRestartDialog({
                     type="checkbox"
                     checked={saveSnapshotBeforeReset}
                     onChange={(e) => setSaveSnapshotBeforeReset(e.target.checked)}
-                    className="size-3.5 rounded-none accent-[#a03e3d]"
+                    className="size-3.5 rounded-none accent-destructive"
                   />
                   <span>Save snapshot backup to Git history before resetting (recommended)</span>
                 </label>
@@ -303,9 +303,9 @@ export function ResetRestartDialog({
 
           {/* Tab 3: Template Picker Detail */}
           {activeTab === 'template' && (
-            <div className="space-y-2 font-sans">
+            <div className="space-y-2">
               <div className="text-[10px] font-mono uppercase tracking-wider font-bold text-muted-foreground">
-                Select Starter Blueprint Archetype:
+                SELECT STARTER BLUEPRINT ARCHETYPE:
               </div>
               <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
                 {TEMPLATE_OPTIONS.map((tmpl) => {
@@ -318,17 +318,17 @@ export function ResetRestartDialog({
                       className={cn(
                         "p-2.5 text-left border rounded-none transition-none flex flex-col gap-1 cursor-pointer",
                         isSelected
-                          ? "border-[#171611] bg-surface-container text-foreground shadow-xs"
-                          : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-surface-container-low"
+                          ? "border-primary bg-muted text-foreground shadow-xs"
+                          : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/40"
                       )}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-foreground">{tmpl.name}</span>
-                        <Badge variant={isSelected ? "olive" : "outline"} className="text-[9px]">
+                        <span className="text-xs font-bold font-mono text-foreground">{tmpl.name}</span>
+                        <Badge variant={isSelected ? "amber" : "outline"} className="text-[9px]">
                           {tmpl.badge}
                         </Badge>
                       </div>
-                      <p className="text-[10px] text-muted-foreground leading-tight line-clamp-2">
+                      <p className="type-doc text-[10px] text-muted-foreground leading-tight line-clamp-2">
                         {tmpl.description}
                       </p>
                     </button>
@@ -340,21 +340,21 @@ export function ResetRestartDialog({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-border bg-surface-container flex items-center justify-between gap-3">
+        <div className="p-4 border-t border-border bg-muted flex items-center justify-between gap-3">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onOpenChange(false)}
-            className="text-xs font-mono border-border text-foreground hover:border-[#171611]"
+            className="text-xs font-mono border-border text-foreground hover:border-primary"
           >
             Cancel & Keep Working
           </Button>
 
           <Button
-            variant={activeTab === 'full' ? "destructive" : "maroon"}
+            variant={activeTab === 'full' ? "destructive" : activeTab === 'template' ? "amber" : "default"}
             size="sm"
             onClick={handleExecuteReset}
-            className="text-xs font-semibold gap-1.5 shadow-xs"
+            className="text-xs font-semibold gap-1.5 shadow-xs font-sans"
           >
             {activeTab === 'chat' && (
               <>
