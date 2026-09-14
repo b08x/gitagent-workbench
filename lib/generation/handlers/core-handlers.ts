@@ -17,6 +17,7 @@ import { generateHermesConfig } from '../../gitagent/config-generator';
 import { validateWorkspace } from '../validator';
 import { buildGenerationPrompt } from '../strategy';
 import { inferFrameworkTools } from '../../gitagent/contextToolInference';
+import { synthesizeAgentSpec } from '../agentSynthesizer';
 import { z } from 'zod';
 
 export const SanitizeInputsHandler: GenerationStepHandler = {
@@ -56,7 +57,30 @@ export const GenYamlHandler: GenerationStepHandler = {
     prompt.schema = AgentManifestSchema;
     
     const result = await generateWithRetryAndFallback(prompt, config);
-    const generated = result.object!;
+    
+    // Defensive: if the remote LLM failed and the local fallback returned { text }
+    // instead of { object }, synthesize a proper manifest object from workspace state
+    let generated = result.object;
+    if (!generated || typeof generated !== 'object' || !generated.name) {
+      console.warn('GEN_YAML: result.object missing or malformed, falling back to local synthesis');
+      const targetFramework = (workspace.targetFramework || (workspace.manifest.metadata as any)?.harness || 'hermes_agent') as any;
+      const spec = synthesizeAgentSpec(
+        workspace.manifest.description || workspace.manifest.name || 'Specialist Agent',
+        '',
+        targetFramework
+      );
+      generated = {
+        name: workspace.manifest.name || spec.manifest.name,
+        version: spec.manifest.version || '1.0.0',
+        description: workspace.manifest.description || spec.manifest.description,
+        author: spec.manifest.author || 'GitAgent Architect',
+        spec_version: '0.1.0',
+        skills: workspace.manifest.skills || spec.manifest.skills || [],
+        tools: workspace.manifest.tools || spec.manifest.tools || [],
+        compliance: workspace.manifest.compliance || spec.manifest.compliance,
+        tags: spec.manifest.tags || ['production'],
+      };
+    }
     
     return {
       manifest: {
@@ -180,7 +204,11 @@ export const GenSkillsHandler: GenerationStepHandler = {
       refPrompt.schema = ReferencesReadmeSchema;
       
       const refResult = await generateWithRetryAndFallback(refPrompt, config);
-      const refCatalogue = refResult.object!.references;
+      const refCatalogue = refResult.object?.references || [{
+        filename: `${name}-reference-guide.md`,
+        description: `Reference guide for ${name}`,
+        trigger: `Load when executing ${name} operations`
+      }];
       
       stagedSkills[name] = {
         ...skill,
@@ -195,7 +223,10 @@ export const GenSkillsHandler: GenerationStepHandler = {
       prompt.schema = SkillInstructionSchema;
       
       const result = await generateWithRetryAndFallback(prompt, config);
-      const generated = result.object!;
+      const generated = result.object || {
+        instructions: result.text || `# ${name}\n\nExecute ${name} operations within the workspace.`,
+        frontmatter: { name, description: skill.description || `Skill: ${name}`, version: '1.0.0' }
+      };
 
       stagedSkills[name] = {
         ...stagedSkills[name],
@@ -243,10 +274,14 @@ export const GenToolsHandler: GenerationStepHandler = {
       prompt.schema = ToolYamlSchema;
       
       const result = await generateWithRetryAndFallback(prompt, config);
-      const toolObj = result.object!;
+      const toolObj = result.object || {
+        name,
+        description: `Executes ${name} operations within the workspace.`,
+        input_schema: { type: 'object', properties: { action: { type: 'string', description: 'Action to perform' } }, required: ['action'] }
+      };
 
       stagedTools[name] = {
-        name: toolObj.name,
+        name: toolObj.name || name,
         description: toolObj.description,
         input_schema: toolObj.input_schema,
       };
