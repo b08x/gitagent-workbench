@@ -46,7 +46,7 @@ export function GenerateImproveButton({
     setIsLoading(true);
     onLoadingChange?.(true);
     try {
-      const prompt = buildGenerationPrompt(fileType, phase, workspace, fieldName);
+      const prompt = buildGenerationPrompt(fileType, phase, workspace, fieldName, fieldValue);
       let fullText = '';
       
       const config = {

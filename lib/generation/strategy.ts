@@ -17,7 +17,8 @@ export function buildGenerationPrompt(
   file: FileType,
   phase: Phase,
   workspace: AgentWorkspace,
-  fieldName?: string
+  fieldName?: string,
+  fieldValue?: string
 ): GenerationPrompt {
   const profileKey = fileTypeToProfileKey[file];
   const profile = (config as any).file_profiles?.[profileKey];
@@ -31,7 +32,7 @@ export function buildGenerationPrompt(
     systemPrompt += `1. DO NOT generate a complete markdown file.\n`;
     systemPrompt += `2. DO NOT include markdown headings like "## ${fieldName}".\n`;
     systemPrompt += `3. DO NOT echo the prompt or include conversational filler.\n`;
-    systemPrompt += `4. ONLY output the raw text content that belongs inside this specific field.\n\n`;
+    systemPrompt += `4. DO NOT output JSON unless explicitly asked. ONLY output the raw text content that belongs inside this specific field.\n\n`;
   } else {
     systemPrompt += `You are generating a complete ${file}.\n\n`;
   }
@@ -92,7 +93,14 @@ export function buildGenerationPrompt(
   }
 
   const fieldTarget = fieldName ? `the "${fieldName}" field` : file;
-  const userPrompt = `Agent Context:\n${JSON.stringify(workspace.manifest, null, 2)}\n\nGenerate ONLY the content for ${fieldTarget}. No intro, no outro, just the exact content.`;
+  
+  let userPrompt = `Agent Context (Manifest):\n\`\`\`json\n${JSON.stringify(workspace.manifest, null, 2)}\n\`\`\`\n\n`;
+  
+  if (fieldValue && fieldValue.trim() !== '') {
+    userPrompt += `Here is the CURRENT draft for ${fieldTarget}:\n<current_draft>\n${fieldValue}\n</current_draft>\n\nPlease IMPROVE and REWRITE the draft above, making it more professional, highly detailed, and aligned with the system directives.\n\n`;
+  }
+  
+  userPrompt += `Generate ONLY the final content for ${fieldTarget}. No intro, no outro, just the exact content.`;
 
   return {
     system: systemPrompt,

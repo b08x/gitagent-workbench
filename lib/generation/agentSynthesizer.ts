@@ -401,10 +401,10 @@ You are **${spec.manifest.name}**, an autonomous specialist agent.
 
   // Single field drafting / improvement (e.g. description, role, etc.)
   if (systemText.includes('field:') || systemText.includes('specifically, you are generating')) {
-    if (systemText.includes('name')) return { text: spec.manifest.name };
-    if (systemText.includes('description')) return { text: spec.manifest.description };
-    if (systemText.includes('soul')) return { text: spec.soul };
-    if (systemText.includes('rules')) return { text: spec.rules };
+    if (systemText.includes('name') || systemText.includes('Name')) return { text: spec.manifest.name };
+    if (systemText.includes('description') || systemText.includes('Core Identity')) return { text: spec.manifest.description };
+    if (systemText.includes('soul') || systemText.includes('Values') || systemText.includes('Communication') || systemText.includes('Domain Expertise')) return { text: spec.soul };
+    if (systemText.includes('rules') || systemText.includes('Must Always') || systemText.includes('Must Never')) return { text: spec.rules };
   }
 
   // Default fallback text response
