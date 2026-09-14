@@ -18,6 +18,15 @@ export interface TaskConfig {
   parameters?: TaskConfigParameters;
 }
 
+export interface GitSettings {
+  remoteUrl: string;
+  personalAccessToken: string;
+  provider: 'github' | 'gitlab' | 'bitbucket' | 'custom';
+  defaultBranch?: string;
+  authorName?: string;
+  authorEmail?: string;
+}
+
 export interface AppConfig {
   providerId: string;
   modelId: string;
@@ -27,6 +36,7 @@ export interface AppConfig {
   mcpServers: string[];
   theme: 'light' | 'dark';
   debugLogging: boolean;
+  git: GitSettings;
   taskModels: {
     scripts: TaskConfig;
     knowledge: TaskConfig;
@@ -41,6 +51,7 @@ export interface AppConfig {
 const SettingsContext = createContext<{
   settings: AppConfig;
   updateSettings: (newSettings: Partial<AppConfig>) => void;
+  updateGitSettings: (gitConfig: Partial<GitSettings>) => void;
   setApiKey: (providerId: string, key: string) => void;
   clearApiKey: (providerId: string) => void;
   testApiKey: (providerId: string, key?: string) => Promise<{ ok: boolean; error?: string }>;
@@ -62,6 +73,12 @@ const DEFAULTS: AppConfig = {
   mcpServers: [],
   theme: 'light',
   debugLogging: false,
+  git: {
+    remoteUrl: 'https://github.com/my-org/my-agent.git',
+    personalAccessToken: '',
+    provider: 'github',
+    defaultBranch: 'main',
+  },
   taskModels: {
     scripts: { providerId: 'google', modelId: 'gemini-3.7-flash' },
     knowledge: { providerId: 'google', modelId: 'gemini-3.7-flash' },
@@ -83,6 +100,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     // For now, let's keep them in memory-only state if we are moving to proxied requests.
     const sessionKeys = sessionStorage.getItem('gitagent_keys');
     const apiKeys = sessionKeys ? JSON.parse(sessionKeys) : {};
+    const sessionPat = sessionStorage.getItem('gitagent_git_pat') || '';
 
     if (saved) {
       try {
@@ -91,13 +109,26 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           ...DEFAULTS, 
           ...parsed,
           apiKeys, // merge keys from session (volatile)
+          git: {
+            ...DEFAULTS.git,
+            ...(parsed.git || {}),
+            personalAccessToken: sessionPat || parsed.git?.personalAccessToken || '',
+          },
           taskModels: { ...DEFAULTS.taskModels, ...(parsed.taskModels || {}) }
         };
       } catch (e) {
-        return { ...DEFAULTS, apiKeys };
+        return { 
+          ...DEFAULTS, 
+          apiKeys,
+          git: { ...DEFAULTS.git, personalAccessToken: sessionPat }
+        };
       }
     }
-    return { ...DEFAULTS, apiKeys };
+    return { 
+      ...DEFAULTS, 
+      apiKeys,
+      git: { ...DEFAULTS.git, personalAccessToken: sessionPat }
+    };
   });
 
   useEffect(() => {
@@ -105,9 +136,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const { apiKeys, ...rest } = settings;
     localStorage.setItem('gitagent_settings', JSON.stringify(rest));
     
-    // Persist keys to sessionStorage (temporary, still client-side but better than localStorage)
-    // The ultimate goal is to move these to a secure backend.
+    // Persist keys and PAT to sessionStorage
     sessionStorage.setItem('gitagent_keys', JSON.stringify(apiKeys));
+    if (settings.git?.personalAccessToken) {
+      sessionStorage.setItem('gitagent_git_pat', settings.git.personalAccessToken);
+    } else {
+      sessionStorage.removeItem('gitagent_git_pat');
+    }
   }, [settings]);
 
   // Sync state between tabs and fetch server-side key status
@@ -240,6 +275,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const updateGitSettings = (gitConfig: Partial<GitSettings>) => {
+    setSettings(prev => ({
+      ...prev,
+      git: {
+        ...(prev.git || DEFAULTS.git),
+        ...gitConfig,
+      }
+    }));
+  };
+
   const removeMcpServer = (url: string) => {
     setSettings(prev => ({
       ...prev,
@@ -248,7 +293,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, setApiKey, clearApiKey, testApiKey, updateTaskModel, addMcpServer, removeMcpServer }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, updateGitSettings, setApiKey, clearApiKey, testApiKey, updateTaskModel, addMcpServer, removeMcpServer }}>
       {children}
     </SettingsContext.Provider>
   );

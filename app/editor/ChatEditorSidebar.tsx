@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAgentWorkspace } from '../context/AgentContext';
 import { useSettings } from '../context/SettingsContext';
 import { providers } from '../../lib/providers';
+import { streamWithRetryAndFallback } from '../../lib/generation/engine';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -156,11 +157,8 @@ export function ChatEditorSidebar() {
 
     try {
       const provider = providers[settings.providerId];
-      const apiKey = settings.apiKeys[settings.providerId];
-
-      if (!apiKey && settings.providerId !== 'ollama') {
-        throw new Error('API Key missing');
-      }
+      const rawApiKey = settings.apiKeys[settings.providerId];
+      const apiKey = rawApiKey && rawApiKey !== '********' && rawApiKey.trim() !== '' ? rawApiKey.trim() : '';
 
       // Prepare context from attachments
       let context = '';
@@ -201,12 +199,40 @@ Analyze the user request and provide helpful guidance or direct file edits.`;
       const assistantMessage: Message = { role: 'assistant', content: '' };
       setMessages(prev => [...prev, assistantMessage]);
 
-      for await (const chunk of provider.stream(prompt, apiKey, settings.modelId)) {
-        fullResponse += chunk;
-        setMessages(prev => {
-          const last = prev[prev.length - 1];
-          return [...prev.slice(0, -1), { ...last, content: fullResponse }];
-        });
+      let hasStreamed = false;
+
+      // Try direct provider streaming if key is provided
+      if (provider && apiKey) {
+        try {
+          for await (const chunk of provider.stream(prompt, apiKey, settings.modelId)) {
+            fullResponse += chunk;
+            hasStreamed = true;
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              return [...prev.slice(0, -1), { ...last, content: fullResponse }];
+            });
+          }
+        } catch (streamErr: any) {
+          console.warn('Direct provider stream failed, falling back to server stream:', streamErr?.message || streamErr);
+          hasStreamed = false;
+          fullResponse = '';
+        }
+      }
+
+      // If direct provider wasn't used or failed, use server stream proxy with fallback
+      if (!hasStreamed) {
+        for await (const chunk of streamWithRetryAndFallback(prompt, {
+          providerId: settings.providerId || 'google',
+          modelId: settings.modelId || 'gemini-3.7-flash',
+          apiKey: apiKey || undefined,
+          apiKeys: settings.apiKeys,
+        } as any)) {
+          fullResponse += chunk;
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            return [...prev.slice(0, -1), { ...last, content: fullResponse }];
+          });
+        }
       }
 
       // Parse and apply edits

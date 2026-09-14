@@ -12,7 +12,9 @@ import {
   executeGitPush, 
   executeGitPull, 
   executeSwitchBranch, 
-  executeCreateBranch 
+  executeCreateBranch,
+  executeGitSync,
+  executeSimulateRemoteBehind
 } from '@/lib/gitagent/gitManager';
 
 export interface ScaffoldContextFile {
@@ -43,7 +45,10 @@ type Action =
   | { type: 'SWITCH_GIT_BRANCH'; payload: string }
   | { type: 'CREATE_GIT_BRANCH'; payload: string }
   | { type: 'RESTORE_GIT_COMMIT'; payload: string }
-  | { type: 'UPDATE_GIT_REMOTE'; payload: { name: string; url: string; provider: 'github' | 'gitlab' | 'bitbucket' | 'custom'; token?: string } };
+  | { type: 'UPDATE_GIT_REMOTE'; payload: { name: string; url: string; provider: 'github' | 'gitlab' | 'bitbucket' | 'custom'; token?: string } }
+  | { type: 'SYNC_GIT'; payload?: { remoteName?: string; forceError?: string } }
+  | { type: 'SIMULATE_GIT_BEHIND'; payload?: number }
+  | { type: 'SET_GIT_SYNC_ERROR'; payload: string | null };
 
 export interface ToolEntry {
   name: string;
@@ -474,6 +479,35 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
       return {
         ...state,
         git: nextGit,
+      };
+    }
+    case 'SYNC_GIT': {
+      const { nextState } = executeGitSync(state.git, action.payload?.remoteName || 'origin', {
+        forceError: action.payload?.forceError,
+      });
+      return {
+        ...state,
+        git: nextState,
+      };
+    }
+    case 'SIMULATE_GIT_BEHIND': {
+      const nextGit = executeSimulateRemoteBehind(state.git, action.payload || 1);
+      return {
+        ...state,
+        git: nextGit,
+      };
+    }
+    case 'SET_GIT_SYNC_ERROR': {
+      return {
+        ...state,
+        git: {
+          ...state.git,
+          sync: {
+            ...state.git.sync,
+            isSyncing: false,
+            error: action.payload,
+          }
+        }
       };
     }
     case 'SWITCH_GIT_BRANCH': {

@@ -39,11 +39,26 @@ export interface GitTerminalLog {
   type: 'cmd' | 'info' | 'success' | 'warn' | 'error';
 }
 
+export interface BranchTrackingInfo {
+  name: string;
+  isCurrent: boolean;
+  isRemoteTracked: boolean;
+  trackingRef: string; // e.g. "origin/main" or "Local only"
+  remoteName: string; // "origin"
+  ahead: number;
+  behind: number;
+  commitCount: number;
+  latestCommitHash?: string;
+  latestCommitMessage?: string;
+  updatedAt: number;
+}
+
 export interface GitRepoState {
   isInitialized: boolean;
   repoName: string;
   currentBranch: string;
   branches: string[];
+  remoteBranches?: string[];
   remotes: GitRemote[];
   commits: GitCommit[];
   head: string | null;
@@ -403,8 +418,11 @@ export function executeGitPush(
     type: 'success',
   };
 
+  const remoteBranches = Array.from(new Set([...(state.remoteBranches || ['main']), state.currentBranch]));
+
   return {
     ...state,
+    remoteBranches,
     sync: {
       ...state.sync,
       ahead: 0,
@@ -515,6 +533,188 @@ export function executeCreateBranch(
     ...state,
     branches: [...state.branches, cleanName],
     currentBranch: cleanName,
+    terminalLogs: [...state.terminalLogs, log],
+  };
+}
+
+/**
+ * Compute detailed branch information and local vs remote tracking status
+ */
+export function getBranchTrackingInfo(state: GitRepoState, branchName: string): BranchTrackingInfo {
+  const isCurrent = state.currentBranch === branchName;
+  const remote = state.remotes.find(r => r.name === 'origin') || state.remotes[0];
+  const remoteBranches = state.remoteBranches || ['main'];
+  const hasValidRemote = Boolean(remote?.url && remote.url.trim() !== '');
+  
+  // A branch is considered remote-tracked if the remote is configured and the branch is either 'main' or in remoteBranches
+  const isRemoteTracked = hasValidRemote && (branchName === 'main' || remoteBranches.includes(branchName) || remote?.branch === branchName);
+  const branchCommits = state.commits.filter(c => c.branch === branchName || (branchName === 'main' && !c.branch));
+  const latestCommit = branchCommits[0] || state.commits[0];
+
+  return {
+    name: branchName,
+    isCurrent,
+    isRemoteTracked,
+    trackingRef: isRemoteTracked ? `${remote?.name || 'origin'}/${branchName}` : 'Local only',
+    remoteName: remote?.name || 'origin',
+    ahead: isCurrent ? (state.sync?.ahead || 0) : 0,
+    behind: isCurrent ? (state.sync?.behind || 0) : 0,
+    commitCount: branchCommits.length,
+    latestCommitHash: latestCommit?.hash,
+    latestCommitMessage: latestCommit?.message,
+    updatedAt: latestCommit?.timestamp || Date.now(),
+  };
+}
+
+/**
+ * Execute Git Sync (Perform pull of remote updates and push of local commits)
+ */
+export function executeGitSync(
+  state: GitRepoState,
+  remoteName: string = 'origin',
+  options?: {
+    forceError?: string;
+  }
+): { nextState: GitRepoState; success: boolean; message: string; error?: string } {
+  const remote = state.remotes.find(r => r.name === remoteName) || state.remotes[0];
+
+  // Error condition 1: No remote configured
+  if (!remote || !remote.url || remote.url.trim() === '') {
+    const errorMsg = "No remote repository configured. Please configure an upstream remote URL before syncing.";
+    const log: GitTerminalLog = {
+      id: `log-${Date.now()}`,
+      command: `git sync ${remoteName} ${state.currentBranch}`,
+      output: `fatal: No remote repository specified. Please set a remote URL with 'git remote add ${remoteName} <url>'`,
+      timestamp: Date.now(),
+      type: 'error',
+    };
+    return {
+      nextState: {
+        ...state,
+        sync: {
+          ...state.sync,
+          isSyncing: false,
+          error: errorMsg,
+        },
+        terminalLogs: [...state.terminalLogs, log],
+      },
+      success: false,
+      message: errorMsg,
+      error: errorMsg,
+    };
+  }
+
+  // Error condition 2: Forced error or invalid remote URL/tokens
+  if (options?.forceError || remote.url.includes('invalid') || remote.url.includes('error') || remote.url === 'fail') {
+    const errorMsg = options?.forceError || `Sync failed: Could not authenticate with remote ${remote.url}. Check your personal access token or branch permissions.`;
+    const log: GitTerminalLog = {
+      id: `log-${Date.now()}`,
+      command: `git sync ${remoteName} ${state.currentBranch}`,
+      output: `To ${remote.url}\n ! [rejected]        ${state.currentBranch} -> ${state.currentBranch} (authentication failed or pre-receive hook declined)\nfatal: Authentication failed for '${remote.url}'\nerror: failed to sync some refs to remote repository`,
+      timestamp: Date.now(),
+      type: 'error',
+    };
+    return {
+      nextState: {
+        ...state,
+        sync: {
+          ...state.sync,
+          isSyncing: false,
+          error: errorMsg,
+        },
+        terminalLogs: [...state.terminalLogs, log],
+      },
+      success: false,
+      message: errorMsg,
+      error: errorMsg,
+    };
+  }
+
+  // Success flow: Pull incoming + Push outgoing
+  const pulledCount = state.sync.behind;
+  const pushedCount = state.sync.ahead;
+  const now = Date.now();
+
+  const logs: GitTerminalLog[] = [
+    {
+      id: `log-${now}-1`,
+      command: `git pull --rebase ${remoteName} ${state.currentBranch}`,
+      output: pulledCount > 0
+        ? `From ${remote.url}\n * branch            ${state.currentBranch}     -> FETCH_HEAD\nFast-forwarding: pulled ${pulledCount} commit(s) from upstream.\nSuccessfully integrated remote branch.`
+        : `From ${remote.url}\n * branch            ${state.currentBranch}     -> FETCH_HEAD\nAlready up to date.`,
+      timestamp: now,
+      type: pulledCount > 0 ? 'success' : 'info',
+    },
+    {
+      id: `log-${now}-2`,
+      command: `git push ${remoteName} ${state.currentBranch}`,
+      output: pushedCount > 0
+        ? `To ${remote.url}\n   ${state.head?.slice(0, 7)}..${state.head} ${state.currentBranch} -> ${state.currentBranch}\n✓ Successfully pushed ${pushedCount} commit(s) to ${remoteName}/${state.currentBranch}.`
+        : `Everything up-to-date with ${remoteName}/${state.currentBranch}.`,
+      timestamp: now + 50,
+      type: pushedCount > 0 ? 'success' : 'info',
+    },
+    {
+      id: `log-${now}-3`,
+      command: `git status -sb`,
+      output: `## ${state.currentBranch}...${remoteName}/${state.currentBranch} [synchronized]`,
+      timestamp: now + 100,
+      type: 'cmd',
+    },
+  ];
+
+  let summaryMsg = '';
+  if (pushedCount > 0 && pulledCount > 0) {
+    summaryMsg = `Sync complete: Pulled ${pulledCount} commit(s) and pushed ${pushedCount} commit(s) with ${remoteName}/${state.currentBranch}.`;
+  } else if (pushedCount > 0) {
+    summaryMsg = `Sync complete: Pushed ${pushedCount} commit(s) to ${remoteName}/${state.currentBranch}. Remote is now synchronized.`;
+  } else if (pulledCount > 0) {
+    summaryMsg = `Sync complete: Pulled ${pulledCount} incoming commit(s) from ${remoteName}/${state.currentBranch}.`;
+  } else {
+    summaryMsg = `Sync complete: Working tree and remote ${remoteName}/${state.currentBranch} are already in sync.`;
+  }
+
+  return {
+    nextState: {
+      ...state,
+      sync: {
+        ahead: 0,
+        behind: 0,
+        lastSyncedAt: now,
+        lastPushedAt: pushedCount > 0 ? now : state.sync.lastPushedAt || now,
+        lastPulledAt: pulledCount > 0 ? now : state.sync.lastPulledAt || now,
+        isSyncing: false,
+        error: null,
+      },
+      terminalLogs: [...state.terminalLogs, ...logs],
+    },
+    success: true,
+    message: summaryMsg,
+  };
+}
+
+/**
+ * Simulate receiving incoming updates from remote (fetching remote commits)
+ */
+export function executeSimulateRemoteBehind(
+  state: GitRepoState,
+  commitsBehind: number = 1
+): GitRepoState {
+  const log: GitTerminalLog = {
+    id: `log-${Date.now()}`,
+    command: `git fetch origin ${state.currentBranch}`,
+    output: `remote: Counting objects: 5, done.\nremote: Total 3 (delta 1)\nUnpacking objects: 100% (3/3), done.\nFrom ${state.remotes[0]?.url || 'origin'}\n * branch            ${state.currentBranch}     -> FETCH_HEAD\nYour branch is behind by ${commitsBehind} commit(s), and can be fast-forwarded.`,
+    timestamp: Date.now(),
+    type: 'info',
+  };
+
+  return {
+    ...state,
+    sync: {
+      ...state.sync,
+      behind: (state.sync.behind || 0) + commitsBehind,
+      error: null,
+    },
     terminalLogs: [...state.terminalLogs, log],
   };
 }
