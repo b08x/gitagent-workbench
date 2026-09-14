@@ -9,7 +9,7 @@ services:
       args:
         - GEMINI_API_KEY=${GEMINI_API_KEY}
     ports:
-      - "8080:8080"
+      - "8080:3000"
     env_file:
       - .env.local
     restart: unless-stopped

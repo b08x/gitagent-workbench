@@ -20,11 +20,13 @@ ENV GEMINI_API_KEY=$GEMINI_API_KEY
 COPY . .
 RUN npm run build
 
-# Stage 4: Final production image (Security: Non-root)
-FROM nginxinc/nginx-unprivileged:stable-alpine
-# Copy custom nginx config for SPA routing (listens on 8080)
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-# Copy build artifacts from stage 3
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 8080
-CMD ["nginx", "-g", "daemon off;"]
+# Stage 4: Final production image
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=base /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/package.json ./package.json
+
+ENV NODE_ENV=production
+EXPOSE 3000
+CMD ["npm", "run", "start"]
