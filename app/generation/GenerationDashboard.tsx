@@ -21,7 +21,9 @@ import {
   Play,
   FileCode,
   Download,
-  AlertCircle
+  AlertCircle,
+  Square,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -77,6 +79,7 @@ export function GenerationDashboard({ onComplete }: { onComplete?: () => void })
   const [error, setError] = useState<string | null>(null);
   const [resumePrompt, setResumePrompt] = useState<string | null>(null);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const isCancelledRef = React.useRef(false);
 
   // Derive all planned pipeline steps for this workspace
   const plannedSteps = useMemo(() => {
@@ -104,8 +107,35 @@ export function GenerationDashboard({ onComplete }: { onComplete?: () => void })
   };
 
   const startPipeline = () => {
+    isCancelledRef.current = false;
     setError(null);
     dispatch({ type: 'UPDATE_META', payload: { status: 'generating' } });
+  };
+
+  const handleCancelSynthesis = () => {
+    isCancelledRef.current = true;
+    setIsSynthesizing(false);
+    dispatch({ type: 'UPDATE_META', payload: { status: 'intake' } });
+    setError('Synthesis was cancelled by user.');
+  };
+
+  const handleRestartPipeline = () => {
+    isCancelledRef.current = false;
+    setEvents(new Map());
+    setStepOrder([]);
+    setError(null);
+    clearWorkspaceSnapshot();
+    startPipeline();
+  };
+
+  const handleResetPipeline = () => {
+    isCancelledRef.current = true;
+    setIsSynthesizing(false);
+    setEvents(new Map());
+    setStepOrder([]);
+    setError(null);
+    clearWorkspaceSnapshot();
+    dispatch({ type: 'UPDATE_META', payload: { status: 'intake' } });
   };
 
   useEffect(() => {
@@ -121,6 +151,7 @@ export function GenerationDashboard({ onComplete }: { onComplete?: () => void })
     }
 
     setIsSynthesizing(true);
+    isCancelledRef.current = false;
 
     const startGen = async () => {
       try {
@@ -133,14 +164,17 @@ export function GenerationDashboard({ onComplete }: { onComplete?: () => void })
           resumeFromStep: resumePrompt || undefined
         });
         for await (const event of gen) {
+          if (isCancelledRef.current) break;
           setEvents(prev => { const n = new Map(prev); n.set(event.step, event); return n; });
           setStepOrder(prev => prev.includes(event.step) ? prev : [...prev, event.step]);
-          if (event.workspace) {
+          if (event.workspace && !isCancelledRef.current) {
             dispatch({ type: 'SET_WORKSPACE', payload: event.workspace });
           }
         }
       } catch (err: any) {
-        setError(err.message || 'Generation failed unexpectedly');
+        if (!isCancelledRef.current) {
+          setError(err.message || 'Generation failed unexpectedly');
+        }
       } finally {
         setIsSynthesizing(false);
       }
@@ -179,23 +213,59 @@ export function GenerationDashboard({ onComplete }: { onComplete?: () => void })
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {!isSynthesizing && !isComplete && (
+          {isSynthesizing && (
             <Button 
-              onClick={startPipeline}
-              className="bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs h-9 px-4 rounded-sm shadow-md"
+              variant="destructive" 
+              size="sm"
+              onClick={handleCancelSynthesis}
+              className="text-xs h-9 px-3.5 gap-1.5 shadow-xs font-mono"
             >
-              <Play className="mr-1.5 size-3.5 fill-current" />
-              Start Synthesis Pipeline
+              <Square className="size-3.5 fill-current" />
+              <span>Cancel Synthesis</span>
             </Button>
+          )}
+
+          {!isSynthesizing && !isComplete && (
+            <div className="flex items-center gap-2">
+              {events.size > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetPipeline}
+                  className="text-xs font-mono border-border text-foreground hover:border-[#171611] gap-1 h-9"
+                  title="Reset pipeline progress"
+                >
+                  <RefreshCw className="size-3 text-[#a03e3d]" />
+                  <span>Reset</span>
+                </Button>
+              )}
+              <Button 
+                onClick={startPipeline}
+                className="bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs h-9 px-4 rounded-sm shadow-md"
+              >
+                <Play className="mr-1.5 size-3.5 fill-current" />
+                {events.size > 0 ? 'Resume Pipeline' : 'Start Synthesis Pipeline'}
+              </Button>
+            </div>
           )}
 
           {isComplete && (
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRestartPipeline}
+                className="text-xs font-mono border-border text-foreground hover:border-[#171611] gap-1 h-9"
+                title="Restart synthesis pipeline from beginning"
+              >
+                <RotateCcw className="size-3 text-[#a03e3d]" />
+                <span>Restart</span>
+              </Button>
               <Button 
                 variant="outline" 
                 size="sm"
                 onClick={() => navigate('/export')}
-                className="text-xs border-[#A0D2EB]/20 text-[#A0D2EB]/80 hover:text-foreground"
+                className="text-xs border-[#A0D2EB]/20 text-[#A0D2EB]/80 hover:text-foreground h-9"
               >
                 <Download className="mr-1.5 size-3.5" />
                 Export ZIP

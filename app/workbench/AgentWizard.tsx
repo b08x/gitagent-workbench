@@ -45,8 +45,11 @@ import {
   GitBranch,
   Shield,
   Clock,
-  Activity
+  Activity,
+  RefreshCw,
+  Edit3
 } from 'lucide-react';
+import { ResetRestartDialog } from './components/ResetRestartDialog';
 import { cn, formatErrorMessage } from '../../lib/utils';
 import { providers } from '../../lib/providers';
 import { synthesizeAgentSpec } from '../../lib/generation/agentSynthesizer';
@@ -63,6 +66,8 @@ interface ChatMessage {
   timestamp?: string;
   isError?: boolean;
   isCancelled?: boolean;
+  cancelledPrompt?: string;
+  cancelledDuration?: number;
   failedPrompt?: string;
   failedFiles?: File[];
   resolved?: boolean;
@@ -154,12 +159,14 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
   const [inlineKeyInput, setInlineKeyInput] = useState('');
   const [showInlineKeyInput, setShowInlineKeyInput] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const progressiveTimersRef = useRef<NodeJS.Timeout[]>([]);
+  const lastUserPromptRef = useRef<string>('');
 
   const clearProgressiveTimers = () => {
     progressiveTimersRef.current.forEach(t => clearTimeout(t));
@@ -356,23 +363,59 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     clearProgressiveTimers();
     setIsProcessing(false);
     dispatch({ type: 'UPDATE_WORKSPACE', payload: { isCompilingSpec: false } });
+    
+    const cancelledDuration = elapsedSeconds;
+    const promptText = lastUserPromptRef.current;
+
     setMessages(prev => {
-      const last = prev[prev.length - 1];
-      if (last && last.role === 'assistant' && !last.isError && (last.content.includes('Analyzing') || last.content.includes('Generating') || last.id.startsWith('asst-'))) {
-        return [
-          ...prev.slice(0, -1),
-          {
-            id: `cancel-${Date.now()}`,
-            role: 'assistant',
-            content: `Generation cancelled by user after ${elapsedSeconds.toFixed(1)}s.`,
-            isCancelled: true,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }
-        ];
-      }
-      return prev;
+      const filtered = prev.filter(m => !(m.role === 'assistant' && (m.content.includes('Analyzing') || m.id.startsWith('asst-'))));
+      return [
+        ...filtered,
+        {
+          id: `cancel-${Date.now()}`,
+          role: 'assistant',
+          content: `Generation halted by user after ${cancelledDuration.toFixed(1)}s. Workspace changes were discarded.`,
+          isCancelled: true,
+          cancelledPrompt: promptText,
+          cancelledDuration: cancelledDuration,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ];
     });
   };
+
+  const handleRestartChat = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    clearProgressiveTimers();
+    setIsProcessing(false);
+    dispatch({ type: 'UPDATE_WORKSPACE', payload: { isCompilingSpec: false } });
+    setMessages([
+      { 
+        id: `init-${Date.now()}`,
+        role: 'assistant', 
+        content: `Hello! I am your AI Architect configured for the ${activeFrameworkMeta.label} runtime. Describe your agent's purpose, target workflows, or upload spec documents. I will configure the manifest, soul, rules, and skills in real time.`,
+        isInitializing: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+    setInput('');
+    setContextFiles([]);
+  };
+
+  // Keyboard shortcut: Escape cancels active synthesis
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isProcessing) {
+        e.preventDefault();
+        handleCancel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isProcessing, elapsedSeconds]);
 
   const handleSend = async (
     overridePrompt?: string, 
@@ -384,6 +427,8 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
 
     if (!promptToSend.trim() && filesToSend.length === 0) return;
     if (isProcessing) return;
+
+    lastUserPromptRef.current = promptToSend;
 
     if (!recoveryOptions?.recoveryAction) {
       const userTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -998,23 +1043,37 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
           </div>
 
           {isProcessing ? (
-            <Button 
-              variant="destructive" 
-              size="xs" 
-              onClick={handleCancel}
-              className="text-[10px] font-mono uppercase tracking-wider h-7 px-2.5 gap-1 shadow-xs"
-            >
-              <Square className="size-3 fill-current" /> Cancel
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button 
+                variant="destructive" 
+                size="xs" 
+                onClick={handleCancel}
+                className="text-[10px] font-mono uppercase tracking-wider h-7 px-2.5 gap-1 shadow-xs"
+                title="Cancel active synthesis (Esc)"
+              >
+                <Square className="size-3 fill-current" /> Cancel
+              </Button>
+            </div>
           ) : (
-            <Button 
-              variant="outline" 
-              size="xs" 
-              onClick={() => dispatch({ type: 'SAVE_SNAPSHOT', payload: 'AI Architect Sync' })}
-              className="text-[10px] font-mono uppercase tracking-wider h-7 px-2.5"
-            >
-              <Save className="size-3 mr-1" /> Snapshot
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button 
+                variant="outline" 
+                size="xs" 
+                onClick={() => setShowResetDialog(true)}
+                className="text-[10px] font-mono uppercase tracking-wider h-7 px-2.5 gap-1 border-border text-foreground hover:border-[#171611]"
+                title="Reset or restart agent builder session"
+              >
+                <RotateCcw className="size-3 text-[#a03e3d]" /> Reset
+              </Button>
+              <Button 
+                variant="outline" 
+                size="xs" 
+                onClick={() => dispatch({ type: 'SAVE_SNAPSHOT', payload: 'AI Architect Sync' })}
+                className="text-[10px] font-mono uppercase tracking-wider h-7 px-2.5"
+              >
+                <Save className="size-3 mr-1" /> Snapshot
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -1249,10 +1308,68 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                   </div>
                 )
               ) : m.isCancelled ? (
-                /* Cancelled State Card */
-                <div className="p-3 rounded-sm text-xs bg-muted/40 border border-border/60 text-muted-foreground flex items-center gap-2 font-mono">
-                  <Square className="size-3 text-warning fill-current" />
-                  <span>{m.content}</span>
+                /* Enhanced Cancelled Generation Card */
+                <div className="p-4 rounded-none text-xs bg-surface-container border border-border space-y-3 font-sans shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1 bg-[#a03e3d]/10 border border-[#a03e3d]/30 text-[#a03e3d]">
+                        <Square className="size-3 fill-current" />
+                      </span>
+                      <span className="font-bold text-foreground text-xs uppercase tracking-wider font-mono">
+                        Generation Halted
+                      </span>
+                    </div>
+                    {m.cancelledDuration !== undefined && (
+                      <span className="text-[10px] font-mono text-muted-foreground bg-muted/30 px-2 py-0.5 border border-border">
+                        ⏱ {m.cancelledDuration.toFixed(1)}s elapsed
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {m.content}
+                  </p>
+
+                  {m.cancelledPrompt && (
+                    <div className="p-2.5 bg-background border border-border text-[11px] font-mono text-foreground/80 line-clamp-2">
+                      <span className="text-muted-foreground mr-1 uppercase text-[9px] font-bold">Prompt:</span>
+                      &ldquo;{m.cancelledPrompt}&rdquo;
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border">
+                    {m.cancelledPrompt && (
+                      <Button
+                        size="xs"
+                        variant="warm"
+                        onClick={() => handleSend(m.cancelledPrompt)}
+                        className="text-[11px] gap-1.5 font-medium shadow-xs"
+                      >
+                        <RotateCcw className="size-3" />
+                        <span>Restart Generation</span>
+                      </Button>
+                    )}
+                    {m.cancelledPrompt && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => setInput(m.cancelledPrompt || '')}
+                        className="text-[11px] gap-1.5 font-mono border-border text-foreground hover:border-[#171611]"
+                      >
+                        <Edit3 className="size-3" />
+                        <span>Edit in Prompt Bar</span>
+                      </Button>
+                    )}
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => setShowResetDialog(true)}
+                      className="text-[11px] gap-1.5 font-mono border-border text-muted-foreground hover:text-foreground hover:border-[#171611]"
+                    >
+                      <RefreshCw className="size-3 text-[#a03e3d]" />
+                      <span>Reset Builder...</span>
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 /* Standard Message Card or Live Pipeline Card */
@@ -1554,6 +1671,16 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                             >
                               <GitBranch className="size-3 text-[#a03e3d]" /> Git Sync
                             </Button>
+                            <span className="text-border">|</span>
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => setShowResetDialog(true)}
+                              className="text-xs h-7 gap-1 text-[#a03e3d] hover:bg-[#a03e3d]/10"
+                              title="Reset or restart agent builder session"
+                            >
+                              <RotateCcw className="size-3" /> New Agent / Reset
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -1729,32 +1856,54 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
             {isProcessing ? (
               <div className="flex items-center gap-1.5 h-full">
                 <Badge variant="outline" className="h-full px-2 text-[11px] font-mono text-muted-foreground border-border/80 flex items-center gap-1.5 bg-muted/20">
-                  <span className="size-1.5 rounded-full bg-primary animate-ping" />
+                  <span className="size-1.5 rounded-full bg-[#a03e3d] animate-ping" />
                   <span>⏱ {elapsedSeconds.toFixed(1)}s</span>
                 </Badge>
                 <Button 
                   variant="destructive"
-                  className="h-full px-3.5 rounded-sm font-medium transition-all shadow-xs gap-1.5"
+                  className="h-full px-3.5 rounded-none font-medium transition-none shadow-xs gap-1.5"
                   onClick={handleCancel}
-                  title="Cancel Generation"
+                  title="Cancel Generation (or press Esc)"
                 >
                   <Square className="size-3.5 fill-current" />
                   <span className="text-xs font-mono uppercase">Stop</span>
+                  <kbd className="hidden sm:inline-block ml-0.5 px-1 py-0.5 text-[9px] font-mono bg-black/20 border border-white/20">Esc</kbd>
                 </Button>
               </div>
             ) : (
-              <Button 
-                variant="warm"
-                className="h-full px-4 rounded-sm transition-all shadow-xs" 
-                onClick={() => handleSend()}
-                disabled={!input.trim() && contextFiles.length === 0}
-              >
-                <Send className="size-4" />
-              </Button>
+              <div className="flex items-center gap-1.5 h-full">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-full px-2.5 rounded-none border-border text-muted-foreground hover:text-foreground hover:border-[#171611]"
+                  onClick={() => setShowResetDialog(true)}
+                  title="Reset or restart agent builder session"
+                >
+                  <RotateCcw className="size-3.5 text-[#a03e3d]" />
+                  <span className="sr-only sm:not-sr-only text-xs font-mono">Reset</span>
+                </Button>
+                <Button 
+                  variant="warm"
+                  className="h-full px-4 rounded-none transition-none shadow-xs" 
+                  onClick={() => handleSend()}
+                  disabled={!input.trim() && contextFiles.length === 0}
+                >
+                  <Send className="size-4" />
+                </Button>
+              </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Global Reset / Restart Dialog */}
+      <ResetRestartDialog 
+        open={showResetDialog} 
+        onOpenChange={setShowResetDialog}
+        onRestartChat={handleRestartChat}
+        onCancelActiveGeneration={handleCancel}
+        isGenerating={isProcessing}
+      />
     </div>
   );
 }

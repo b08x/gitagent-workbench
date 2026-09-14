@@ -40,8 +40,10 @@ import {
   SlidersHorizontal,
   Code2,
   Loader2,
-  ArrowRight
+  ArrowRight,
+  RotateCcw
 } from 'lucide-react';
+import { ResetRestartDialog } from './components/ResetRestartDialog';
 import { AgentWizard } from './AgentWizard';
 import { RuntimeFrameworkStep } from '../wizard/steps/RuntimeFrameworkStep';
 import { IdentityStep } from '../wizard/steps/IdentityStep';
@@ -91,6 +93,7 @@ export function AgentWorkbench() {
   const isArchitectMode = searchParams.get('tab') === 'architect';
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [showInspector, setShowInspector] = useState(true);
+  const [showResetDialog, setShowResetDialog] = useState(false);
 
   const assembledPrompt = useMemo(() => assembleSystemPrompt(state), [state]);
   const tokenEstimate = Math.round(assembledPrompt.length / 4);
@@ -243,6 +246,17 @@ export function AgentWorkbench() {
           >
             <MessageSquare className="size-3.5 text-[#A0D2EB]" />
             <span className="hidden sm:inline">Test in Lab</span>
+          </Button>
+
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowResetDialog(true)}
+            title="Reset or restart agent builder session"
+            className="text-xs font-mono gap-1.5 border-border text-foreground hover:border-[#171611]"
+          >
+            <RotateCcw className="size-3.5 text-[#a03e3d]" />
+            <span className="hidden md:inline">Reset</span>
           </Button>
 
           <Button 
@@ -799,7 +813,7 @@ export function AgentWorkbench() {
                   </Button>
 
                   {/* Other Actions Row */}
-                  <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-border/50">
+                  <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-border/50">
                     <Button 
                       onClick={() => navigate('/workbench/skills')}
                       variant="ghost" 
@@ -814,7 +828,16 @@ export function AgentWorkbench() {
                       size="xs"
                       className="h-7 text-[10px] font-mono gap-1 justify-center text-muted-foreground hover:text-foreground hover:bg-surface-container"
                     >
-                      <Download className="size-3 text-[#a03e3d]" /> Export ZIP
+                      <Download className="size-3 text-[#a03e3d]" /> Export
+                    </Button>
+                    <Button 
+                      onClick={() => setShowResetDialog(true)}
+                      variant="ghost" 
+                      size="xs"
+                      className="h-7 text-[10px] font-mono gap-1 justify-center text-[#a03e3d] hover:bg-[#a03e3d]/10"
+                      title="Reset or restart agent builder"
+                    >
+                      <RotateCcw className="size-3 text-[#a03e3d]" /> Reset
                     </Button>
                   </div>
                 </div>
@@ -823,6 +846,12 @@ export function AgentWorkbench() {
           </div>
         )}
       </div>
+
+      {/* Global Reset / Restart Dialog */}
+      <ResetRestartDialog 
+        open={showResetDialog} 
+        onOpenChange={setShowResetDialog} 
+      />
     </div>
   );
 }

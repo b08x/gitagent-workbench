@@ -48,7 +48,8 @@ type Action =
   | { type: 'UPDATE_GIT_REMOTE'; payload: { name: string; url: string; provider: 'github' | 'gitlab' | 'bitbucket' | 'custom'; token?: string } }
   | { type: 'SYNC_GIT'; payload?: { remoteName?: string; forceError?: string } }
   | { type: 'SIMULATE_GIT_BEHIND'; payload?: number }
-  | { type: 'SET_GIT_SYNC_ERROR'; payload: string | null };
+  | { type: 'SET_GIT_SYNC_ERROR'; payload: string | null }
+  | { type: 'RESET_WORKSPACE'; payload?: { template?: StructureType; targetFramework?: AgentFramework; repoName?: string; keepHistory?: boolean } };
 
 export interface ToolEntry {
   name: string;
@@ -180,7 +181,7 @@ interface ExtendedWorkspace extends AgentWorkspace {
   git: GitRepoState;
 }
 
-const initialState: ExtendedWorkspace = {
+export const initialState: ExtendedWorkspace = {
   selectedTemplate: 'standard',
   meta: {
     structureType: 'standard',
@@ -297,6 +298,26 @@ const initialState: ExtendedWorkspace = {
   runtimeProviderId: 'anthropic',
   git: createDefaultGitState('my-gitagent'),
 };
+
+export function createDefaultWorkspace(
+  repoName: string = 'my-gitagent',
+  targetFramework: AgentFramework = 'hermes_agent',
+  template: StructureType = 'standard'
+): ExtendedWorkspace {
+  return {
+    ...initialState,
+    selectedTemplate: template,
+    meta: {
+      ...initialState.meta,
+      structureType: template,
+    },
+    targetFramework,
+    git: createDefaultGitState(repoName),
+    history: {
+      snapshots: []
+    }
+  };
+}
 
 function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspace {
   switch (action.type) {
@@ -583,6 +604,17 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         },
         history: state.history,
       };
+    }
+    case 'RESET_WORKSPACE': {
+      const fresh = createDefaultWorkspace(
+        action.payload?.repoName || (state.git?.repoName || 'my-gitagent'),
+        action.payload?.targetFramework || (state.targetFramework as AgentFramework) || 'hermes_agent',
+        action.payload?.template || 'standard'
+      );
+      if (action.payload?.keepHistory && state.history?.snapshots?.length) {
+        fresh.history = state.history;
+      }
+      return fresh;
     }
     default:
       return state;
