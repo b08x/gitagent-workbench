@@ -27,12 +27,12 @@ export const CURATED_MODELS: Record<string, ModelOption[]> = {
   ],
   google: [
     { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (Recommended)' },
-    { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash' },
     { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview (Advanced Reasoning)' },
     { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' },
     { id: 'gemini-flash-latest', name: 'Gemini Flash Latest' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash' },
     { id: 'gemini-3.1-flash-image', name: 'Gemini 3.1 Flash Image' },
     { id: 'gemini-3.1-flash-lite-image', name: 'Gemini 3.1 Flash Lite Image' },
     { id: 'gemini-embedding-2-preview', name: 'Gemini Embedding 2' },
@@ -66,18 +66,22 @@ export const CURATED_MODELS: Record<string, ModelOption[]> = {
 
 /**
  * Filters Groq models to only safe, general-purpose chat completion models.
- * Excludes prompt-guard, specialized audio/transcription, and non-chat models.
+ * Excludes prompt-guard, specialized audio/transcription, terms-required, and non-chat models.
  */
 export function filterGroqChatModels(models: Array<{ id: string; name?: string }>): ModelOption[] {
   const disallowedKeywords = [
-    'orpheus', 'prompt-guard', 'guard', 'whisper', 'audio', 'tts', 'transcribe',
-    'embed', 'moderation', 'rerank', 'distil-whisper'
+    'orpheus', 'canopy', 'prompt-guard', 'guard', 'whisper', 'audio', 'tts', 'transcribe',
+    'embed', 'moderation', 'rerank', 'distil-whisper', 'safeguard', 'vision-preview'
   ];
 
   const valid = models.filter(m => {
     const id = m.id.toLowerCase();
     return !disallowedKeywords.some(keyword => id.includes(keyword));
   });
+
+  if (valid.length === 0) {
+    return CURATED_MODELS.groq;
+  }
 
   const priorityOrder = [
     'llama-3.3-70b-versatile',

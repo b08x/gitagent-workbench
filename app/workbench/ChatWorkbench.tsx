@@ -63,7 +63,7 @@ export function ChatWorkbench() {
 
   const [chatModel, setChatModel] = useState<ChatModelState>(() => {
     const pId = settings.taskModels.chatTests?.providerId || 'google';
-    const mId = settings.taskModels.chatTests?.modelId || 'gemini-3.7-flash';
+    const mId = settings.taskModels.chatTests?.modelId || 'gemini-3.8-flash';
     return {
       providerId: pId,
       modelId: mId,
@@ -86,12 +86,16 @@ export function ChatWorkbench() {
     try {
       const apiKey = settings.apiKeys[providerId];
       const models = await fetchChatModels(providerId, apiKey);
-      setChatModel(prev => ({
-        ...prev,
-        availableModels: models,
-        fetchStatus: 'success',
-        modelId: models[0]?.id || prev.modelId
-      }));
+      setChatModel(prev => {
+        const isCurrentValid = models.some(m => m.id === prev.modelId);
+        const selectedModel = isCurrentValid ? prev.modelId : (models[0]?.id || prev.modelId);
+        return {
+          ...prev,
+          availableModels: models,
+          fetchStatus: 'success',
+          modelId: selectedModel
+        };
+      });
     } catch (err: any) {
       console.warn(`Failed to fetch models for ${providerId}:`, err);
       const fallback = CURATED_MODELS[providerId] || [];
@@ -106,7 +110,7 @@ export function ChatWorkbench() {
 
   const handleProviderChange = (newProviderId: string) => {
     const curated = CURATED_MODELS[newProviderId] || [];
-    const defaultModel = curated[0]?.id || '';
+    const defaultModel = curated[0]?.id || (newProviderId === 'google' ? 'gemini-3.8-flash' : newProviderId === 'groq' ? 'llama-3.3-70b-versatile' : '');
     setChatModel({
       providerId: newProviderId,
       modelId: defaultModel,

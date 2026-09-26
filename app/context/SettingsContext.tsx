@@ -62,7 +62,7 @@ const SettingsContext = createContext<{
 
 const DEFAULTS: AppConfig = {
   providerId: 'google',
-  modelId: 'gemini-3.7-flash',
+  modelId: 'gemini-3.8-flash',
   parameters: {
     temperature: 0.7,
     topP: 1,
@@ -80,13 +80,13 @@ const DEFAULTS: AppConfig = {
     defaultBranch: 'main',
   },
   taskModels: {
-    scripts: { providerId: 'google', modelId: 'gemini-3.7-flash' },
-    knowledge: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    scripts: { providerId: 'google', modelId: 'gemini-3.8-flash' },
+    knowledge: { providerId: 'google', modelId: 'gemini-3.8-flash' },
     embeddings: { providerId: 'google', modelId: 'gemini-embedding-2-preview' },
-    chatTests: { providerId: 'google', modelId: 'gemini-3.7-flash' },
-    memorySeeding: { providerId: 'google', modelId: 'gemini-3.7-flash' },
-    documentation: { providerId: 'google', modelId: 'gemini-3.7-flash' },
-    architect: { providerId: 'google', modelId: 'gemini-3.7-flash' },
+    chatTests: { providerId: 'google', modelId: 'gemini-3.8-flash' },
+    memorySeeding: { providerId: 'google', modelId: 'gemini-3.8-flash' },
+    documentation: { providerId: 'google', modelId: 'gemini-3.8-flash' },
+    architect: { providerId: 'google', modelId: 'gemini-3.8-flash' },
   }
 };
 

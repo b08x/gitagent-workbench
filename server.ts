@@ -22,6 +22,15 @@ function cleanErrorMessage(err: any): string {
     } catch {}
   }
   if (typeof msg === 'string') {
+    if (msg.includes('model_terms_required') || msg.includes('requires terms acceptance')) {
+      return 'The selected model requires terms acceptance on the provider console. We recommend switching to Llama 3.3 70B Versatile or Gemini 3.8 Flash.';
+    }
+    if (msg.includes('Please reduce the length of the messages') || msg.includes('llama-prompt-guard')) {
+      return 'Prompt length exceeds the context limit for this classifier model. Please select a general chat model such as Llama 3.3 70B.';
+    }
+    if (msg.includes('503') || msg.toLowerCase().includes('high demand') || msg.includes('UNAVAILABLE')) {
+      return 'This model is currently experiencing temporary high demand on the provider. Falling back to alternative model...';
+    }
     if (msg.includes('API_KEY_INVALID') || msg.toLowerCase().includes('api key not valid')) {
       return 'Invalid API key provided for the model provider. Please verify your API key in Settings or use the Built-in Engine.';
     }
@@ -129,13 +138,35 @@ async function startServer() {
 
     try {
       if (providerId === 'google') {
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.7-flash',
-          contents: [{ role: 'user', parts: [{ text: 'ping' }] }],
-          config: { maxOutputTokens: 5 }
-        });
-        if (response) return res.json({ ok: true });
+        const testModels = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.7-flash'];
+        let ok = false;
+        let lastErr: any = null;
+        for (const tm of testModels) {
+          try {
+            const ai = new GoogleGenAI({ 
+              apiKey,
+              httpOptions: { headers: { 'User-Agent': 'GitAgent-Workbench/1.0.0' } }
+            });
+            const response = await ai.models.generateContent({
+              model: tm,
+              contents: [{ role: 'user', parts: [{ text: 'ping' }] }],
+              config: { maxOutputTokens: 5 }
+            });
+            if (response) {
+              ok = true;
+              break;
+            }
+          } catch (e: any) {
+            lastErr = e;
+            const emsg = e?.message || String(e);
+            if (emsg.includes('503') || emsg.includes('high demand') || emsg.includes('UNAVAILABLE')) {
+              continue;
+            }
+            throw e;
+          }
+        }
+        if (ok) return res.json({ ok: true });
+        throw lastErr || new Error("Google test ping failed");
       }
 
       if (providerId === 'openai') {
@@ -210,6 +241,36 @@ async function startServer() {
           headers: { Authorization: `Bearer ${apiKey}` }
         });
         const json = await response.json();
+        if (Array.isArray(json.data)) {
+          const disallowed = [
+            'orpheus', 'canopy', 'prompt-guard', 'guard', 'whisper', 'audio', 'tts',
+            'transcribe', 'embed', 'moderation', 'rerank', 'distil-whisper', 'safeguard', 'vision-preview'
+          ];
+          const filtered = json.data.filter((m: any) => {
+            const id = (m.id || '').toLowerCase();
+            return !disallowed.some(k => id.includes(k));
+          });
+          const priority = [
+            'llama-3.3-70b-versatile',
+            'llama-3.1-8b-instant',
+            'meta-llama/llama-3.3-70b-instruct',
+            'meta-llama/llama-3.1-8b-instruct',
+            'mixtral-8x7b-32768',
+            'deepseek-r1-distill-llama-70b',
+            'qwen-2.5-32b'
+          ];
+          filtered.sort((a: any, b: any) => {
+            const aId = (a.id || '').toLowerCase();
+            const bId = (b.id || '').toLowerCase();
+            const aIdx = priority.findIndex(p => aId.includes(p.toLowerCase()));
+            const bIdx = priority.findIndex(p => bId.includes(p.toLowerCase()));
+            if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+            if (aIdx !== -1) return -1;
+            if (bIdx !== -1) return 1;
+            return aId.localeCompare(bId);
+          });
+          return res.json({ data: filtered });
+        }
         return res.json(json);
       }
       if (providerId === 'mistral') {
@@ -229,7 +290,8 @@ async function startServer() {
                 .filter((m: any) => {
                   const id = m.name ? m.name.replace(/^models\//, '') : '';
                   const methods = m.supportedGenerationMethods || [];
-                  return methods.includes('generateContent') && !id.includes('deprecated');
+                  const isDeprecated = id.includes('deprecated') || id.includes('gemini-1.5') || id.includes('gemini-2.0') || id.includes('gemini-pro-vision');
+                  return methods.includes('generateContent') && !isDeprecated;
                 })
                 .map((m: any) => {
                   const id = m.name.replace(/^models\//, '');
@@ -240,6 +302,12 @@ async function startServer() {
                 });
               
               if (liveModels.length > 0) {
+                // Ensure gemini-3.8-flash is front and center
+                liveModels.sort((a: any, b: any) => {
+                  if (a.id === 'gemini-3.8-flash') return -1;
+                  if (b.id === 'gemini-3.8-flash') return 1;
+                  return a.id.localeCompare(b.id);
+                });
                 return res.json({ data: liveModels });
               }
             }
@@ -250,12 +318,12 @@ async function startServer() {
 
         return res.json({ 
           data: [
-            { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash (Recommended)' },
+            { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (Recommended)' },
             { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview' },
             { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' },
             { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
             { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-            { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+            { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash' },
           ]
         });
       }
@@ -303,33 +371,36 @@ async function startServer() {
 
   function normalizeModelId(providerId: string, modelId: string): string {
     if (!modelId) {
-      if (providerId === 'google') return 'gemini-3.7-flash';
+      if (providerId === 'google') return 'gemini-3.8-flash';
       if (providerId === 'openai') return 'gpt-4o-mini';
       if (providerId === 'anthropic') return 'claude-3-5-haiku-20241022';
       if (providerId === 'groq') return 'llama-3.3-70b-versatile';
       if (providerId === 'mistral') return 'mistral-small-latest';
       if (providerId === 'ollama') return 'llama3.2';
-      return 'openai/gpt-4o-mini';
+      return 'gemini-3.8-flash';
     }
-    if (providerId === 'google' && modelId.startsWith('google/')) {
-      return modelId.slice(7);
+    let clean = modelId;
+    if (providerId === 'google' && clean.startsWith('google/')) clean = clean.slice(7);
+    if (providerId === 'openai' && clean.startsWith('openai/')) clean = clean.slice(7);
+    if (providerId === 'anthropic' && clean.startsWith('anthropic/')) clean = clean.slice(10);
+    if (providerId === 'groq' && clean.startsWith('groq/')) clean = clean.slice(5);
+    if (providerId === 'mistral' && clean.startsWith('mistral/')) clean = clean.slice(8);
+    if (providerId === 'openrouter' && clean.startsWith('openrouter/')) clean = clean.slice(11);
+
+    // Sanitize Groq models against classification, speech, or terms-locked models
+    if (providerId === 'groq') {
+      const lower = clean.toLowerCase();
+      const disallowed = [
+        'orpheus', 'canopy', 'prompt-guard', 'guard', 'whisper', 'audio', 'tts',
+        'transcribe', 'embed', 'moderation', 'rerank', 'distil-whisper', 'safeguard', 'vision-preview'
+      ];
+      if (disallowed.some(k => lower.includes(k))) {
+        console.warn(`Disallowed or non-chat Groq model "${clean}" requested. Auto-normalizing to "llama-3.3-70b-versatile".`);
+        return 'llama-3.3-70b-versatile';
+      }
     }
-    if (providerId === 'openai' && modelId.startsWith('openai/')) {
-      return modelId.slice(7);
-    }
-    if (providerId === 'anthropic' && modelId.startsWith('anthropic/')) {
-      return modelId.slice(10);
-    }
-    if (providerId === 'groq' && modelId.startsWith('groq/')) {
-      return modelId.slice(5);
-    }
-    if (providerId === 'mistral' && modelId.startsWith('mistral/')) {
-      return modelId.slice(8);
-    }
-    if (providerId === 'openrouter' && modelId.startsWith('openrouter/')) {
-      return modelId.slice(11);
-    }
-    return modelId;
+
+    return clean;
   }
 
   function extractUserPromptText(prompt: any): string {
@@ -352,75 +423,117 @@ async function startServer() {
     return '';
   }
 
-  // Direct generation using Google Gen AI SDK
+  // Direct generation using Google Gen AI SDK with automatic 503 / 429 demand spike retry
   async function generateWithGoogle(modelId: string, apiKey: string, prompt: any, options: any) {
-    const ai = new GoogleGenAI({ apiKey });
-    let contents: any = [];
+    const candidateModels = [
+      modelId,
+      'gemini-3.8-flash',
+      'gemini-2.5-flash',
+      'gemini-3.1-flash-lite',
+      'gemini-3.1-pro-preview',
+      'gemini-3.7-flash'
+    ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
-    if (prompt.messages && Array.isArray(prompt.messages) && prompt.messages.length > 0) {
-      contents = prompt.messages.map((m: any) => {
-        let text = '';
-        if (typeof m.content === 'string') {
-          text = m.content;
-        } else if (Array.isArray(m.content)) {
-          text = m.content.map((c: any) => (typeof c === 'string' ? c : (c.text || JSON.stringify(c)))).join('\n');
-        } else {
-          text = JSON.stringify(m.content);
-        }
-        return {
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text }]
-        };
-      });
-    } else if (prompt.user) {
-      contents = [{ role: 'user', parts: [{ text: typeof prompt.user === 'string' ? prompt.user : JSON.stringify(prompt.user) }] }];
-    } else if (typeof prompt === 'string') {
-      contents = [{ role: 'user', parts: [{ text: prompt }] }];
-    }
+    let lastGoogleError: any = null;
 
-    const config: any = {};
-    if (prompt.system) {
-      config.systemInstruction = prompt.system;
-    }
-    if (options?.temperature !== undefined) {
-      config.temperature = options.temperature;
-    }
-    if (options?.maxTokens) {
-      config.maxOutputTokens = options.maxTokens;
-    }
-    if (options?.topP !== undefined) {
-      config.topP = options.topP;
-    }
-    if (options?.topK !== undefined) {
-      config.topK = options.topK;
-    }
-
-    if (prompt.schema) {
-      config.responseMimeType = "application/json";
-      config.responseSchema = prompt.schema;
-    }
-
-    const response = await ai.models.generateContent({
-      model: modelId,
-      contents,
-      config
-    });
-
-    const text = response.text || '';
-    if (prompt.schema) {
+    for (const currentModel of candidateModels) {
       try {
-        const object = JSON.parse(text);
-        return { object };
-      } catch {
-        const match = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/{[\s\S]*}/);
-        if (match) {
-          const object = JSON.parse(match[1] || match[0]);
-          return { object };
+        const ai = new GoogleGenAI({ 
+          apiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'GitAgent-Workbench/1.0.0'
+            }
+          }
+        });
+        let contents: any = [];
+
+        if (prompt.messages && Array.isArray(prompt.messages) && prompt.messages.length > 0) {
+          contents = prompt.messages.map((m: any) => {
+            let text = '';
+            if (typeof m.content === 'string') {
+              text = m.content;
+            } else if (Array.isArray(m.content)) {
+              text = m.content.map((c: any) => (typeof c === 'string' ? c : (c.text || JSON.stringify(c)))).join('\n');
+            } else {
+              text = JSON.stringify(m.content);
+            }
+            return {
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text }]
+            };
+          });
+        } else if (prompt.user) {
+          contents = [{ role: 'user', parts: [{ text: typeof prompt.user === 'string' ? prompt.user : JSON.stringify(prompt.user) }] }];
+        } else if (typeof prompt === 'string') {
+          contents = [{ role: 'user', parts: [{ text: prompt }] }];
         }
+
+        const config: any = {};
+        if (prompt.system) {
+          config.systemInstruction = prompt.system;
+        }
+        if (options?.temperature !== undefined) {
+          config.temperature = options.temperature;
+        }
+        if (options?.maxTokens) {
+          config.maxOutputTokens = options.maxTokens;
+        }
+        if (options?.topP !== undefined) {
+          config.topP = options.topP;
+        }
+        if (options?.topK !== undefined) {
+          config.topK = options.topK;
+        }
+
+        if (prompt.schema) {
+          config.responseMimeType = "application/json";
+          config.responseSchema = prompt.schema;
+        }
+
+        const response = await ai.models.generateContent({
+          model: currentModel,
+          contents,
+          config
+        });
+
+        const text = response.text || '';
+        if (prompt.schema) {
+          try {
+            const object = JSON.parse(text);
+            return { object };
+          } catch {
+            const match = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/{[\s\S]*}/);
+            if (match) {
+              const object = JSON.parse(match[1] || match[0]);
+              return { object };
+            }
+          }
+        }
+
+        return { text };
+      } catch (err: any) {
+        lastGoogleError = err;
+        const errMsg = err?.message || String(err);
+        const isUnavailableOrRateLimited = 
+          err?.status === 503 || 
+          err?.code === 503 || 
+          err?.status === 429 || 
+          err?.code === 429 || 
+          errMsg.includes('503') || 
+          errMsg.includes('high demand') || 
+          errMsg.includes('UNAVAILABLE') || 
+          errMsg.includes('RESOURCE_EXHAUSTED');
+
+        if (isUnavailableOrRateLimited) {
+          console.warn(`Google model ${currentModel} encountered demand spike (${errMsg}). Retrying with next available model...`);
+          continue;
+        }
+        throw err;
       }
     }
 
-    return { text };
+    throw lastGoogleError || new Error(`All Google model attempts failed`);
   }
 
   // Direct OpenAI-compatible generation
@@ -563,13 +676,15 @@ async function startServer() {
     const googleKey = serverKeys['google'];
 
     // Try primary generation
+    let primaryErrorMessage = '';
     try {
       if (apiKey) {
         const result = await executeUniversalGeneration(providerId, cleanModelId, apiKey, prompt, options);
         return res.json(result);
       }
     } catch (primaryError: any) {
-      console.warn(`Primary generation with ${providerId}/${cleanModelId} failed:`, primaryError.message);
+      primaryErrorMessage = primaryError.message || String(primaryError);
+      console.warn(`Primary generation with ${providerId}/${cleanModelId} failed:`, primaryErrorMessage);
 
       // If client key was bad, but server has a serverKey for this provider, try serverKey
       if (clientKey && serverKeys[providerId] && clientKey !== serverKeys[providerId]) {
@@ -585,9 +700,13 @@ async function startServer() {
       // If provider was not google and we have a working google key, try fallback to google
       if (googleKey && providerId !== 'google') {
         try {
-          console.log(`Attempting fallback to Google Gemini (gemini-3.7-flash)...`);
-          const fallbackRes = await executeUniversalGeneration('google', 'gemini-3.7-flash', googleKey, prompt, options);
-          return res.json(fallbackRes);
+          console.log(`Attempting fallback to Google Gemini (gemini-3.8-flash)...`);
+          const fallbackRes = await executeUniversalGeneration('google', 'gemini-3.8-flash', googleKey, prompt, options);
+          return res.json({
+            ...fallbackRes,
+            _fallbackUsed: true,
+            _originalError: primaryErrorMessage
+          });
         } catch (fallbackError: any) {
           console.error("Fallback to Google also failed:", fallbackError);
         }
@@ -603,7 +722,15 @@ async function startServer() {
       const targetFramework = (req.body?.targetFramework || options?.targetFramework || prompt?.targetFramework || prompt?.options?.targetFramework || 'hermes_agent') as any;
       console.log(`Synthesizing agent specification with built-in architecture engine for target harness "${targetFramework}"...`);
       const synth = synthesizeAgentSpec(userText || 'Autonomous Specialist Agent', '', targetFramework);
-      return res.json({ object: synth });
+      return res.json({ object: synth, _fallbackUsed: true, _originalError: primaryErrorMessage });
+    }
+
+    if (apiKey) {
+      return res.status(400).json({ 
+        error: `Generation with ${providerId} (${cleanModelId}) failed: ${cleanErrorMessage(primaryErrorMessage)}`,
+        actualError: primaryErrorMessage,
+        providerId
+      });
     }
 
     // Return friendly error with recovery hints
@@ -788,24 +915,68 @@ async function startServer() {
       res.setHeader("Connection", "keep-alive");
 
       if (providerId === 'google') {
-        const ai = new GoogleGenAI({ apiKey });
-        const responseStream = await ai.models.generateContentStream({
-          model: cleanModelId,
-          contents: prompt.user || prompt.messages,
-          config: {
-            systemInstruction: prompt.system,
-            temperature: options?.temperature,
-            maxOutputTokens: options?.maxTokens,
-            topP: options?.topP,
-            topK: options?.topK,
-          }
-        });
+        const candidateModels = [
+          cleanModelId,
+          'gemini-3.8-flash',
+          'gemini-2.5-flash',
+          'gemini-3.1-flash-lite',
+          'gemini-3.7-flash'
+        ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
-        for await (const chunk of responseStream) {
-          const chunkText = chunk.text || '';
-          if (chunkText) {
-            res.write(`data: ${JSON.stringify({ chunk: chunkText })}\n\n`);
+        let streamed = false;
+        let lastStreamError: any = null;
+
+        for (const currentModel of candidateModels) {
+          try {
+            const ai = new GoogleGenAI({ 
+              apiKey,
+              httpOptions: {
+                headers: {
+                  'User-Agent': 'GitAgent-Workbench/1.0.0'
+                }
+              }
+            });
+            const responseStream = await ai.models.generateContentStream({
+              model: currentModel,
+              contents: prompt.user || prompt.messages,
+              config: {
+                systemInstruction: prompt.system,
+                temperature: options?.temperature,
+                maxOutputTokens: options?.maxTokens,
+                topP: options?.topP,
+                topK: options?.topK,
+              }
+            });
+
+            for await (const chunk of responseStream) {
+              const chunkText = chunk.text || '';
+              if (chunkText) {
+                res.write(`data: ${JSON.stringify({ chunk: chunkText })}\n\n`);
+              }
+            }
+            streamed = true;
+            break;
+          } catch (streamErr: any) {
+            lastStreamError = streamErr;
+            const errMsg = streamErr?.message || String(streamErr);
+            const isUnavailable = 
+              streamErr?.status === 503 || 
+              streamErr?.code === 503 || 
+              errMsg.includes('503') || 
+              errMsg.includes('high demand') || 
+              errMsg.includes('UNAVAILABLE') || 
+              errMsg.includes('RESOURCE_EXHAUSTED');
+
+            if (isUnavailable) {
+              console.warn(`Streaming with Google model ${currentModel} encountered demand spike. Retrying with next model...`);
+              continue;
+            }
+            throw streamErr;
           }
+        }
+
+        if (!streamed && lastStreamError) {
+          throw lastStreamError;
         }
       } else {
         const result = await executeUniversalGeneration(providerId, cleanModelId, apiKey, prompt, options);

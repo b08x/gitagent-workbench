@@ -144,10 +144,14 @@ export function ModelStep({ fieldErrors = {}, hideGeneration = false, hideRuntim
   };
 
   const updateRuntimeProvider = (providerId: string) => {
+    const defaultModel = CURATED_MODELS[providerId]?.[0]?.id || '';
     dispatch({
       type: 'UPDATE_WORKSPACE',
       payload: { runtimeProviderId: providerId }
     });
+    if (defaultModel) {
+      updateModel('preferred', defaultModel);
+    }
   };
 
   const agentName = state.manifest.name || '';
@@ -168,7 +172,10 @@ export function ModelStep({ fieldErrors = {}, hideGeneration = false, hideRuntim
               <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Provider</Label>
               <Tabs 
                 value={settings.providerId} 
-                onValueChange={v => updateSettingsAndWorkspace({ providerId: v })}
+                onValueChange={v => {
+                  const defaultMId = CURATED_MODELS[v]?.[0]?.id || (v === 'google' ? 'gemini-3.8-flash' : v === 'groq' ? 'llama-3.3-70b-versatile' : '');
+                  updateSettingsAndWorkspace({ providerId: v, modelId: defaultMId });
+                }}
                 className="w-full"
               >
                 <TabsList className="grid grid-cols-4 md:grid-cols-7 h-11 w-full bg-background/50 p-1">
