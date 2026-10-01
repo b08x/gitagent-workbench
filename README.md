@@ -15,8 +15,9 @@ A visual development environment for creating production-ready AI agents through
 ## Features
 
 - **Wizard-Driven Configuration** — Step-by-step agent setup covering identity, capabilities, compliance, and deployment structure
-- **Multi-Provider AI Integration** — Native support for Anthropic, OpenAI, Google, Mistral, and OpenRouter APIs
-- **Interactive Workbenches** — Dedicated environments for skill development and workflow design
+- **Multi-Provider AI Integration** — Native support for Anthropic, OpenAI, Google, Mistral, Groq, and OpenRouter APIs
+- **Interactive Workbenches** — Dedicated environments for skill development, workflow design, and git repository management
+- **Git Integration** — In-app version history, staging, commit, push/pull, and agent import directly from the Repository workbench
 - **Intelligent Generation Pipeline** — Automated creation of agent prompts, skills, tools, and configuration files
 - **Live Content Editing** — Built-in editor for refining generated components before export
 - **Compliance Framework** — Risk assessment and governance controls for enterprise deployment
@@ -45,6 +46,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-proj-...
 GOOGLE_API_KEY=AIza...       # Or GEMINI_API_KEY
 MISTRAL_API_KEY=...
+GROQ_API_KEY=gsk_...
 OPENROUTER_API_KEY=sk-or-...
 ```
 
