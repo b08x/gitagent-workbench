@@ -113,42 +113,66 @@ export function generateCommitHash(): string {
 export function serializeWorkspaceFiles(workspace: Partial<AgentWorkspace>): Record<string, string> {
   const files: Record<string, string> = {};
 
+  const ensureString = (val: any): string => {
+    if (typeof val === 'string') return val;
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'object') {
+      try {
+        return JSON.stringify(val, null, 2);
+      } catch {
+        return String(val);
+      }
+    }
+    return String(val);
+  };
+
   // Manifest
   files['.gitagent/manifest.json'] = JSON.stringify(workspace.manifest || {}, null, 2);
   
   // Core persona and rules
-  if (workspace.soul) files['SOUL.md'] = workspace.soul;
-  if (workspace.rules) files['RULES.md'] = workspace.rules;
-  if (workspace.prompt_md) files['PROMPT.md'] = workspace.prompt_md;
-  if (workspace.duties) files['DUTIES.md'] = workspace.duties;
-  if (workspace.agents_md) files['AGENTS.md'] = workspace.agents_md;
-  if (workspace.memory_md) files['MEMORY.md'] = workspace.memory_md;
+  if (workspace.soul) files['SOUL.md'] = ensureString(workspace.soul);
+  if (workspace.rules) files['RULES.md'] = ensureString(workspace.rules);
+  if (workspace.prompt_md) files['PROMPT.md'] = ensureString(workspace.prompt_md);
+  if (workspace.duties) files['DUTIES.md'] = ensureString(workspace.duties);
+  if (workspace.agents_md) files['AGENTS.md'] = ensureString(workspace.agents_md);
+  if (workspace.memory_md) files['MEMORY.md'] = ensureString(workspace.memory_md);
 
   // Skills
   if (workspace.skills) {
     Object.entries(workspace.skills).forEach(([name, skill]) => {
       files[`skills/${name}/SKILL.md`] = typeof skill === 'string' 
         ? skill 
-        : (skill as any).instructions || JSON.stringify(skill, null, 2);
+        : (skill as any)?.instructions 
+        ? String((skill as any).instructions)
+        : JSON.stringify(skill, null, 2);
     });
   }
 
   // Workflows
   if (workspace.workflows) {
     Object.entries(workspace.workflows).forEach(([name, wf]) => {
-      files[`workflows/${name}.json`] = JSON.stringify(wf, null, 2);
+      files[`workflows/${name}.json`] = typeof wf === 'string' ? wf : JSON.stringify(wf, null, 2);
     });
   }
 
   // Configuration
   if (workspace.config) {
-    files['config/runtime.json'] = JSON.stringify(workspace.config, null, 2);
+    files['config/runtime.json'] = typeof workspace.config === 'string' ? workspace.config : JSON.stringify(workspace.config, null, 2);
   }
 
   // Gitignore
   files['.gitignore'] = DEFAULT_GITIGNORE;
 
   return files;
+}
+
+/**
+ * Safely compute line count of arbitrary content without throwing
+ */
+function getLineCount(val: any): number {
+  if (val === null || val === undefined) return 0;
+  const str = typeof val === 'string' ? val : typeof val === 'object' ? JSON.stringify(val) : String(val);
+  return str.split('\n').length;
 }
 
 /**
@@ -162,7 +186,7 @@ export function computeWorkingTreeStatus(
   files: GitFileDiff[];
   changedCount: number;
 } {
-  if (!gitState.isInitialized || !gitState.head) {
+  if (!gitState?.isInitialized || !gitState.head) {
     return {
       isClean: false,
       files: [],
@@ -171,27 +195,29 @@ export function computeWorkingTreeStatus(
   }
 
   const currentFiles = serializeWorkspaceFiles(workspace);
-  const headCommit = gitState.commits.find(c => c.hash === gitState.head);
+  const headCommit = gitState.commits?.find(c => c.hash === gitState.head);
   const headFiles = headCommit ? serializeWorkspaceFiles(headCommit.snapshot) : {};
 
   const diffs: GitFileDiff[] = [];
 
   // Check current files against HEAD files
   Object.keys(currentFiles).forEach(path => {
-    const currentContent = currentFiles[path];
-    const headContent = headFiles[path];
+    const currentContent = typeof currentFiles[path] === 'string' ? currentFiles[path] : String(currentFiles[path] ?? '');
+    const headContent = headFiles[path] !== undefined 
+      ? (typeof headFiles[path] === 'string' ? headFiles[path] : String(headFiles[path] ?? ''))
+      : undefined;
 
     if (headContent === undefined) {
       diffs.push({
         path,
         status: 'added',
         summary: 'New untracked file created',
-        additions: currentContent.split('\n').length,
+        additions: getLineCount(currentContent),
         deletions: 0,
       });
     } else if (currentContent !== headContent) {
-      const curLines = currentContent.split('\n').length;
-      const headLines = headContent.split('\n').length;
+      const curLines = getLineCount(currentContent);
+      const headLines = getLineCount(headContent);
       diffs.push({
         path,
         status: 'modified',
@@ -205,12 +231,13 @@ export function computeWorkingTreeStatus(
   // Check for deleted files
   Object.keys(headFiles).forEach(path => {
     if (currentFiles[path] === undefined) {
+      const hContent = typeof headFiles[path] === 'string' ? headFiles[path] : String(headFiles[path] ?? '');
       diffs.push({
         path,
         status: 'deleted',
         summary: 'File removed from workspace',
         additions: 0,
-        deletions: headFiles[path].split('\n').length,
+        deletions: getLineCount(hContent),
       });
     }
   });

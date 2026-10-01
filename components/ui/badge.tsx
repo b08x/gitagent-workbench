@@ -6,12 +6,12 @@ const Badge = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEleme
     const variants = {
       default: "border-primary bg-primary text-primary-foreground",
       secondary: "border-border bg-muted text-foreground",
-      amber: "border-[#b45309] bg-[#b45309]/10 text-[#b45309]",
-      maroon: "border-[#b45309] bg-[#b45309]/10 text-[#b45309]",
-      green: "border-[#1f6a38] bg-[#1f6a38]/10 text-[#1f6a38]",
-      success: "border-[#1f6a38] bg-[#1f6a38]/10 text-[#1f6a38]",
-      olive: "border-[#1f6a38] bg-[#1f6a38]/10 text-[#1f6a38]",
-      destructive: "border-[#b91c1c] bg-[#b91c1c]/10 text-[#b91c1c]",
+      amber: "border-secondary/40 bg-secondary/10 text-secondary",
+      maroon: "border-secondary/40 bg-secondary/10 text-secondary",
+      green: "border-success/40 bg-success/10 text-success",
+      success: "border-success/40 bg-success/10 text-success",
+      olive: "border-success/40 bg-success/10 text-success",
+      destructive: "border-destructive/40 bg-destructive/10 text-destructive",
       outline: "border-border bg-transparent text-foreground",
     }
     return (

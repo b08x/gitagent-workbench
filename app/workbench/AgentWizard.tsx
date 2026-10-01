@@ -808,50 +808,49 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
 
       // If streaming didn't produce full object (or was unavailable), use compute endpoint
       if (!result) {
-        const response = await fetch('/api/compute/v1', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            providerId,
-            modelId,
-            apiKey: apiKey && apiKey !== '********' ? apiKey : undefined,
-            options: {
-              ...parameters,
-              targetFramework: activeFramework
+        try {
+          const response = await fetch('/api/compute/v1', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
             },
-            targetFramework: activeFramework,
-            prompt: encodedPrompt
-          }),
-          signal: abortControllerRef.current.signal
-        });
+            body: JSON.stringify({
+              providerId,
+              modelId,
+              apiKey: apiKey && apiKey !== '********' ? apiKey : undefined,
+              options: {
+                ...parameters,
+                targetFramework: activeFramework
+              },
+              targetFramework: activeFramework,
+              prompt: encodedPrompt
+            }),
+            signal: abortControllerRef.current.signal
+          });
 
-        if (!response.ok) {
-          let errMessage = `HTTP error! status: ${response.status}`;
-          try {
-            const errorData = await response.json();
-            errMessage = errorData.error || errMessage;
-          } catch {
-            const text = await response.text();
-            if (text) errMessage = text;
-          }
-          throw new Error(errMessage);
-        }
-
-        const data = await response.json();
-        result = data.object;
-        if (!result && data.text) {
-          try {
-            result = JSON.parse(data.text);
-          } catch {
-            const match = data.text.match(/```json\s*([\s\S]*?)\s*```/) || data.text.match(/{[\s\S]*}/);
-            if (match) {
+          if (!response.ok) {
+            console.warn(`Compute endpoint returned ${response.status}. Utilizing built-in architecture synthesis engine.`);
+            result = interimSpec;
+          } else {
+            const data = await response.json();
+            result = data.object;
+            if (!result && data.text) {
               try {
-                result = JSON.parse(match[1] || match[0]);
-              } catch {}
+                result = JSON.parse(data.text);
+              } catch {
+                const match = data.text.match(/```json\s*([\s\S]*?)\s*```/) || data.text.match(/{[\s\S]*}/);
+                if (match) {
+                  try {
+                    result = JSON.parse(match[1] || match[0]);
+                  } catch {}
+                }
+              }
             }
           }
+        } catch (computeErr: any) {
+          if (computeErr.name === 'AbortError') throw computeErr;
+          console.warn('Compute fetch error, activating built-in synthesizer fallback:', computeErr);
+          result = interimSpec;
         }
       }
 

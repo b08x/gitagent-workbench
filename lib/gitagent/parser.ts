@@ -8,9 +8,12 @@ export function parseMarkdownToFineGrained(content: any, type: 'soul' | 'rules' 
   if (!content) return {};
   if (typeof content !== 'string') {
     if (typeof content === 'object') {
+      if (type === 'skills') {
+        return parseSkillsMarkdown(content);
+      }
       return content;
     }
-    return {};
+    content = String(content);
   }
   if (type === 'soul') {
     return parseMarkdownSections(content, SOUL_SECTIONS);
@@ -25,10 +28,15 @@ export function parseMarkdownToFineGrained(content: any, type: 'soul' | 'rules' 
 }
 
 function parseMarkdownSections(content: any, sections: { title: string, key: string }[]): Record<string, string> {
-  if (!content || typeof content !== 'string') return {};
+  if (!content) return {};
+  const str = typeof content === 'string' 
+    ? content 
+    : typeof content === 'object' 
+    ? Object.entries(content).map(([k, v]) => `## ${k}\n${v}`).join('\n\n')
+    : String(content);
   
   const result: Record<string, string> = {};
-  const lines = content.split('\n');
+  const lines = str.split('\n');
   let currentKey: string | null = null;
   let currentContent: string[] = [];
 
@@ -61,7 +69,71 @@ function parseMarkdownSections(content: any, sections: { title: string, key: str
 }
 
 function parseSkillsMarkdown(content: any): { skillsList: SkillEntry[], skills: Record<string, ParsedSkill> } {
-  if (!content || typeof content !== 'string') return { skillsList: [], skills: {} };
+  if (!content) return { skillsList: [], skills: {} };
+
+  if (typeof content !== 'string') {
+    if (Array.isArray(content)) {
+      const skillsList: SkillEntry[] = [];
+      const skills: Record<string, ParsedSkill> = {};
+      for (const s of content) {
+        if (!s) continue;
+        const name = s.name || 'custom-skill';
+        const description = s.description || '';
+        const instructions = s.instructions || '';
+        const allowedTools = Array.isArray(s.allowedTools) 
+          ? s.allowedTools 
+          : typeof s.allowedTools === 'string' 
+          ? s.allowedTools.split(/\s+/).filter(Boolean) 
+          : [];
+        skillsList.push({
+          name,
+          description,
+          instructions,
+          allowedTools: allowedTools.join(' '),
+          category: s.category || 'general'
+        });
+        skills[name] = {
+          name,
+          description,
+          instructions,
+          allowedTools,
+          category: s.category || 'general',
+          references: []
+        };
+      }
+      return { skillsList, skills };
+    } else if (typeof content === 'object') {
+      const skillsList: SkillEntry[] = [];
+      const skills: Record<string, ParsedSkill> = {};
+      for (const [name, s] of Object.entries(content) as [string, any][]) {
+        if (!s) continue;
+        const description = typeof s === 'string' ? '' : s.description || '';
+        const instructions = typeof s === 'string' ? s : s.instructions || '';
+        const allowedTools = Array.isArray(s?.allowedTools) 
+          ? s.allowedTools 
+          : typeof s?.allowedTools === 'string' 
+          ? s.allowedTools.split(/\s+/).filter(Boolean) 
+          : [];
+        skillsList.push({
+          name,
+          description,
+          instructions,
+          allowedTools: allowedTools.join(' '),
+          category: s?.category || 'general'
+        });
+        skills[name] = {
+          name,
+          description,
+          instructions,
+          allowedTools,
+          category: s?.category || 'general',
+          references: []
+        };
+      }
+      return { skillsList, skills };
+    }
+    content = String(content);
+  }
 
   const skillsList: SkillEntry[] = [];
   const skills: Record<string, ParsedSkill> = {};

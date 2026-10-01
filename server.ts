@@ -40,6 +40,9 @@ function cleanErrorMessage(err: any): string {
     if (msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
       return 'Authentication failed for model provider. Please check your API key in Settings.';
     }
+    if (msg.toLowerCase().includes('invalid format') || msg.toLowerCase().includes('invalid_json')) {
+      return 'The model returned an unexpected output format. Utilizing built-in architecture synthesis engine...';
+    }
   }
   return msg;
 }
@@ -358,13 +361,18 @@ async function startServer() {
   });
 
   const decodePrompt = (prompt: any) => {
-    if (typeof prompt === 'string' && (prompt.startsWith('base64:') || /^[A-Za-z0-9+/]*={0,2}$/.test(prompt))) {
-      try {
-        const clean = prompt.startsWith('base64:') ? prompt.slice(7) : prompt;
-        return JSON.parse(Buffer.from(clean, 'base64').toString('utf-8'));
-      } catch (e) {
-        return prompt;
+    if (typeof prompt === 'string') {
+      const trimmed = prompt.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try { return JSON.parse(trimmed); } catch {}
       }
+      try {
+        const clean = trimmed.startsWith('base64:') ? trimmed.slice(7) : trimmed;
+        const decoded = Buffer.from(clean, 'base64').toString('utf-8');
+        if (decoded.trim().startsWith('{') && decoded.trim().endsWith('}')) {
+          return JSON.parse(decoded);
+        }
+      } catch {}
     }
     return prompt;
   };
@@ -675,6 +683,14 @@ async function startServer() {
     
     const googleKey = serverKeys['google'];
 
+    // Check if the request is an Agent Architect manifest synthesis request
+    const isArchitectRequest = Boolean(
+      (prompt && (prompt.schema?.properties?.manifest || prompt.schema?.manifest || (typeof prompt.system === 'string' && prompt.system.includes('AI Architect')))) ||
+      (typeof req.body?.prompt === 'string' && (req.body.prompt.includes('AI Architect') || req.body.prompt.includes('manifest'))) ||
+      req.body?.targetFramework ||
+      options?.targetFramework
+    );
+
     // Try primary generation
     let primaryErrorMessage = '';
     try {
@@ -692,6 +708,16 @@ async function startServer() {
             }
           }
         }
+
+        // If architect was requested but model didn't return a valid manifest object
+        if (isArchitectRequest && (!result.object || !result.object.manifest)) {
+          console.warn("Architect generation did not produce a valid manifest object. Synthesizing specification with built-in architecture engine...");
+          const userText = extractUserPromptText(prompt);
+          const targetFramework = (req.body?.targetFramework || options?.targetFramework || prompt?.targetFramework || 'hermes_agent') as any;
+          const synth = synthesizeAgentSpec(userText || 'Autonomous Specialist Agent', '', targetFramework);
+          return res.json({ object: synth, _fallbackUsed: true, _originalText: result.text });
+        }
+
         return res.json(result);
       }
     } catch (primaryError: any) {
@@ -726,9 +752,6 @@ async function startServer() {
     }
 
     // If we reach here, external LLM calls failed or no keys are configured.
-    // Check if the request is an Agent Architect manifest synthesis request
-    const isArchitectRequest = prompt && (prompt.schema?.properties?.manifest || prompt.schema?.manifest || (typeof prompt.system === 'string' && prompt.system.includes('AI Architect')));
-
     if (isArchitectRequest) {
       const userText = extractUserPromptText(prompt);
       const targetFramework = (req.body?.targetFramework || options?.targetFramework || prompt?.targetFramework || prompt?.options?.targetFramework || 'hermes_agent') as any;

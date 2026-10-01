@@ -372,7 +372,9 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
             };
           }
         } else if (typeof payload.soul === 'object' && payload.soul !== null) {
-          payload = { ...payload, ...(payload.soul as any) };
+          const entries = Object.entries(payload.soul);
+          const asMarkdown = entries.map(([k, v]) => `## ${k.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}\n${v}`).join('\n\n');
+          payload = { ...payload, ...(payload.soul as any), soul: asMarkdown };
         }
       }
       if (payload.rules) {
@@ -380,17 +382,24 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
           const rulesUpdates = parseMarkdownToFineGrained(payload.rules, 'rules');
           payload = { ...payload, ...rulesUpdates };
         } else if (typeof payload.rules === 'object' && payload.rules !== null) {
-          payload = { ...payload, ...(payload.rules as any) };
+          const entries = Object.entries(payload.rules);
+          const asMarkdown = entries.map(([k, v]) => `## ${k.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}\n${v}`).join('\n\n');
+          payload = { ...payload, ...(payload.rules as any), rules: asMarkdown };
         }
       }
-      if (payload.skills && typeof payload.skills === 'string') {
-        // Special case where skills might be sent as a markdown block
+      if (payload.skills) {
+        // Parse skills whether passed as string or object
         const skillsUpdates = parseMarkdownToFineGrained(payload.skills, 'skills');
         delete (payload as any).skills;
         
         const effectiveFramework = (payload.targetFramework || state.targetFramework || 'hermes_agent') as AgentFramework;
         const alignedSkillsList = (skillsUpdates.skillsList || []).map(skill => {
-          if (!skill.allowedTools || skill.allowedTools.trim() === '') {
+          const toolsStr = typeof skill.allowedTools === 'string' 
+            ? skill.allowedTools 
+            : Array.isArray(skill.allowedTools) 
+            ? (skill.allowedTools as string[]).join(' ') 
+            : '';
+          if (!toolsStr || toolsStr.trim() === '') {
             const inferred = inferFrameworkTools({
               name: skill.name,
               description: skill.description,
@@ -400,7 +409,7 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
             });
             return { ...skill, allowedTools: inferred.tools.join(' ') };
           }
-          return skill;
+          return { ...skill, allowedTools: toolsStr };
         });
 
         payload = { 
@@ -413,27 +422,22 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
       return { ...state, ...payload } as ExtendedWorkspace;
     case 'SET_FILE':
       const filePayload = action.payload;
-      let nextState = { ...state, [filePayload.path]: filePayload.content };
+      const safeContent = typeof filePayload.content === 'string' ? filePayload.content : String(filePayload.content ?? '');
+      let nextState = { ...state, [filePayload.path]: safeContent };
       
       // Sync from file content back to structured fields
       if (filePayload.path === 'soul') {
-        if (typeof filePayload.content === 'string') {
-          const soulUpdates = parseMarkdownToFineGrained(filePayload.content, 'soul');
-          nextState = { ...nextState, ...soulUpdates };
-          if (soulUpdates['core-identity']) {
-            nextState.manifest = { ...nextState.manifest, description: soulUpdates['core-identity'] };
-          }
+        const soulUpdates = parseMarkdownToFineGrained(safeContent, 'soul');
+        nextState = { ...nextState, ...soulUpdates };
+        if (soulUpdates['core-identity']) {
+          nextState.manifest = { ...nextState.manifest, description: soulUpdates['core-identity'] };
         }
       } else if (filePayload.path === 'rules') {
-        if (typeof filePayload.content === 'string') {
-          const rulesUpdates = parseMarkdownToFineGrained(filePayload.content, 'rules');
-          nextState = { ...nextState, ...rulesUpdates };
-        }
+        const rulesUpdates = parseMarkdownToFineGrained(safeContent, 'rules');
+        nextState = { ...nextState, ...rulesUpdates };
       } else if (filePayload.path === 'skills') {
-        if (typeof filePayload.content === 'string') {
-          const skillsUpdates = parseMarkdownToFineGrained(filePayload.content, 'skills');
-          nextState = { ...nextState, ...skillsUpdates };
-        }
+        const skillsUpdates = parseMarkdownToFineGrained(safeContent, 'skills');
+        nextState = { ...nextState, ...skillsUpdates };
       }
 
       return nextState;

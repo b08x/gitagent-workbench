@@ -874,7 +874,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                       onChange={e => handleKnowledgeChange(index, 'content', e.target.value || null)}
                       className="min-h-[150px]"
                     />
-                    {doc.alwaysLoad && (doc.content || '').split(/\s+/).length > 500 && (
+                    {doc.alwaysLoad && (typeof doc.content === 'string' ? doc.content : String(doc.content || '')).split(/\s+/).length > 500 && (
                       <p className="text-xs text-amber-600 flex items-center gap-1">
                         <AlertCircle className="h-3 w-3" /> Large always-load docs increase token cost. Consider setting to 'load on demand'.
                       </p>

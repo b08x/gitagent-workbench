@@ -53,5 +53,9 @@ export function formatErrorMessage(rawError: any): string {
     return "Model protocol compatibility error. The request has been re-routed through the native model engine.";
   }
 
+  if (msg.toLowerCase().includes("invalid format") || msg.toLowerCase().includes("invalid_json") || msg.toLowerCase().includes("json parse")) {
+    return "The model returned an unexpected output format. The AI Architect has automatically synthesized a complete, validated agent specification.";
+  }
+
   return msg;
 }

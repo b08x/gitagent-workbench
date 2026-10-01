@@ -198,7 +198,9 @@ export function AllowedToolsSelector({ skill }: AllowedToolsSelectorProps) {
                   {!isHarnessTool ? (
                     <span className="text-[9px] font-sans opacity-70">(non-harness)</span>
                   ) : toolEntry?.permissions ? (
-                    <span className="text-[9px] font-sans opacity-60">({toolEntry.permissions.split(' ')[0]})</span>
+                    <span className="text-[9px] font-sans opacity-60">
+                      ({String(toolEntry.permissions).split(' ')[0]})
+                    </span>
                   ) : null}
                   <X 
                     className="h-3 w-3 cursor-pointer hover:text-destructive transition-colors ml-0.5" 
