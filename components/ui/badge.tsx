@@ -1,20 +1,25 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-const Badge = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { variant?: 'default' | 'secondary' | 'destructive' | 'outline' }>(
+const Badge = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'amber' | 'green' | 'success' | 'maroon' | 'olive' }>(
   ({ className, variant = 'default', ...props }, ref) => {
     const variants = {
-      default: "border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80",
-      secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-      destructive: "border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80",
-      outline: "text-foreground",
+      default: "border-primary bg-primary text-primary-foreground",
+      secondary: "border-border bg-muted text-foreground",
+      amber: "border-secondary/40 bg-secondary/10 text-secondary",
+      maroon: "border-secondary/40 bg-secondary/10 text-secondary",
+      green: "border-success/40 bg-success/10 text-success",
+      success: "border-success/40 bg-success/10 text-success",
+      olive: "border-success/40 bg-success/10 text-success",
+      destructive: "border-destructive/40 bg-destructive/10 text-destructive",
+      outline: "border-border bg-transparent text-foreground",
     }
     return (
       <div
         ref={ref}
         className={cn(
-          "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-          variants[variant],
+          "inline-flex items-center rounded-none border px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase transition-none select-none",
+          variants[variant] || variants.default,
           className
         )}
         {...props}

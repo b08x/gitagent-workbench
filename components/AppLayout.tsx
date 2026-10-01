@@ -18,12 +18,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [collapsed]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-row bg-background text-foreground select-text">
-      {/* Collapsible Sidebar */}
+    <div className="h-screen w-screen overflow-hidden flex flex-row bg-paper-grid text-foreground select-text relative">
+      {/* Collapsible Sidebar with 1px solid ink boundary */}
       <AppSidebar collapsed={collapsed} setCollapsed={setCollapsed} />
 
-      {/* Main Content Area: Zero outer scrolling, child views control their own scroll areas */}
-      <main className="flex-1 h-screen overflow-hidden flex flex-col relative min-w-0">
+      {/* Main Content Canvas */}
+      <main className="flex-1 h-screen overflow-hidden flex flex-col relative min-w-0 z-10 bg-transparent">
         {children}
       </main>
     </div>

@@ -7,15 +7,16 @@ interface SkillParseResult {
   hasFrontmatter: boolean;
 }
 
-export function parseSkillMd(content: string): SkillParseResult {
+export function parseSkillMd(content: any): SkillParseResult {
   const warnings: string[] = [];
+  const strContent = typeof content === 'string' ? content : (content ? String(content) : '');
   
   // Check for frontmatter
-  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  const frontmatterMatch = strContent.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   
   if (!frontmatterMatch) {
     return {
-      skill: { instructions: content.trim() },
+      skill: { instructions: strContent.trim() },
       warnings: ['No YAML frontmatter found — name and description must be entered manually'],
       hasFrontmatter: false,
     };

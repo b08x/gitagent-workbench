@@ -8,7 +8,7 @@ export async function generateWithRetryAndFallback<T extends z.ZodTypeAny = any>
   prompt: GenerationPrompt<T>,
   config: OrchestratorConfig
 ): Promise<GenerationResult<z.infer<T>>> {
-  const primaryModel = config.modelId || (config.providerId === 'google' ? 'gemini-3.7-flash' : 'openai/gpt-4o-mini');
+  const primaryModel = config.modelId || (config.providerId === 'google' ? 'gemini-3.8-flash' : 'openai/gpt-4o-mini');
   const models = [primaryModel, ...(config.fallbackModelIds || [])].filter(Boolean);
   let lastError: any;
 
@@ -94,7 +94,7 @@ export async function* streamWithRetryAndFallback(
   prompt: GenerationPrompt,
   config: OrchestratorConfig
 ): AsyncGenerator<string> {
-  const primaryModel = config.modelId || (config.providerId === 'google' ? 'gemini-3.7-flash' : 'openai/gpt-4o-mini');
+  const primaryModel = config.modelId || (config.providerId === 'google' ? 'gemini-3.8-flash' : 'openai/gpt-4o-mini');
   const models = [primaryModel, ...(config.fallbackModelIds || [])].filter(Boolean);
   let lastError: any;
 

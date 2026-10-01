@@ -217,8 +217,22 @@ export function universalSynthesize(prompt: any, targetFramework: AgentFramework
   const systemText = typeof prompt?.system === 'string' ? prompt.system : '';
   const schema = prompt?.schema;
 
-  // 1. Check for Manifest Schema (GEN_YAML / Agent Architect)
-  if (schema?.properties?.manifest || schema?.manifest || (schema?.properties?.name && schema?.properties?.version && schema?.properties?.description)) {
+  // 1. Check for Architect Schema (Agent Architect prompt with manifest, soul, rules, skills, explanation)
+  if (schema?.properties?.manifest || schema?.manifest) {
+    const spec = synthesizeAgentSpec(userText || 'Specialist Agent', '', targetFramework);
+    return {
+      object: {
+        manifest: spec.manifest,
+        soul: spec.soul,
+        rules: spec.rules,
+        skills: spec.skills,
+        explanation: spec.explanation
+      }
+    };
+  }
+
+  // 1b. Check for Manifest YAML Schema (GEN_YAML)
+  if (schema?.properties?.name && schema?.properties?.version && schema?.properties?.description) {
     const spec = synthesizeAgentSpec(userText || 'Specialist Agent', '', targetFramework);
     return {
       object: {

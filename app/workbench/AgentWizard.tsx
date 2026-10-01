@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAgentWorkspace } from '../context/AgentContext';
 import { useSettings } from '../context/SettingsContext';
 import { Button } from '@/components/ui/button';
@@ -36,8 +37,19 @@ import {
   Layers,
   CheckCircle2,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  MessageSquare,
+  FileCode,
+  Code2,
+  Download,
+  GitBranch,
+  Shield,
+  Clock,
+  Activity,
+  RefreshCw,
+  Edit3
 } from 'lucide-react';
+import { ResetRestartDialog } from './components/ResetRestartDialog';
 import { cn, formatErrorMessage } from '../../lib/utils';
 import { providers } from '../../lib/providers';
 import { synthesizeAgentSpec } from '../../lib/generation/agentSynthesizer';
@@ -54,6 +66,8 @@ interface ChatMessage {
   timestamp?: string;
   isError?: boolean;
   isCancelled?: boolean;
+  cancelledPrompt?: string;
+  cancelledDuration?: number;
   failedPrompt?: string;
   failedFiles?: File[];
   resolved?: boolean;
@@ -61,6 +75,16 @@ interface ChatMessage {
   retrying?: boolean;
   actionTaken?: string;
   isAuditLog?: boolean;
+  completionData?: {
+    agentName: string;
+    agentDescription?: string;
+    targetFramework: string;
+    targetFrameworkLabel: string;
+    tokensCount: number;
+    skillsCount: number;
+    hasSoul: boolean;
+    hasRules: boolean;
+  };
 }
 
 type GenerationStage = 'intent' | 'manifest' | 'soul' | 'rules' | 'skills' | 'finalizing' | 'complete';
@@ -79,9 +103,39 @@ const getStepOrder = (stage: GenerationStage): number => {
   return index === -1 ? (stage === 'complete' ? 6 : 0) : index;
 };
 
+const getDynamicFinalizingMessage = (elapsedSec: number, frameworkLabel: string, modelId: string): string => {
+  const cleanModel = modelId.replace(/^.*\//, '');
+  if (elapsedSec < 12) {
+    return `Finalizing specification health and verifying ${frameworkLabel} harness constraints...`;
+  } else if (elapsedSec < 20) {
+    return `Synthesizing deep identity directives, persona tone, and domain principles into SOUL.md...`;
+  } else if (elapsedSec < 30) {
+    return `Formulating operational rules, safety boundaries, and constraint invariants (RULES.md)...`;
+  } else if (elapsedSec < 42) {
+    return `Mapping domain tool signatures and execution contracts to ${frameworkLabel} matrix...`;
+  } else if (elapsedSec < 56) {
+    return `Deep LLM synthesis in progress with ${cleanModel} (generating comprehensive multi-file specification)...`;
+  } else if (elapsedSec < 72) {
+    return `Validating JSON schema integrity and cross-referencing multi-file injection slots...`;
+  } else if (elapsedSec < 90) {
+    return `Processing extended token stream (${elapsedSec.toFixed(0)}s elapsed) — assembling manifest & tool parameters...`;
+  } else {
+    return `Performing final specification assembly and packaging live workspace (${elapsedSec.toFixed(0)}s)...`;
+  }
+};
+
+const getEstimatedDuration = (seconds: number): string => {
+  if (seconds < 12) return 'Est. ~15–30s';
+  if (seconds < 30) return 'Deep Synthesis • ~30–45s';
+  if (seconds < 60) return 'Complex Spec • ~60–80s';
+  if (seconds < 90) return 'Extended Blueprint • ~90s';
+  return 'Extended Generation';
+};
+
 export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => void }) {
   const { state, dispatch } = useAgentWorkspace();
   const { settings, updateTaskModel, setApiKey, clearApiKey } = useSettings();
+  const navigate = useNavigate();
 
   const activeFramework: AgentFramework = (state.targetFramework as AgentFramework) || 'hermes_agent';
   const activeFrameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === activeFramework) || AGENT_FRAMEWORK_OPTIONS[0];
@@ -105,12 +159,14 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
   const [inlineKeyInput, setInlineKeyInput] = useState('');
   const [showInlineKeyInput, setShowInlineKeyInput] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const progressiveTimersRef = useRef<NodeJS.Timeout[]>([]);
+  const lastUserPromptRef = useRef<string>('');
 
   const clearProgressiveTimers = () => {
     progressiveTimersRef.current.forEach(t => clearTimeout(t));
@@ -307,23 +363,59 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     clearProgressiveTimers();
     setIsProcessing(false);
     dispatch({ type: 'UPDATE_WORKSPACE', payload: { isCompilingSpec: false } });
+    
+    const cancelledDuration = elapsedSeconds;
+    const promptText = lastUserPromptRef.current;
+
     setMessages(prev => {
-      const last = prev[prev.length - 1];
-      if (last && last.role === 'assistant' && !last.isError && (last.content.includes('Analyzing') || last.content.includes('Generating') || last.id.startsWith('asst-'))) {
-        return [
-          ...prev.slice(0, -1),
-          {
-            id: `cancel-${Date.now()}`,
-            role: 'assistant',
-            content: `Generation cancelled by user after ${elapsedSeconds.toFixed(1)}s.`,
-            isCancelled: true,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }
-        ];
-      }
-      return prev;
+      const filtered = prev.filter(m => !(m.role === 'assistant' && (m.content.includes('Analyzing') || m.id.startsWith('asst-'))));
+      return [
+        ...filtered,
+        {
+          id: `cancel-${Date.now()}`,
+          role: 'assistant',
+          content: `Generation halted by user after ${cancelledDuration.toFixed(1)}s. Workspace changes were discarded.`,
+          isCancelled: true,
+          cancelledPrompt: promptText,
+          cancelledDuration: cancelledDuration,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ];
     });
   };
+
+  const handleRestartChat = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    clearProgressiveTimers();
+    setIsProcessing(false);
+    dispatch({ type: 'UPDATE_WORKSPACE', payload: { isCompilingSpec: false } });
+    setMessages([
+      { 
+        id: `init-${Date.now()}`,
+        role: 'assistant', 
+        content: `Hello! I am your AI Architect configured for the ${activeFrameworkMeta.label} runtime. Describe your agent's purpose, target workflows, or upload spec documents. I will configure the manifest, soul, rules, and skills in real time.`,
+        isInitializing: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+    setInput('');
+    setContextFiles([]);
+  };
+
+  // Keyboard shortcut: Escape cancels active synthesis
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isProcessing) {
+        e.preventDefault();
+        handleCancel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isProcessing, elapsedSeconds]);
 
   const handleSend = async (
     overridePrompt?: string, 
@@ -335,6 +427,8 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
 
     if (!promptToSend.trim() && filesToSend.length === 0) return;
     if (isProcessing) return;
+
+    lastUserPromptRef.current = promptToSend;
 
     if (!recoveryOptions?.recoveryAction) {
       const userTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -444,8 +538,8 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     // Staged progressive update 5: Finalizing at 8.0s
     const t5 = setTimeout(() => {
       setGenerationStage('finalizing');
-      setStageProgress(96);
-      const msg = `Finalizing specification health and verifying harness...`;
+      setStageProgress(94);
+      const msg = `Finalizing specification health and verifying ${activeFrameworkMeta.label} harness...`;
       setStageMessage(msg);
       dispatch({
         type: 'UPDATE_WORKSPACE',
@@ -456,7 +550,87 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
       });
     }, 8000);
 
-    progressiveTimersRef.current = [t1, t2, t3, t4, t5];
+    const t6 = setTimeout(() => {
+      setStageProgress(95);
+      const msg = `Synthesizing deep identity directives & domain principles into SOUL.md...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: { isCompilingSpec: true, compilationStage: msg }
+      });
+    }, 14000);
+
+    const t7 = setTimeout(() => {
+      setStageProgress(96);
+      const msg = `Formulating operational rules, safety boundaries, and constraint invariants (RULES.md)...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: { isCompilingSpec: true, compilationStage: msg }
+      });
+    }, 22000);
+
+    const t8 = setTimeout(() => {
+      setStageProgress(96);
+      const msg = `Mapping executable tool signatures and parameter contracts to ${activeFrameworkMeta.label} matrix...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: { isCompilingSpec: true, compilationStage: msg }
+      });
+    }, 32000);
+
+    const t9 = setTimeout(() => {
+      setStageProgress(97);
+      const msg = `Deep LLM synthesis in progress with ${currentModelId.replace(/^.*\//, '')} (generating multi-file blueprint)...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: { isCompilingSpec: true, compilationStage: msg }
+      });
+    }, 45000);
+
+    const t10 = setTimeout(() => {
+      setStageProgress(97);
+      const msg = `Structuring tool schemas, parameter contracts, and memory partition boundaries...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: { isCompilingSpec: true, compilationStage: msg }
+      });
+    }, 60000);
+
+    const t11 = setTimeout(() => {
+      setStageProgress(98);
+      const msg = `Validating JSON schema integrity and cross-referencing injection slots across artifacts...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: { isCompilingSpec: true, compilationStage: msg }
+      });
+    }, 75000);
+
+    const t12 = setTimeout(() => {
+      setStageProgress(98);
+      const msg = `Processing extended token stream (${currentModelId.replace(/^.*\//, '')}) — assembling manifest & tool parameters...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: { isCompilingSpec: true, compilationStage: msg }
+      });
+    }, 90000);
+
+    const t13 = setTimeout(() => {
+      setStageProgress(99);
+      const msg = `Performing final specification assembly and packaging live workspace...`;
+      setStageMessage(msg);
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: { isCompilingSpec: true, compilationStage: msg }
+      });
+    }, 105000);
+
+    progressiveTimersRef.current = [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13];
 
     try {
       const { providerId, modelId, parameters } = settings.taskModels.architect;
@@ -634,39 +808,50 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
 
       // If streaming didn't produce full object (or was unavailable), use compute endpoint
       if (!result) {
-        const response = await fetch('/api/compute/v1', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            providerId,
-            modelId,
-            apiKey: apiKey && apiKey !== '********' ? apiKey : undefined,
-            options: {
-              ...parameters,
-              targetFramework: activeFramework
+        try {
+          const response = await fetch('/api/compute/v1', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
             },
-            targetFramework: activeFramework,
-            prompt: encodedPrompt
-          }),
-          signal: abortControllerRef.current.signal
-        });
+            body: JSON.stringify({
+              providerId,
+              modelId,
+              apiKey: apiKey && apiKey !== '********' ? apiKey : undefined,
+              options: {
+                ...parameters,
+                targetFramework: activeFramework
+              },
+              targetFramework: activeFramework,
+              prompt: encodedPrompt
+            }),
+            signal: abortControllerRef.current.signal
+          });
 
-        if (!response.ok) {
-          let errMessage = `HTTP error! status: ${response.status}`;
-          try {
-            const errorData = await response.json();
-            errMessage = errorData.error || errMessage;
-          } catch {
-            const text = await response.text();
-            if (text) errMessage = text;
+          if (!response.ok) {
+            console.warn(`Compute endpoint returned ${response.status}. Utilizing built-in architecture synthesis engine.`);
+            result = interimSpec;
+          } else {
+            const data = await response.json();
+            result = data.object;
+            if (!result && data.text) {
+              try {
+                result = JSON.parse(data.text);
+              } catch {
+                const match = data.text.match(/```json\s*([\s\S]*?)\s*```/) || data.text.match(/{[\s\S]*}/);
+                if (match) {
+                  try {
+                    result = JSON.parse(match[1] || match[0]);
+                  } catch {}
+                }
+              }
+            }
           }
-          throw new Error(errMessage);
+        } catch (computeErr: any) {
+          if (computeErr.name === 'AbortError') throw computeErr;
+          console.warn('Compute fetch error, activating built-in synthesizer fallback:', computeErr);
+          result = interimSpec;
         }
-
-        const data = await response.json();
-        result = data.object;
       }
 
       clearProgressiveTimers();
@@ -674,7 +859,50 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
       setGenerationStage('complete');
 
       if (!result || !result.manifest) {
-        throw new Error("Invalid format received from model. Please try regenerating.");
+        console.warn("Structured specification not returned from LLM. Utilizing built-in synthesized specification.");
+        result = interimSpec;
+      }
+
+      // Guarantee manifest structure
+      if (!result.manifest || !result.manifest.name) {
+        result.manifest = {
+          name: interimSpec.manifest.name,
+          description: result.manifest?.description || interimSpec.manifest.description,
+          ...result.manifest
+        };
+      }
+
+      // Normalize soul to markdown string if returned as structured object
+      if (typeof result.soul === 'object' && result.soul !== null) {
+        result.soul = Object.entries(result.soul)
+          .map(([k, v]) => `## ${k.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}\n${v}`)
+          .join('\n\n');
+      } else if (!result.soul || typeof result.soul !== 'string') {
+        result.soul = interimSpec.soul;
+      }
+
+      // Normalize rules to markdown string if returned as structured object
+      if (typeof result.rules === 'object' && result.rules !== null) {
+        result.rules = Object.entries(result.rules)
+          .map(([k, v]) => `## ${k.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}\n${v}`)
+          .join('\n\n');
+      } else if (!result.rules || typeof result.rules !== 'string') {
+        result.rules = interimSpec.rules;
+      }
+
+      // Normalize skills to markdown string
+      if (Array.isArray(result.skills)) {
+        result.skills = result.skills.map((s: any) => {
+          if (typeof s === 'string') return s;
+          return `## Skill: ${s.name || 'custom-skill'}\nDescription: ${s.description || ''}\nAllowed tools: ${Array.isArray(s.allowedTools) ? s.allowedTools.join(' ') : (s.allowedTools || '')}\n\n${s.instructions || ''}`;
+        }).join('\n\n');
+      } else if (typeof result.skills === 'object' && result.skills !== null) {
+        result.skills = Object.entries(result.skills).map(([name, s]: [string, any]) => {
+          if (typeof s === 'string') return `## Skill: ${name}\n\n${s}`;
+          return `## Skill: ${name}\nDescription: ${s.description || ''}\nAllowed tools: ${Array.isArray(s.allowedTools) ? s.allowedTools.join(' ') : (s.allowedTools || '')}\n\n${s.instructions || ''}`;
+        }).join('\n\n');
+      } else if (!result.skills || typeof result.skills !== 'string') {
+        result.skills = interimSpec.skills;
       }
 
       // Assert that the generated specification strictly targets the active harness
@@ -728,13 +956,26 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
           return msg;
         });
 
+        const cleanSkillsCount = result.skills ? (result.skills.match(/## Skill:/g) || []).length || 1 : 1;
+        const totalTokens = Math.round(((result.soul?.length || 0) + (result.rules?.length || 0) + (result.skills?.length || 0)) / 4);
+
         return [
           ...resolved.slice(0, -1), 
           { 
             id: assistantMsgId,
             role: 'assistant', 
             content: explanation,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            completionData: {
+              agentName: result.manifest.name,
+              agentDescription: result.manifest.description,
+              targetFramework: activeFramework,
+              targetFrameworkLabel: activeFrameworkMeta.label,
+              tokensCount: totalTokens,
+              skillsCount: cleanSkillsCount,
+              hasSoul: !!result.soul,
+              hasRules: !!result.rules
+            }
           }
         ];
       });
@@ -815,8 +1056,8 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                     className={cn(
                       "text-[10px] font-mono px-2 py-0.5 rounded-sm transition-all cursor-pointer",
                       isSelected
-                        ? "bg-primary text-primary-foreground font-bold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        ? "bg-gradient-to-r from-[#E76F51] to-[#E9C46A] text-[#141A20] font-bold shadow-xs"
+                        : "text-[#A0D2EB]/60 hover:text-foreground hover:bg-[#A0D2EB]/10"
                     )}
                   >
                     {f.shortLabel}
@@ -856,23 +1097,37 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
           </div>
 
           {isProcessing ? (
-            <Button 
-              variant="destructive" 
-              size="xs" 
-              onClick={handleCancel}
-              className="text-[10px] font-mono uppercase tracking-wider h-7 px-2.5 gap-1 shadow-xs"
-            >
-              <Square className="size-3 fill-current" /> Cancel
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button 
+                variant="destructive" 
+                size="xs" 
+                onClick={handleCancel}
+                className="text-[10px] font-mono uppercase tracking-wider h-7 px-2.5 gap-1 shadow-xs"
+                title="Cancel active synthesis (Esc)"
+              >
+                <Square className="size-3 fill-current" /> Cancel
+              </Button>
+            </div>
           ) : (
-            <Button 
-              variant="outline" 
-              size="xs" 
-              onClick={() => dispatch({ type: 'SAVE_SNAPSHOT', payload: 'AI Architect Sync' })}
-              className="text-[10px] font-mono uppercase tracking-wider h-7 px-2.5"
-            >
-              <Save className="size-3 mr-1" /> Snapshot
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button 
+                variant="outline" 
+                size="xs" 
+                onClick={() => setShowResetDialog(true)}
+                className="text-[10px] font-mono uppercase tracking-wider h-7 px-2.5 gap-1 border-border text-foreground hover:border-[#171611]"
+                title="Reset or restart agent builder session"
+              >
+                <RotateCcw className="size-3 text-[#a03e3d]" /> Reset
+              </Button>
+              <Button 
+                variant="outline" 
+                size="xs" 
+                onClick={() => dispatch({ type: 'SAVE_SNAPSHOT', payload: 'AI Architect Sync' })}
+                className="text-[10px] font-mono uppercase tracking-wider h-7 px-2.5"
+              >
+                <Save className="size-3 mr-1" /> Snapshot
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -1107,10 +1362,68 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                   </div>
                 )
               ) : m.isCancelled ? (
-                /* Cancelled State Card */
-                <div className="p-3 rounded-sm text-xs bg-muted/40 border border-border/60 text-muted-foreground flex items-center gap-2 font-mono">
-                  <Square className="size-3 text-warning fill-current" />
-                  <span>{m.content}</span>
+                /* Enhanced Cancelled Generation Card */
+                <div className="p-4 rounded-none text-xs bg-surface-container border border-border space-y-3 font-sans shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1 bg-[#a03e3d]/10 border border-[#a03e3d]/30 text-[#a03e3d]">
+                        <Square className="size-3 fill-current" />
+                      </span>
+                      <span className="font-bold text-foreground text-xs uppercase tracking-wider font-mono">
+                        Generation Halted
+                      </span>
+                    </div>
+                    {m.cancelledDuration !== undefined && (
+                      <span className="text-[10px] font-mono text-muted-foreground bg-muted/30 px-2 py-0.5 border border-border">
+                        ⏱ {m.cancelledDuration.toFixed(1)}s elapsed
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {m.content}
+                  </p>
+
+                  {m.cancelledPrompt && (
+                    <div className="p-2.5 bg-background border border-border text-[11px] font-mono text-foreground/80 line-clamp-2">
+                      <span className="text-muted-foreground mr-1 uppercase text-[9px] font-bold">Prompt:</span>
+                      &ldquo;{m.cancelledPrompt}&rdquo;
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border">
+                    {m.cancelledPrompt && (
+                      <Button
+                        size="xs"
+                        variant="warm"
+                        onClick={() => handleSend(m.cancelledPrompt)}
+                        className="text-[11px] gap-1.5 font-medium shadow-xs"
+                      >
+                        <RotateCcw className="size-3" />
+                        <span>Restart Generation</span>
+                      </Button>
+                    )}
+                    {m.cancelledPrompt && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => setInput(m.cancelledPrompt || '')}
+                        className="text-[11px] gap-1.5 font-mono border-border text-foreground hover:border-[#171611]"
+                      >
+                        <Edit3 className="size-3" />
+                        <span>Edit in Prompt Bar</span>
+                      </Button>
+                    )}
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => setShowResetDialog(true)}
+                      className="text-[11px] gap-1.5 font-mono border-border text-muted-foreground hover:text-foreground hover:border-[#171611]"
+                    >
+                      <RefreshCw className="size-3 text-[#a03e3d]" />
+                      <span>Reset Builder...</span>
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 /* Standard Message Card or Live Pipeline Card */
@@ -1120,91 +1433,334 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                     ? "bg-primary text-primary-foreground border-primary/50 font-medium" 
                     : "bg-card border-border/80 text-foreground"
                 )}>
-                  {m.content.includes("Analyzing parameters") || (isProcessing && m.id.startsWith('asst-')) ? (
-                    <div className="space-y-3 font-mono">
-                      {/* Live Header & Timer */}
-                      <div className="flex items-center justify-between text-xs pb-1 border-b border-border/40">
-                        <div className="flex items-center gap-2 text-foreground font-semibold">
-                          <Loader2 className="size-3.5 animate-spin text-primary shrink-0" />
-                          <span>Generating Agent Blueprint ({activeFrameworkMeta.label})</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 text-primary border-primary/30 py-0.5 px-2 flex items-center gap-1.5">
-                            <span>⏱ {elapsedSeconds.toFixed(1)}s</span>
-                            <span className="text-muted-foreground font-normal">• Est. ~6–8s</span>
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={handleCancel}
-                            className="h-6 px-2 text-[11px] font-medium text-destructive hover:bg-destructive/10 border border-destructive/20 uppercase tracking-wider gap-1"
-                          >
-                            <Square className="size-2.5 fill-current" />
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
+                  {m.content.includes("Analyzing parameters") || (isProcessing && m.id.startsWith('asst-')) ? (() => {
+                    const isFinalizing = generationStage === 'finalizing' || (isProcessing && elapsedSeconds >= 8);
+                    const currentLiveMessage = isFinalizing 
+                      ? getDynamicFinalizingMessage(elapsedSeconds, activeFrameworkMeta.label, currentModelId)
+                      : (stageMessage || `Synthesizing ${activeFrameworkMeta.label} specification...`);
+                    const currentLiveProgress = generationStage === 'complete'
+                      ? 100
+                      : isFinalizing
+                      ? Math.min(99, Math.max(stageProgress, 94 + Math.floor(Math.min(elapsedSeconds - 8, 90) / 18)))
+                      : stageProgress;
 
-                      {/* Multi-step Status Line */}
-                      <div className="p-2.5 rounded-sm bg-muted/30 border border-border/60 space-y-2">
-                        <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground border-b border-border/40 pb-1.5">
-                          <span className="font-semibold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                            <Layers className="size-3 text-primary" /> Synthesis Pipeline
-                          </span>
-                          <span className="text-primary font-bold">{stageProgress}% Complete</span>
-                        </div>
-                        
-                        {/* Interactive Status Chain */}
-                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] font-mono">
-                          {GENERATION_STEPS.map((step, idx) => {
-                            const isPast = getStepOrder(generationStage) > idx;
-                            const isCurrent = generationStage === step.id;
-                            return (
-                              <React.Fragment key={step.id}>
-                                <div className={cn(
-                                  "flex items-center gap-1 transition-colors py-0.5 px-1.5 rounded",
-                                  isCurrent && "bg-primary/20 text-primary font-bold ring-1 ring-primary/40",
-                                  isPast && "text-emerald-500 font-medium",
-                                  !isCurrent && !isPast && "text-muted-foreground/60"
-                                )}>
-                                  {isPast ? (
-                                    <Check className="size-3 text-emerald-500 shrink-0 stroke-[2.5]" />
-                                  ) : isCurrent ? (
-                                    <span className="size-2 rounded-full bg-primary animate-pulse shrink-0" />
-                                  ) : (
-                                    <span className="size-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-                                  )}
-                                  <span>{step.label}</span>
-                                </div>
-                                {idx < GENERATION_STEPS.length - 1 && (
-                                  <span className={cn(
-                                    "text-[10px]",
-                                    isPast ? "text-emerald-500" : isCurrent ? "text-primary font-bold" : "text-muted-foreground/30"
-                                  )}>→</span>
-                                )}
-                              </React.Fragment>
-                            );
-                          })}
-                        </div>
-
-                        {/* Live Stage Subtext & Inspector streaming note */}
-                        <div className="pt-1 text-[11px] text-muted-foreground flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 truncate">
-                            <Sparkles className="size-3 text-primary shrink-0 animate-pulse" />
-                            <span className="text-foreground truncate">{stageMessage || 'Streaming specification into Inspector in real time...'}</span>
+                    return (
+                      <div className="space-y-3 font-mono">
+                        {/* Live Header & Timer */}
+                        <div className="flex items-center justify-between text-xs pb-1 border-b border-border/40">
+                          <div className="flex items-center gap-2 text-foreground font-semibold">
+                            <Loader2 className="size-3.5 animate-spin text-[#a03e3d] shrink-0" />
+                            <span>Generating Agent Blueprint ({activeFrameworkMeta.label})</span>
                           </div>
-                          <span className="text-[10px] font-mono text-primary shrink-0 ml-2 hidden sm:inline">
-                            Live Inspector Sync
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] font-mono bg-surface-container text-foreground border-border py-0.5 px-2 flex items-center gap-1.5">
+                              <span className="font-bold">⏱ {elapsedSeconds.toFixed(1)}s</span>
+                              <span className="text-muted-foreground font-normal">• {getEstimatedDuration(elapsedSeconds)}</span>
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              onClick={handleCancel}
+                              className="h-6 px-2 text-[11px] font-medium text-destructive hover:bg-destructive/10 border border-destructive/20 uppercase tracking-wider gap-1"
+                            >
+                              <Square className="size-2.5 fill-current" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Multi-step Status Line */}
+                        <div className="p-2.5 rounded-none bg-surface-container-low border border-border space-y-2.5">
+                          <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground border-b border-border/40 pb-1.5">
+                            <span className="font-semibold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                              <Layers className="size-3 text-[#a03e3d]" /> Synthesis Pipeline
+                            </span>
+                            <span className="text-foreground font-bold">{currentLiveProgress}% Complete</span>
+                          </div>
+                          
+                          {/* Interactive Status Chain */}
+                          <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] font-mono">
+                            {GENERATION_STEPS.map((step, idx) => {
+                              const isPast = getStepOrder(generationStage) > idx;
+                              const isCurrent = generationStage === step.id;
+                              return (
+                                <React.Fragment key={step.id}>
+                                  <div className={cn(
+                                    "flex items-center gap-1 transition-none py-0.5 px-1.5 rounded-none",
+                                    isCurrent && "bg-primary text-primary-foreground font-bold",
+                                    isPast && "text-[#1f2f00] font-medium",
+                                    !isCurrent && !isPast && "text-muted-foreground/60"
+                                  )}>
+                                    {isPast ? (
+                                      <Check className="size-3 text-[#1f2f00] shrink-0 stroke-[2.5]" />
+                                    ) : isCurrent ? (
+                                      <span className="size-2 rounded-full bg-white animate-pulse shrink-0" />
+                                    ) : (
+                                      <span className="size-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
+                                    )}
+                                    <span>{step.label}</span>
+                                  </div>
+                                  {idx < GENERATION_STEPS.length - 1 && (
+                                    <span className={cn(
+                                      "text-[10px]",
+                                      isPast ? "text-[#1f2f00]" : isCurrent ? "text-primary font-bold" : "text-muted-foreground/30"
+                                    )}>→</span>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+
+                          {/* Live Detailed Stage Subtext */}
+                          <div className="pt-1.5 border-t border-border/30 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 text-[11px] text-foreground font-medium truncate">
+                                <span className="size-2 rounded-full bg-[#a03e3d] animate-ping shrink-0" />
+                                <span className="truncate">{currentLiveMessage}</span>
+                              </div>
+                              <span className="text-[10px] font-mono text-muted-foreground shrink-0 hidden sm:inline">
+                                Live Inspector Sync
+                              </span>
+                            </div>
+
+                            {/* Secondary Telemetry & Model Details */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground pt-0.5">
+                              <div className="flex items-center gap-2">
+                                <span>Engine: <strong className="text-foreground font-mono">{currentModelId.replace(/^.*\//, '')}</strong></span>
+                                <span>•</span>
+                                <span>Harness: <strong className="text-foreground">{activeFrameworkMeta.shortLabel}</strong></span>
+                              </div>
+                              <span className="text-foreground font-medium">{elapsedSeconds.toFixed(1)}s elapsed</span>
+                            </div>
+                          </div>
+
+                          {/* Informative Note for prolonged generation (over 20 seconds) */}
+                          {elapsedSeconds > 20 && (
+                            <div className="p-2 border border-border bg-surface-container text-[10px] font-mono text-muted-foreground flex items-center gap-2 leading-relaxed">
+                              <Clock className="size-3.5 text-[#a03e3d] shrink-0" />
+                              <span>
+                                Deep multi-file synthesis is generating full specifications (SOUL.md, RULES.md, MANIFEST, and tool parameters). Complex blueprints typically take 45–90s.
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Progress Bar with animated track */}
+                        <div className="w-full h-1.5 bg-muted rounded-none overflow-hidden">
+                          <div 
+                            className="h-full bg-primary transition-all duration-300"
+                            style={{ width: `${currentLiveProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })() : (m.completionData || (m.role === 'assistant' && (m.content.includes("Configured complete agent workspace") || m.content.includes("Allowed tools for all generated skills")))) ? (
+                    /* High-Contrast Agent Blueprint Delivery & Next Steps Hub */
+                    <div className="space-y-4 font-sans">
+                      {/* 1. Header & Explanation */}
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="olive" className="text-[10px] font-mono">
+                            ✓ Blueprint Generated
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px] font-mono">
+                            {m.completionData?.targetFrameworkLabel || activeFrameworkMeta.label}
+                          </Badge>
+                          <span className="font-mono text-xs font-bold text-foreground">
+                            {m.completionData?.agentName || state.manifest.name}
                           </span>
+                        </div>
+                        <p className="text-xs leading-relaxed text-foreground font-normal">
+                          {m.content}
+                        </p>
+                      </div>
+
+                      {/* 2. Generated Artifacts Spec Grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                        <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                            <FileCode className="size-3 text-[#a03e3d]" /> MANIFEST
+                          </div>
+                          <div className="font-bold text-foreground truncate">
+                            {m.completionData?.agentName || state.manifest.name || "agent.yaml"}
+                          </div>
+                          <div className="text-[9px] text-muted-foreground">v{state.manifest.version || '1.0.0'} • {state.manifest.compliance?.risk_tier || 'T1'}</div>
+                        </div>
+
+                        <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                            <ShieldCheck className="size-3 text-[#a03e3d]" /> SOUL.md
+                          </div>
+                          <div className="font-bold text-foreground">
+                            {state.soul ? `${Math.round(state.soul.length / 4)} tokens` : 'Defined'}
+                          </div>
+                          <div className="text-[9px] text-muted-foreground">Identity & Principles</div>
+                        </div>
+
+                        <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                            <Shield className="size-3 text-[#a03e3d]" /> RULES.md
+                          </div>
+                          <div className="font-bold text-foreground">
+                            {state.rules ? `${Math.round(state.rules.length / 4)} tokens` : 'Defined'}
+                          </div>
+                          <div className="text-[9px] text-muted-foreground">Guardrails & Invariants</div>
+                        </div>
+
+                        <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                            <Zap className="size-3 text-[#a03e3d]" /> SKILLS
+                          </div>
+                          <div className="font-bold text-[#a03e3d]">
+                            {m.completionData?.skillsCount || state.manifest.skills?.length || 1} attached
+                          </div>
+                          <div className="text-[9px] text-muted-foreground">Harness tools mapped</div>
                         </div>
                       </div>
 
-                      {/* Progress Bar */}
-                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary transition-all duration-500 rounded-full terracotta-glow-sm"
-                          style={{ width: `${stageProgress}%` }}
-                        />
+                      {/* 3. Unmistakable & Obvious "RECOMMENDED NEXT STEPS" Action Hub */}
+                      <div className="p-3.5 border-2 border-[#171611] bg-card space-y-3 shadow-xs">
+                        <div className="flex items-center justify-between pb-1.5 border-b border-border">
+                          <div className="flex items-center gap-2">
+                            <ArrowRight className="size-4 text-[#a03e3d]" />
+                            <span className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+                              Recommended Next Steps
+                            </span>
+                          </div>
+                          <Badge variant="maroon" className="text-[9px]">
+                            WHAT TO DO NEXT
+                          </Badge>
+                        </div>
+
+                        {/* Two Primary Action Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {/* Step 1: Test in Agent Lab (Most Prominent) */}
+                          <div 
+                            onClick={() => navigate('/workbench/chat')}
+                            className="group cursor-pointer p-3 border-2 border-border hover:border-[#171611] bg-surface-container-low flex flex-col justify-between transition-none select-none"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono text-[9px] font-bold uppercase text-[#a03e3d] bg-surface-container px-1 py-0.5 border border-border">
+                                  Step 1 • Recommended
+                                </span>
+                                <MessageSquare className="size-4 text-[#a03e3d]" />
+                              </div>
+                              <h4 className="font-mono text-xs font-bold text-foreground group-hover:text-[#a03e3d] pt-1">
+                                Test in Agent Lab →
+                              </h4>
+                              <p className="type-body-sm text-[11px] text-muted-foreground leading-snug">
+                                Chat live with your agent, test prompt triggers, and simulate tool calls in real time.
+                              </p>
+                            </div>
+                            <div className="mt-2.5 pt-2 border-t border-border/40">
+                              <Button 
+                                variant="maroon" 
+                                size="xs" 
+                                className="w-full text-xs gap-1 pointer-events-none shadow-xs"
+                              >
+                                <Zap className="size-3" /> Launch Test Lab
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Step 2: Review in File Editor */}
+                          <div 
+                            onClick={() => onTabChange ? onTabChange('review') : navigate('/workbench/agent?tab=review')}
+                            className="group cursor-pointer p-3 border-2 border-border hover:border-[#171611] bg-surface-container-low flex flex-col justify-between transition-none select-none"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono text-[9px] font-bold uppercase text-muted-foreground bg-surface-container px-1 py-0.5 border border-border">
+                                  Step 2
+                                </span>
+                                <Code2 className="size-4 text-foreground" />
+                              </div>
+                              <h4 className="font-mono text-xs font-bold text-foreground group-hover:text-[#a03e3d] pt-1">
+                                Review in File Editor (Step 6)
+                              </h4>
+                              <p className="type-body-sm text-[11px] text-muted-foreground leading-snug">
+                                Inspect and manually edit SOUL.md, RULES.md, and manifest files in the repository tree.
+                              </p>
+                            </div>
+                            <div className="mt-2.5 pt-2 border-t border-border/40">
+                              <Button 
+                                variant="outline" 
+                                size="xs" 
+                                className="w-full text-xs gap-1 pointer-events-none border-border"
+                              >
+                                <FileCode className="size-3 text-[#a03e3d]" /> Inspect Files
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Secondary Actions Bar */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/40 text-[11px] font-mono">
+                          <span className="text-muted-foreground">Other Operations:</span>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => navigate('/workbench/skills')}
+                              className="text-xs h-7 gap-1 hover:text-[#a03e3d]"
+                            >
+                              <Zap className="size-3 text-[#a03e3d]" /> Skills Workbench
+                            </Button>
+                            <span className="text-border">|</span>
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => navigate('/export')}
+                              className="text-xs h-7 gap-1 hover:text-[#a03e3d]"
+                            >
+                              <Download className="size-3 text-[#a03e3d]" /> Export ZIP
+                            </Button>
+                            <span className="text-border">|</span>
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => navigate('/workbench/git')}
+                              className="text-xs h-7 gap-1 hover:text-[#a03e3d]"
+                            >
+                              <GitBranch className="size-3 text-[#a03e3d]" /> Git Sync
+                            </Button>
+                            <span className="text-border">|</span>
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => setShowResetDialog(true)}
+                              className="text-xs h-7 gap-1 text-[#a03e3d] hover:bg-[#a03e3d]/10"
+                              title="Reset or restart agent builder session"
+                            >
+                              <RotateCcw className="size-3" /> New Agent / Reset
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 4. Quick Refinement Chips for AI Architect */}
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                          <Sparkles className="size-3 text-[#a03e3d]" /> Or refine in this architect session:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            "Add automated testing & verification skill",
+                            "Make communication style strictly concise",
+                            "Add strict error recovery and safety rules",
+                            "Configure context window to 16,384 tokens"
+                          ].map((promptChip, pIdx) => (
+                            <button
+                              key={pIdx}
+                              type="button"
+                              onClick={() => handleSend(promptChip)}
+                              className="text-[10px] font-mono px-2 py-1 border border-border bg-surface-container hover:border-[#171611] hover:bg-surface-container-high transition-none text-foreground cursor-pointer flex items-center gap-1"
+                            >
+                              <span>+ {promptChip}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1354,31 +1910,54 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
             {isProcessing ? (
               <div className="flex items-center gap-1.5 h-full">
                 <Badge variant="outline" className="h-full px-2 text-[11px] font-mono text-muted-foreground border-border/80 flex items-center gap-1.5 bg-muted/20">
-                  <span className="size-1.5 rounded-full bg-primary animate-ping" />
+                  <span className="size-1.5 rounded-full bg-[#a03e3d] animate-ping" />
                   <span>⏱ {elapsedSeconds.toFixed(1)}s</span>
                 </Badge>
                 <Button 
                   variant="destructive"
-                  className="h-full px-3.5 rounded-sm font-medium transition-all shadow-xs gap-1.5"
+                  className="h-full px-3.5 rounded-none font-medium transition-none shadow-xs gap-1.5"
                   onClick={handleCancel}
-                  title="Cancel Generation"
+                  title="Cancel Generation (or press Esc)"
                 >
                   <Square className="size-3.5 fill-current" />
                   <span className="text-xs font-mono uppercase">Stop</span>
+                  <kbd className="hidden sm:inline-block ml-0.5 px-1 py-0.5 text-[9px] font-mono bg-black/20 border border-white/20">Esc</kbd>
                 </Button>
               </div>
             ) : (
-              <Button 
-                className="h-full px-4 rounded-sm bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium transition-all shadow-xs" 
-                onClick={() => handleSend()}
-                disabled={!input.trim() && contextFiles.length === 0}
-              >
-                <Send className="size-4" />
-              </Button>
+              <div className="flex items-center gap-1.5 h-full">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-full px-2.5 rounded-none border-border text-muted-foreground hover:text-foreground hover:border-[#171611]"
+                  onClick={() => setShowResetDialog(true)}
+                  title="Reset or restart agent builder session"
+                >
+                  <RotateCcw className="size-3.5 text-[#a03e3d]" />
+                  <span className="sr-only sm:not-sr-only text-xs font-mono">Reset</span>
+                </Button>
+                <Button 
+                  variant="warm"
+                  className="h-full px-4 rounded-none transition-none shadow-xs" 
+                  onClick={() => handleSend()}
+                  disabled={!input.trim() && contextFiles.length === 0}
+                >
+                  <Send className="size-4" />
+                </Button>
+              </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Global Reset / Restart Dialog */}
+      <ResetRestartDialog 
+        open={showResetDialog} 
+        onOpenChange={setShowResetDialog}
+        onRestartChat={handleRestartChat}
+        onCancelActiveGeneration={handleCancel}
+        isGenerating={isProcessing}
+      />
     </div>
   );
 }

@@ -2,41 +2,33 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAgentWorkspace } from '../context/AgentContext';
 import { useSettings } from '../context/SettingsContext';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { assembleSystemPrompt } from '../../lib/gitagent/assembleSystemPrompt';
 import { cn } from '@/lib/utils';
 import { 
-  History, 
   GitBranch, 
-  Package, 
   ArrowRight,
   Zap, 
   Shield, 
-  Search, 
-  Code, 
-  Sparkles, 
   Terminal, 
-  LayoutDashboard, 
-  BookOpen,
-  Cpu,
-  Layers,
-  FileCode,
-  Download,
-  Server,
-  Workflow,
-  Database,
-  MessageSquare,
-  Activity,
-  CheckCircle2,
-  Clock,
-  RotateCcw
+  BookOpen, 
+  Cpu, 
+  Layers, 
+  Download, 
+  Workflow, 
+  MessageSquare, 
+  Activity, 
+  CheckCircle2, 
+  Clock, 
+  Sparkles,
+  SlidersHorizontal
 } from 'lucide-react';
 
 export function Dashboard() {
   const navigate = useNavigate();
-  const { state, dispatch } = useAgentWorkspace();
+  const { state } = useAgentWorkspace();
   const { settings } = useSettings();
 
   const assembledPrompt = useMemo(() => assembleSystemPrompt(state), [state]);
@@ -46,104 +38,115 @@ export function Dashboard() {
   const toolsCount = state.manifest.tools?.length || (skillsCount > 0 ? skillsCount * 3 : 0);
   const workflowsCount = Object.keys(state.workflows || {}).length;
   const docsCount = state.knowledge?.documents?.length || 0;
-  const snapshotsCount = state.snapshots?.length || 1;
 
-  // KPI / Stat Cards
-  const kpiStats = [
+  // (3) Restructured Entity-First Modules (Replacing arbitrary hero metric numbers)
+  const systemEntities = [
     {
-      label: 'SYSTEM TOKENS',
-      value: tokenEstimate.toLocaleString(),
-      subtext: 'Estimated system prompt payload',
-      delta: tokenEstimate > 3000 ? 'High' : 'Optimal',
-      deltaType: tokenEstimate > 3000 ? 'warning' : 'success',
+      id: 'ENT-01',
+      entity: 'System Prompt Weight',
+      category: 'PAYLOAD',
+      detail: `${tokenEstimate.toLocaleString()} tokens`,
+      benchmark: '8,192 tok target',
+      description: 'Assembled manifest payload composed of persona directives, tool schemas, and operational guardrails.',
+      status: tokenEstimate > 3000 ? 'Elevated capacity' : 'Optimal density',
+      statusVariant: tokenEstimate > 3000 ? 'amber' : 'green',
       icon: Terminal,
-      progress: Math.min(100, (tokenEstimate / 4000) * 100)
+      percentage: Math.min(100, Math.round((tokenEstimate / 8192) * 100))
     },
     {
-      label: 'ACTIVE SKILLS',
-      value: skillsCount,
-      subtext: `${toolsCount} permissioned tools attached`,
-      delta: `+${skillsCount}`,
-      deltaType: 'primary',
+      id: 'ENT-02',
+      entity: 'Capability Harness',
+      category: 'INTEGRATIONS',
+      detail: `${skillsCount} skills · ${toolsCount} tools`,
+      benchmark: 'Permissioned runtime',
+      description: 'Active executable interfaces with declared schemas, parameter validation, and environment requirements.',
+      status: skillsCount > 0 ? 'Harness active' : 'Awaiting skills',
+      statusVariant: skillsCount > 0 ? 'green' : 'amber',
       icon: Zap,
-      progress: Math.min(100, (skillsCount / 8) * 100)
+      percentage: Math.min(100, (skillsCount / 6) * 100)
     },
     {
-      label: 'COMPLIANCE & RISK',
-      value: (state.manifest.compliance?.risk_tier || 'Tier 1').toUpperCase(),
-      subtext: 'Security & policy guardrails active',
-      delta: 'Audited',
-      deltaType: 'success',
+      id: 'ENT-03',
+      entity: 'Governance Policy',
+      category: 'AUDIT',
+      detail: `${state.manifest.compliance?.risk_tier || 'Tier 1'} Specification`,
+      benchmark: 'Pre-flight verified',
+      description: 'Declared safety restrictions, content boundaries, and sandboxed execution privileges.',
+      status: 'Audited policy',
+      statusVariant: 'green',
       icon: Shield,
-      progress: 100
+      percentage: 100
     },
     {
-      label: 'WORKFLOW PIPELINES',
-      value: workflowsCount,
-      subtext: `${docsCount} knowledge documents indexed`,
-      delta: `${docsCount} Docs`,
-      deltaType: 'primary',
-      icon: Workflow,
-      progress: Math.min(100, ((workflowsCount + docsCount) / 10) * 100)
+      id: 'ENT-04',
+      entity: 'Repository Anchor',
+      category: 'STORAGE',
+      detail: state.git?.isInitialized ? `Branch: ${state.git.currentBranch || 'main'}` : 'Local Workspace',
+      benchmark: state.git?.isInitialized ? 'Version-controlled' : 'Unversioned scratchpad',
+      description: 'Local and remote commit state, repository root synchronization, and persistent manifest tracking.',
+      status: state.git?.isInitialized ? 'Versioned' : 'Local draft',
+      statusVariant: state.git?.isInitialized ? 'green' : 'secondary',
+      icon: GitBranch,
+      percentage: state.git?.isInitialized ? 100 : 25
     }
   ];
 
-  // Quick Action Modules
+  // (7) Core Architecture Modules
   const actionModules = [
     {
-      title: 'AI Architect Studio',
-      description: 'Build agents using natural language',
-      icon: Sparkles,
+      modId: 'MOD-01',
+      title: 'Agent Builder',
+      description: 'Formalize manifest identity, SOUL persona directives, system instructions, and compliance standards.',
+      icon: Cpu,
       action: () => navigate('/workbench/agent?tab=architect'),
-      tag: 'COMPUTE',
-      color: 'text-primary'
+      tag: 'MANIFEST'
     },
     {
-      title: 'Prompt Workbench',
-      description: 'Manage, version, and refine structured system prompt templates',
-      icon: Terminal,
-      action: () => navigate('/workbench/prompts'),
-      tag: 'SYSTEM',
-      color: 'text-warning'
-    },
-    {
-      title: 'Skills & Capabilities',
-      description: 'Define allowed tools, executable scripts, and API integrations',
+      modId: 'MOD-02',
+      title: 'Skills & Tools Workbench',
+      description: 'Declare executable functions, parameter validation rules, and third-party API integration points.',
       icon: Zap,
       action: () => navigate('/workbench/skills'),
-      tag: 'TOOLS',
-      color: 'text-emerald-500'
+      tag: 'CAPABILITY'
     },
     {
-      title: 'Pipelines & Workflows',
-      description: 'Design DAG step pipelines and execution DAG graphs',
+      modId: 'MOD-03',
+      title: 'Knowledge Vault',
+      description: 'Attach engineering references, domain documents, and technical context manuals to agent scope.',
+      icon: BookOpen,
+      action: () => navigate('/workbench/knowledge'),
+      tag: 'CONTEXT'
+    },
+    {
+      modId: 'MOD-04',
+      title: 'Workflow DAGs',
+      description: 'Assemble multi-step deterministic pipelines, sequential tool routes, and decision topologies.',
       icon: Workflow,
       action: () => navigate('/workbench/workflows'),
-      tag: 'DAG',
-      color: 'text-purple-500'
+      tag: 'PIPELINE'
     },
     {
+      modId: 'MOD-05',
       title: 'Agent Test Lab',
-      description: 'Live interactive chat execution with rule violation checks',
+      description: 'Execute live interactive test conversations with full tool calling traces and compliance telemetry.',
       icon: MessageSquare,
       action: () => navigate('/workbench/chat'),
-      tag: 'RUNTIME',
-      color: 'text-primary'
+      tag: 'RUNTIME'
     },
     {
-      title: 'Git Sync & History',
-      description: 'View point-in-time snapshots and sync repository branches',
+      modId: 'MOD-06',
+      title: 'Git Sync & Remote',
+      description: 'Track branch commits, inspect structured diffs, push patches, and configure GitHub credentials.',
       icon: GitBranch,
       action: () => navigate('/workbench/git'),
-      tag: 'VCS',
-      color: 'text-blue-500'
+      tag: 'VCS'
     }
   ];
 
   // Recent snapshots stream
   const recentSnapshots = state.snapshots?.slice(0, 5) || [
     {
-      id: 'init-001',
+      id: 'SNAP-001',
       name: 'Initial Workspace Scaffold',
       timestamp: 'Just now',
       author: 'AI Architect'
@@ -153,18 +156,21 @@ export function Dashboard() {
   return (
     <div className="h-full w-full overflow-y-auto bg-background text-foreground p-6 md:p-8 space-y-8 select-text">
       {/* Overview Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-6">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-foreground">
-              GitAgent <span className="text-primary font-mono font-black">WORKBENCH</span>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-mono text-xl md:text-2xl font-bold tracking-tight text-foreground">
+              GitAgent <span className="font-sans font-normal text-muted-foreground text-lg">/ Workbench</span>
             </h1>
-            <Badge variant="outline" className="font-mono text-[10px] text-primary border-primary/30 uppercase px-2 py-0.5 bg-primary/5">
-              INDUSTRIAL OS v1.4
+            <Badge variant="outline" className="text-[10px] font-mono">
+              SPEC v1.4
+            </Badge>
+            <Badge variant="amber" className="text-[10px]">
+              PAPER & INK
             </Badge>
           </div>
-          <p className="text-xs md:text-sm text-muted-foreground">
-            Master control environment for assembling, inspecting, testing, and packaging production-grade GitAgents.
+          <p className="type-doc text-xs md:text-sm text-muted-foreground max-w-3xl leading-relaxed">
+            High-density technical workbench for assembling, validating, and publishing GitAgent repositories with mathematically consistent structure.
           </p>
         </div>
 
@@ -179,103 +185,133 @@ export function Dashboard() {
           </Button>
 
           <Button
+            variant="amber"
             size="sm"
             onClick={() => navigate('/workbench/agent?tab=architect')}
-            className="bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs gap-1.5 rounded-sm shadow-xs transition-all"
+            className="text-xs gap-1.5 font-semibold"
           >
-            <Sparkles className="size-3.5" /> Open Agent Builder
+            <Sparkles className="size-3.5" /> Agent Builder
           </Button>
         </div>
       </div>
 
-      {/* TOP TIER: KPI / Stat Cards (grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpiStats.map((kpi, idx) => {
-          const Icon = kpi.icon;
-          return (
-            <Card key={idx} className="bg-card border border-transparent rounded-sm shadow-sm p-4 flex flex-col justify-between hover:border-primary/30 transition-colors">
-              <div className="flex items-center justify-between pb-2">
-                <span className="text-sm font-medium text-muted-foreground">
-                  {kpi.label}
-                </span>
-                <div className="size-7 rounded-sm bg-muted/60 flex items-center justify-center text-primary">
-                  <Icon className="size-3.5" />
-                </div>
-              </div>
+      {/* (3) TOP TIER: Entity-First System Specifications */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            SYSTEM // ENTITY ALLOCATION & CAPACITY
+          </span>
+          <span className="font-mono text-[10px] text-muted-foreground">
+            RATIO: <strong className="text-foreground">85% INK · 10% AMBER · 3% GREEN · 2% RED</strong>
+          </span>
+        </div>
 
-              <div className="space-y-1 my-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-2xl font-mono font-bold tracking-tight text-foreground">
-                    {kpi.value}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {systemEntities.map((ent) => {
+            const Icon = ent.icon;
+            return (
+              <div 
+                key={ent.id} 
+                className="bg-card border border-border flex flex-col justify-between hover:bg-muted/40 transition-none"
+              >
+                {/* Module Header */}
+                <div className="bg-muted border-b border-border px-3 py-1.5 flex items-center justify-between">
+                  <span className="font-mono text-[10px] font-bold text-muted-foreground">
+                    {ent.id} // {ent.category}
                   </span>
-                  <Badge 
-                    variant="outline" 
-                    className={cn(
-                      "text-[9px] font-mono font-bold uppercase px-1.5 py-0",
-                      kpi.deltaType === 'success' && "text-emerald-600 border-emerald-500/30 bg-emerald-500/10",
-                      kpi.deltaType === 'warning' && "text-warning border-warning/30 bg-warning/10",
-                      kpi.deltaType === 'primary' && "text-primary border-primary/30 bg-primary/10"
-                    )}
-                  >
-                    {kpi.delta}
+                  <Badge variant={ent.statusVariant as any} className="text-[9px] px-1 py-0">
+                    {ent.status}
                   </Badge>
                 </div>
-                <p className="text-[10px] font-mono text-muted-foreground truncate">{kpi.subtext}</p>
-              </div>
 
-              {/* Mini progress meter */}
-              <div className="w-full h-1 bg-muted rounded-full overflow-hidden mt-2">
-                <div 
-                  className="h-full bg-primary rounded-full transition-all duration-500" 
-                  style={{ width: `${kpi.progress}%` }} 
-                />
+                {/* Entity & Specification (Entity emphasized over raw numbers) */}
+                <div className="p-3.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="size-6 border border-border bg-background flex items-center justify-center text-foreground shrink-0">
+                      <Icon className="size-3" />
+                    </div>
+                    <h3 className="font-mono text-xs font-bold text-foreground truncate">
+                      {ent.entity}
+                    </h3>
+                  </div>
+
+                  <div className="pt-1">
+                    <p className="font-mono text-sm font-bold text-foreground">
+                      {ent.detail}
+                    </p>
+                    <p className="font-sans text-[11px] text-muted-foreground mt-0.5">
+                      {ent.benchmark}
+                    </p>
+                  </div>
+
+                  <p className="type-doc text-[11px] text-muted-foreground line-clamp-2 pt-1 border-t border-border/50">
+                    {ent.description}
+                  </p>
+                </div>
+
+                {/* Stepped ink gauge */}
+                <div className="w-full h-1 bg-muted border-t border-border overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-none" 
+                    style={{ width: `${ent.percentage}%` }} 
+                  />
+                </div>
               </div>
-            </Card>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      {/* MIDDLE TIER: Primary Data / Visualizations (grid-cols-1 lg:grid-cols-3 gap-6) */}
+      {/* (7) MIDDLE TIER: Architecture Modules & Live Specs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Visual Blueprint Breakdown (Span 2) */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
+        {/* Core Architecture Modules (Span 2) */}
+        <div className="lg:col-span-2 space-y-3">
+          <div className="flex items-center justify-between pb-1.5 border-b border-border">
             <div className="flex items-center gap-2">
-              <Layers className="size-4 text-primary" />
-              <h2 className="text-sm font-bold tracking-tight uppercase text-foreground">Core Architecture Modules</h2>
+              <Layers className="size-4 text-foreground" />
+              <h2 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+                Core Architecture Modules
+              </h2>
             </div>
-            <span className="text-[10px] font-mono text-muted-foreground uppercase">
-              Agent: <strong className="text-foreground">{state.manifest.name || "untitled-agent"}</strong>
+            <span className="font-mono text-[11px] text-muted-foreground">
+              MANIFEST: <strong className="text-foreground">{state.manifest.name || "untitled-agent"}</strong>
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {actionModules.map((mod, idx) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {actionModules.map((mod) => {
               const Icon = mod.icon;
               return (
                 <div
-                  key={idx}
+                  key={mod.modId}
                   onClick={mod.action}
-                  className="group cursor-pointer bg-muted/20 border border-transparent hover:bg-muted/40 hover:border-primary/30 rounded-sm p-4 flex flex-col justify-between transition-all hover:shadow-xs"
+                  className="group cursor-pointer bg-card border border-border hover:border-primary p-3.5 flex flex-col justify-between transition-none"
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <div className={cn("size-8 rounded-sm bg-muted/60 flex items-center justify-center group-hover:bg-primary/10 transition-colors", mod.color)}>
-                        <Icon className="size-4" />
+                      <div className="size-7 border border-border bg-muted flex items-center justify-center text-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-none">
+                        <Icon className="size-3.5" />
                       </div>
-                      <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-muted-foreground px-1.5 py-0.5 bg-muted rounded-sm">
+                      <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground px-1.5 py-0.5 border border-border bg-background">
                         {mod.tag}
                       </span>
                     </div>
                     <div>
-                      <h3 className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">{mod.title}</h3>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed mt-1 line-clamp-2">{mod.description}</p>
+                      <h3 className="font-mono font-bold text-xs text-foreground group-hover:text-[#b45309] transition-none">
+                        {mod.title}
+                      </h3>
+                      <p className="type-doc text-[11px] text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
+                        {mod.description}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 text-[10px] font-mono font-bold text-primary pt-3 mt-2 border-t border-border/40">
-                    <span>LAUNCH</span>
-                    <ArrowRight className="size-3 transition-transform group-hover:translate-x-1" />
+                  <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-border/50">
+                    <span className="font-mono text-[9px] text-muted-foreground">{mod.modId}</span>
+                    <div className="flex items-center gap-1 font-sans text-[11px] font-semibold text-[#b45309] group-hover:underline">
+                      <span>CONFIGURE</span>
+                      <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
+                    </div>
                   </div>
                 </div>
               );
@@ -283,53 +319,55 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Live System State & Specs Card (Span 1) */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
+        {/* Runtime Specs Module (Span 1) */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between pb-1.5 border-b border-border">
             <div className="flex items-center gap-2">
-              <Activity className="size-4 text-primary" />
-              <h2 className="text-sm font-bold tracking-tight uppercase text-foreground">Runtime Engine State</h2>
+              <Activity className="size-4 text-[#b45309]" />
+              <h2 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+                Runtime Specifications
+              </h2>
             </div>
-            <Badge variant="outline" className="text-[9px] font-mono text-emerald-500 border-emerald-500/30">
-              READY
+            <Badge variant="green" className="text-[9px]">
+              VERIFIED
             </Badge>
           </div>
 
-          <Card className="bg-card border border-transparent ring-1 ring-border/30 rounded-sm p-4 space-y-4 shadow-xs">
-            <div className="space-y-2">
+          <div className="bg-card border border-border p-4 space-y-4">
+            <div className="space-y-1.5 pb-3 border-b border-border">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-muted-foreground">Manifest Identity</span>
-                <span className="text-xs font-mono font-semibold text-primary">{state.manifest.name || "untitled"}</span>
+                <span className="font-mono text-[10px] uppercase text-muted-foreground">IDENTIFIER</span>
+                <span className="font-mono text-xs font-bold text-[#b45309]">{state.manifest.name || "untitled"}</span>
               </div>
-              <p className="text-xs text-muted-foreground line-clamp-2">
-                {state.manifest.description || "No description set. Use the AI Architect to synthesize the purpose."}
+              <p className="type-doc text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                {state.manifest.description || "No description set. Configure in Agent Builder."}
               </p>
             </div>
 
-            <div className="h-px bg-border/80" />
-
-            <div className="space-y-2 text-xs font-mono">
+            {/* 3 Linguistic Layers: Machine / Operations / Documentation */}
+            <div className="space-y-2 font-mono text-xs">
               <div className="flex items-center justify-between py-1 border-b border-border/40">
-                <span className="text-muted-foreground">ACTIVE PROVIDER:</span>
-                <span className="font-bold uppercase text-foreground">{settings.providerId || 'Google Gemini'}</span>
+                <span className="text-muted-foreground">PROVIDER //</span>
+                <span className="font-bold text-foreground">{settings.providerId || 'Google Gemini'}</span>
               </div>
               <div className="flex items-center justify-between py-1 border-b border-border/40">
-                <span className="text-muted-foreground">RISK CLASSIFICATION:</span>
-                <span className="font-bold uppercase text-foreground">{state.manifest.compliance?.risk_tier || 'Tier 1 (Low)'}</span>
+                <span className="text-muted-foreground">RISK TIER //</span>
+                <span className="font-bold text-foreground">{state.manifest.compliance?.risk_tier || 'Tier 1 (Low)'}</span>
               </div>
               <div className="flex items-center justify-between py-1 border-b border-border/40">
-                <span className="text-muted-foreground">ATTACHED SKILLS:</span>
-                <span className="font-bold text-primary">{skillsCount}</span>
+                <span className="text-muted-foreground">SKILLS ATTACHED //</span>
+                <span className="font-bold text-[#b45309]">{skillsCount}</span>
               </div>
               <div className="flex items-center justify-between py-1">
-                <span className="text-muted-foreground">TOKEN ESTIMATE:</span>
-                <span className="font-bold text-foreground">~{tokenEstimate}</span>
+                <span className="text-muted-foreground">PAYLOAD ESTIMATE //</span>
+                <span className="font-bold text-foreground">~{tokenEstimate} tok</span>
               </div>
             </div>
 
-            <div className="space-y-2 pt-2">
+            <div className="space-y-2 pt-2 border-t border-border">
               <Button 
-                className="w-full h-8 rounded-sm bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs"
+                variant="amber"
+                className="w-full h-8 text-xs font-semibold"
                 onClick={() => navigate('/workbench/chat')}
               >
                 <MessageSquare className="size-3.5 mr-1.5" /> Launch Chat Test Lab
@@ -337,71 +375,69 @@ export function Dashboard() {
 
               <Button 
                 variant="outline"
-                className="w-full h-8 rounded-sm text-xs"
+                className="w-full h-8 text-xs"
                 onClick={() => navigate('/export')}
               >
-                <Download className="size-3.5 mr-1.5" /> Export Downloadable ZIP
+                <Download className="size-3.5 mr-1.5" /> Export Repository ZIP
               </Button>
             </div>
-          </Card>
+          </div>
         </div>
       </div>
 
-      {/* BOTTOM TIER: Secondary Tables / Activity Logs */}
-      <div className="space-y-4 border-t border-border/80 pt-6">
-        <div className="flex items-center justify-between">
+      {/* BOTTOM TIER: Secondary Activity Log Table */}
+      <div className="space-y-3 pt-4 border-t border-border">
+        <div className="flex items-center justify-between pb-1 border-b border-border">
           <div className="flex items-center gap-2">
-            <Clock className="size-4 text-primary" />
-            <h2 className="text-sm font-bold tracking-tight uppercase text-foreground">Recent Snapshots & Activity Stream</h2>
+            <Clock className="size-4 text-muted-foreground" />
+            <h2 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+              Recent Snapshots & Audit Log
+            </h2>
           </div>
           <Button 
             variant="ghost" 
             size="xs" 
             onClick={() => navigate('/workbench/history')}
-            className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground"
+            className="font-mono text-[10px] uppercase text-muted-foreground hover:text-foreground"
           >
-            View Full Log →
+            Full History Log →
           </Button>
         </div>
 
-        <div className="border border-border/80 rounded-sm bg-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-muted/40 border-b border-border/80 text-sm font-medium text-muted-foreground">
-                <tr>
-                  <th className="py-2.5 px-4">Snapshot / Event</th>
-                  <th className="py-2.5 px-4">Target Agent</th>
-                  <th className="py-2.5 px-4">Tokens</th>
-                  <th className="py-2.5 px-4">Timestamp</th>
-                  <th className="py-2.5 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60 font-mono">
-                {recentSnapshots.map((snap: any, i: number) => (
-                  <tr key={i} className="hover:bg-muted/30 transition-colors">
-                    <td className="py-2.5 px-4 font-bold text-foreground flex items-center gap-2">
-                      <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />
-                      <span>{snap.name || `Snapshot #${i + 1}`}</span>
-                    </td>
-                    <td className="py-2.5 px-4 text-muted-foreground">{state.manifest.name || "untitled-agent"}</td>
-                    <td className="py-2.5 px-4 text-primary font-bold">{tokenEstimate}</td>
-                    <td className="py-2.5 px-4 text-muted-foreground">{snap.timestamp || 'Recent'}</td>
-                    <td className="py-2.5 px-4 text-right">
-                      <Button 
-                        variant="ghost" 
-                        size="xs"
-                        onClick={() => navigate('/workbench/history')}
-                        className="text-[10px] font-mono text-primary hover:text-primary-hover"
-                      >
-                        Inspect
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Snapshot / Event</TableHead>
+              <TableHead>Target Agent</TableHead>
+              <TableHead>Payload Tokens</TableHead>
+              <TableHead>Timestamp</TableHead>
+              <TableHead className="text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {recentSnapshots.map((snap: any, i: number) => (
+              <TableRow key={i}>
+                <TableCell className="font-bold text-foreground flex items-center gap-2">
+                  <CheckCircle2 className="size-3.5 text-[#1f6a38] shrink-0" />
+                  <span className="font-mono text-xs">{snap.name || `Snapshot #${i + 1}`}</span>
+                </TableCell>
+                <TableCell className="text-muted-foreground font-mono text-xs">{state.manifest.name || "untitled-agent"}</TableCell>
+                <TableCell className="font-mono text-xs font-bold text-foreground">{tokenEstimate}</TableCell>
+                <TableCell className="text-muted-foreground font-mono text-xs">{snap.timestamp || 'Recent'}</TableCell>
+                <TableCell className="text-right">
+                  <Button 
+                    variant="ghost" 
+                    size="xs"
+                    onClick={() => navigate('/workbench/history')}
+                    className="font-mono text-[10px] text-foreground hover:bg-muted"
+                  >
+                    Inspect
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

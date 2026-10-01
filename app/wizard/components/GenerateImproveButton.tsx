@@ -52,7 +52,7 @@ export function GenerateImproveButton({
       const config = {
         providerId: settings.providerId || 'google',
         apiKey: apiKey && apiKey !== '********' ? apiKey : '',
-        modelId: settings.modelId || 'gemini-3.7-flash',
+        modelId: settings.modelId || 'gemini-3.8-flash',
         fallbackModelIds: workspace.generationConfig?.fallbackModelIds,
         apiKeys: settings.apiKeys
       };

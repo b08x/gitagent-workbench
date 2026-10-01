@@ -140,7 +140,10 @@ export function TaskModelSettings() {
                     <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Provider</Label>
                     <Tabs 
                       value={config.providerId} 
-                      onValueChange={v => updateTaskModel(task.id as any, { providerId: v })}
+                      onValueChange={v => {
+                        const defaultM = CURATED_MODELS[v]?.[0]?.id || (v === 'google' ? 'gemini-3.8-flash' : v === 'groq' ? 'llama-3.3-70b-versatile' : '');
+                        updateTaskModel(task.id as any, { providerId: v, modelId: defaultM });
+                      }}
                       className="w-full"
                     >
                       <TabsList className="grid grid-cols-4 md:grid-cols-7 h-9 w-full bg-muted/40 p-1">

@@ -4,6 +4,18 @@ import { AgentWorkspace, StructureType, ParsedSkill, SkillEntry, AgentFramework 
 import { assembleSoul, assembleRules } from '@/lib/gitagent/assembleSystemPrompt';
 import { parseMarkdownToFineGrained } from '@/lib/gitagent/parser';
 import { inferFrameworkTools } from '@/lib/gitagent/contextToolInference';
+import { 
+  GitRepoState, 
+  createDefaultGitState, 
+  executeGitInit, 
+  executeGitCommit, 
+  executeGitPush, 
+  executeGitPull, 
+  executeSwitchBranch, 
+  executeCreateBranch,
+  executeGitSync,
+  executeSimulateRemoteBehind
+} from '@/lib/gitagent/gitManager';
 
 export interface ScaffoldContextFile {
   name: string;
@@ -24,7 +36,20 @@ type Action =
   | { type: 'REMOVE_SCAFFOLD_CONTEXT'; payload: string }
   | { type: 'SAVE_SNAPSHOT'; payload: string }
   | { type: 'RESTORE_SNAPSHOT'; payload: number }
-  | { type: 'DELETE_SNAPSHOT'; payload: number };
+  | { type: 'DELETE_SNAPSHOT'; payload: number }
+  | { type: 'SET_GIT_STATE'; payload: GitRepoState }
+  | { type: 'INIT_GIT'; payload?: { repoName?: string; authorName?: string; authorEmail?: string } }
+  | { type: 'COMMIT_GIT'; payload: { message: string; authorName?: string; authorEmail?: string } }
+  | { type: 'PUSH_GIT'; payload?: { remoteName?: string } }
+  | { type: 'PULL_GIT'; payload?: { remoteName?: string } }
+  | { type: 'SWITCH_GIT_BRANCH'; payload: string }
+  | { type: 'CREATE_GIT_BRANCH'; payload: string }
+  | { type: 'RESTORE_GIT_COMMIT'; payload: string }
+  | { type: 'UPDATE_GIT_REMOTE'; payload: { name: string; url: string; provider: 'github' | 'gitlab' | 'bitbucket' | 'custom'; token?: string } }
+  | { type: 'SYNC_GIT'; payload?: { remoteName?: string; forceError?: string } }
+  | { type: 'SIMULATE_GIT_BEHIND'; payload?: number }
+  | { type: 'SET_GIT_SYNC_ERROR'; payload: string | null }
+  | { type: 'RESET_WORKSPACE'; payload?: { template?: StructureType; targetFramework?: AgentFramework; repoName?: string; keepHistory?: boolean } };
 
 export interface ToolEntry {
   name: string;
@@ -153,9 +178,10 @@ interface ExtendedWorkspace extends AgentWorkspace {
   snapshots?: Array<{ id: number; label: string; timestamp: Date; state: any }>;
   evals?: { goodOutputs?: string[] };
   runtimeProviderId: string;
+  git: GitRepoState;
 }
 
-const initialState: ExtendedWorkspace = {
+export const initialState: ExtendedWorkspace = {
   selectedTemplate: 'standard',
   meta: {
     structureType: 'standard',
@@ -270,7 +296,28 @@ const initialState: ExtendedWorkspace = {
     snapshots: [],
   },
   runtimeProviderId: 'anthropic',
+  git: createDefaultGitState('my-gitagent'),
 };
+
+export function createDefaultWorkspace(
+  repoName: string = 'my-gitagent',
+  targetFramework: AgentFramework = 'hermes_agent',
+  template: StructureType = 'standard'
+): ExtendedWorkspace {
+  return {
+    ...initialState,
+    selectedTemplate: template,
+    meta: {
+      ...initialState.meta,
+      structureType: template,
+    },
+    targetFramework,
+    git: createDefaultGitState(repoName),
+    history: {
+      snapshots: []
+    }
+  };
+}
 
 import { saveToLibrary } from '../../lib/gitagent/agentLibrary';
 
@@ -301,6 +348,7 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         scaffoldContext: (action.payload as any).scaffoldContext || initialState.scaffoldContext,
         history: (action.payload as any).history || initialState.history,
         runtimeProviderId: (action.payload as any).runtimeProviderId || initialState.runtimeProviderId,
+        git: (action.payload as any).git || state.git || initialState.git,
       };
       saveToLibrary(newWorkspaceState);
       return newWorkspaceState;
@@ -317,28 +365,45 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
       
       // Auto-parse soul/rules/skills if they are being updated in bulk
       if (payload.soul) {
-        const soulUpdates = parseMarkdownToFineGrained(payload.soul, 'soul');
-        payload = { ...payload, ...soulUpdates };
-        if (soulUpdates['core-identity']) {
-          payload.manifest = { 
-            ...(state.manifest || {}), 
-            ...(payload.manifest || {}), 
-            description: soulUpdates['core-identity'] 
-          };
+        if (typeof payload.soul === 'string') {
+          const soulUpdates = parseMarkdownToFineGrained(payload.soul, 'soul');
+          payload = { ...payload, ...soulUpdates };
+          if (soulUpdates['core-identity']) {
+            payload.manifest = { 
+              ...(state.manifest || {}), 
+              ...(payload.manifest || {}), 
+              description: soulUpdates['core-identity'] 
+            };
+          }
+        } else if (typeof payload.soul === 'object' && payload.soul !== null) {
+          const entries = Object.entries(payload.soul);
+          const asMarkdown = entries.map(([k, v]) => `## ${k.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}\n${v}`).join('\n\n');
+          payload = { ...payload, ...(payload.soul as any), soul: asMarkdown };
         }
       }
       if (payload.rules) {
-        const rulesUpdates = parseMarkdownToFineGrained(payload.rules, 'rules');
-        payload = { ...payload, ...rulesUpdates };
+        if (typeof payload.rules === 'string') {
+          const rulesUpdates = parseMarkdownToFineGrained(payload.rules, 'rules');
+          payload = { ...payload, ...rulesUpdates };
+        } else if (typeof payload.rules === 'object' && payload.rules !== null) {
+          const entries = Object.entries(payload.rules);
+          const asMarkdown = entries.map(([k, v]) => `## ${k.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}\n${v}`).join('\n\n');
+          payload = { ...payload, ...(payload.rules as any), rules: asMarkdown };
+        }
       }
-      if (payload.skills && typeof payload.skills === 'string') {
-        // Special case where skills might be sent as a markdown block
+      if (payload.skills) {
+        // Parse skills whether passed as string or object
         const skillsUpdates = parseMarkdownToFineGrained(payload.skills, 'skills');
         delete (payload as any).skills;
         
         const effectiveFramework = (payload.targetFramework || state.targetFramework || 'hermes_agent') as AgentFramework;
         const alignedSkillsList = (skillsUpdates.skillsList || []).map(skill => {
-          if (!skill.allowedTools || skill.allowedTools.trim() === '') {
+          const toolsStr = typeof skill.allowedTools === 'string' 
+            ? skill.allowedTools 
+            : Array.isArray(skill.allowedTools) 
+            ? (skill.allowedTools as string[]).join(' ') 
+            : '';
+          if (!toolsStr || toolsStr.trim() === '') {
             const inferred = inferFrameworkTools({
               name: skill.name,
               description: skill.description,
@@ -348,7 +413,7 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
             });
             return { ...skill, allowedTools: inferred.tools.join(' ') };
           }
-          return skill;
+          return { ...skill, allowedTools: toolsStr };
         });
 
         payload = { 
@@ -361,20 +426,21 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
       return { ...state, ...payload } as ExtendedWorkspace;
     case 'SET_FILE':
       const filePayload = action.payload;
-      let nextState = { ...state, [filePayload.path]: filePayload.content };
+      const safeContent = typeof filePayload.content === 'string' ? filePayload.content : String(filePayload.content ?? '');
+      let nextState = { ...state, [filePayload.path]: safeContent };
       
       // Sync from file content back to structured fields
       if (filePayload.path === 'soul') {
-        const soulUpdates = parseMarkdownToFineGrained(filePayload.content, 'soul');
+        const soulUpdates = parseMarkdownToFineGrained(safeContent, 'soul');
         nextState = { ...nextState, ...soulUpdates };
         if (soulUpdates['core-identity']) {
           nextState.manifest = { ...nextState.manifest, description: soulUpdates['core-identity'] };
         }
       } else if (filePayload.path === 'rules') {
-        const rulesUpdates = parseMarkdownToFineGrained(filePayload.content, 'rules');
+        const rulesUpdates = parseMarkdownToFineGrained(safeContent, 'rules');
         nextState = { ...nextState, ...rulesUpdates };
       } else if (filePayload.path === 'skills') {
-        const skillsUpdates = parseMarkdownToFineGrained(filePayload.content, 'skills');
+        const skillsUpdates = parseMarkdownToFineGrained(safeContent, 'skills');
         nextState = { ...nextState, ...skillsUpdates };
       }
 
@@ -422,6 +488,158 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
           snapshots: state.history.snapshots.filter(s => s.timestamp !== action.payload)
         }
       };
+    case 'SET_GIT_STATE':
+      return {
+        ...state,
+        git: action.payload,
+      };
+    case 'INIT_GIT': {
+      const authorName = action.payload?.authorName || state.manifest.author || 'Agent Developer';
+      const authorEmail = action.payload?.authorEmail || 'developer@gitagent.internal';
+      const repoName = action.payload?.repoName || state.manifest.name || state.git.repoName || 'my-gitagent';
+      const nextGit = executeGitInit(state.git, state, repoName, authorName, authorEmail);
+      return {
+        ...state,
+        git: nextGit,
+      };
+    }
+    case 'COMMIT_GIT': {
+      const authorName = action.payload.authorName || state.manifest.author || 'Agent Developer';
+      const authorEmail = action.payload.authorEmail || 'developer@gitagent.internal';
+      const nextGit = executeGitCommit(state.git, state, action.payload.message, authorName, authorEmail);
+      return {
+        ...state,
+        git: nextGit,
+      };
+    }
+    case 'PUSH_GIT': {
+      const nextGit = executeGitPush(state.git, action.payload?.remoteName || 'origin');
+      return {
+        ...state,
+        git: nextGit,
+      };
+    }
+    case 'PULL_GIT': {
+      const { nextState: nextGit } = executeGitPull(state.git, action.payload?.remoteName || 'origin');
+      return {
+        ...state,
+        git: nextGit,
+      };
+    }
+    case 'SYNC_GIT': {
+      const { nextState } = executeGitSync(state.git, action.payload?.remoteName || 'origin', {
+        forceError: action.payload?.forceError,
+      });
+      return {
+        ...state,
+        git: nextState,
+      };
+    }
+    case 'SIMULATE_GIT_BEHIND': {
+      const nextGit = executeSimulateRemoteBehind(state.git, action.payload || 1);
+      return {
+        ...state,
+        git: nextGit,
+      };
+    }
+    case 'SET_GIT_SYNC_ERROR': {
+      return {
+        ...state,
+        git: {
+          ...state.git,
+          sync: {
+            ...state.git.sync,
+            isSyncing: false,
+            error: action.payload,
+          }
+        }
+      };
+    }
+    case 'SWITCH_GIT_BRANCH': {
+      const nextGit = executeSwitchBranch(state.git, action.payload);
+      return {
+        ...state,
+        git: nextGit,
+      };
+    }
+    case 'CREATE_GIT_BRANCH': {
+      const nextGit = executeCreateBranch(state.git, action.payload);
+      return {
+        ...state,
+        git: nextGit,
+      };
+    }
+    case 'UPDATE_GIT_REMOTE': {
+      const existing = state.git.remotes.findIndex(r => r.name === action.payload.name);
+      let updatedRemotes = [...state.git.remotes];
+      if (existing >= 0) {
+        updatedRemotes[existing] = {
+          ...updatedRemotes[existing],
+          url: action.payload.url,
+          provider: action.payload.provider,
+          token: action.payload.token,
+        };
+      } else {
+        updatedRemotes.push({
+          name: action.payload.name,
+          url: action.payload.url,
+          provider: action.payload.provider,
+          branch: state.git.currentBranch || 'main',
+          token: action.payload.token,
+        });
+      }
+      return {
+        ...state,
+        git: {
+          ...state.git,
+          remotes: updatedRemotes,
+          terminalLogs: [
+            ...state.git.terminalLogs,
+            {
+              id: `log-${Date.now()}`,
+              command: `git remote set-url ${action.payload.name} ${action.payload.url}`,
+              output: `Remote '${action.payload.name}' updated to ${action.payload.url}`,
+              timestamp: Date.now(),
+              type: 'info',
+            }
+          ]
+        }
+      };
+    }
+    case 'RESTORE_GIT_COMMIT': {
+      const commit = state.git.commits.find(c => c.hash === action.payload);
+      if (!commit || !commit.snapshot) return state;
+      const restoredWorkspace = commit.snapshot as ExtendedWorkspace;
+      return {
+        ...restoredWorkspace,
+        git: {
+          ...state.git,
+          head: commit.hash,
+          terminalLogs: [
+            ...state.git.terminalLogs,
+            {
+              id: `log-${Date.now()}`,
+              command: `git checkout ${commit.hash}`,
+              output: `Note: switching to '${commit.hash}'.\nHEAD is now at ${commit.hash} ${commit.message}`,
+              timestamp: Date.now(),
+              type: 'info',
+            }
+          ]
+        },
+        history: state.history,
+      };
+    }
+    case 'RESET_WORKSPACE': {
+      const fresh = createDefaultWorkspace(
+        action.payload?.repoName || (state.git?.repoName || 'my-gitagent'),
+        action.payload?.targetFramework || (state.targetFramework as AgentFramework) || 'hermes_agent',
+        action.payload?.template || 'standard'
+      );
+      if (action.payload?.keepHistory && state.history?.snapshots?.length) {
+        fresh.history = state.history;
+      }
+      return fresh;
+    }
     default:
       return state;
   }
