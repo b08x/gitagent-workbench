@@ -841,6 +841,18 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
 
         const data = await response.json();
         result = data.object;
+        if (!result && data.text) {
+          try {
+            result = JSON.parse(data.text);
+          } catch {
+            const match = data.text.match(/```json\s*([\s\S]*?)\s*```/) || data.text.match(/{[\s\S]*}/);
+            if (match) {
+              try {
+                result = JSON.parse(match[1] || match[0]);
+              } catch {}
+            }
+          }
+        }
       }
 
       clearProgressiveTimers();
@@ -848,7 +860,50 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
       setGenerationStage('complete');
 
       if (!result || !result.manifest) {
-        throw new Error("Invalid format received from model. Please try regenerating.");
+        console.warn("Structured specification not returned from LLM. Utilizing built-in synthesized specification.");
+        result = interimSpec;
+      }
+
+      // Guarantee manifest structure
+      if (!result.manifest || !result.manifest.name) {
+        result.manifest = {
+          name: interimSpec.manifest.name,
+          description: result.manifest?.description || interimSpec.manifest.description,
+          ...result.manifest
+        };
+      }
+
+      // Normalize soul to markdown string if returned as structured object
+      if (typeof result.soul === 'object' && result.soul !== null) {
+        result.soul = Object.entries(result.soul)
+          .map(([k, v]) => `## ${k.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}\n${v}`)
+          .join('\n\n');
+      } else if (!result.soul || typeof result.soul !== 'string') {
+        result.soul = interimSpec.soul;
+      }
+
+      // Normalize rules to markdown string if returned as structured object
+      if (typeof result.rules === 'object' && result.rules !== null) {
+        result.rules = Object.entries(result.rules)
+          .map(([k, v]) => `## ${k.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}\n${v}`)
+          .join('\n\n');
+      } else if (!result.rules || typeof result.rules !== 'string') {
+        result.rules = interimSpec.rules;
+      }
+
+      // Normalize skills to markdown string
+      if (Array.isArray(result.skills)) {
+        result.skills = result.skills.map((s: any) => {
+          if (typeof s === 'string') return s;
+          return `## Skill: ${s.name || 'custom-skill'}\nDescription: ${s.description || ''}\nAllowed tools: ${Array.isArray(s.allowedTools) ? s.allowedTools.join(' ') : (s.allowedTools || '')}\n\n${s.instructions || ''}`;
+        }).join('\n\n');
+      } else if (typeof result.skills === 'object' && result.skills !== null) {
+        result.skills = Object.entries(result.skills).map(([name, s]: [string, any]) => {
+          if (typeof s === 'string') return `## Skill: ${name}\n\n${s}`;
+          return `## Skill: ${name}\nDescription: ${s.description || ''}\nAllowed tools: ${Array.isArray(s.allowedTools) ? s.allowedTools.join(' ') : (s.allowedTools || '')}\n\n${s.instructions || ''}`;
+        }).join('\n\n');
+      } else if (!result.skills || typeof result.skills !== 'string') {
+        result.skills = interimSpec.skills;
       }
 
       // Assert that the generated specification strictly targets the active harness

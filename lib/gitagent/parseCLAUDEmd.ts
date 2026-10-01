@@ -6,12 +6,16 @@ interface ParseResult {
   warnings: string[];
 }
 
-export function parseCLAUDEmd(content: string): ParseResult {
+export function parseCLAUDEmd(content: any): ParseResult {
   const warnings: string[] = [];
   const partial: Partial<AgentWorkspace> = {
     skills: {},
     tools: {},
   };
+
+  if (!content || typeof content !== 'string') {
+    return { partial, warnings };
+  }
 
   // Split into sections by ## headings
   const sections = content.split(/^## /m).map(s => s.trim()).filter(Boolean);

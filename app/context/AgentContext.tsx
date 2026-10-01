@@ -361,19 +361,27 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
       
       // Auto-parse soul/rules/skills if they are being updated in bulk
       if (payload.soul) {
-        const soulUpdates = parseMarkdownToFineGrained(payload.soul, 'soul');
-        payload = { ...payload, ...soulUpdates };
-        if (soulUpdates['core-identity']) {
-          payload.manifest = { 
-            ...(state.manifest || {}), 
-            ...(payload.manifest || {}), 
-            description: soulUpdates['core-identity'] 
-          };
+        if (typeof payload.soul === 'string') {
+          const soulUpdates = parseMarkdownToFineGrained(payload.soul, 'soul');
+          payload = { ...payload, ...soulUpdates };
+          if (soulUpdates['core-identity']) {
+            payload.manifest = { 
+              ...(state.manifest || {}), 
+              ...(payload.manifest || {}), 
+              description: soulUpdates['core-identity'] 
+            };
+          }
+        } else if (typeof payload.soul === 'object' && payload.soul !== null) {
+          payload = { ...payload, ...(payload.soul as any) };
         }
       }
       if (payload.rules) {
-        const rulesUpdates = parseMarkdownToFineGrained(payload.rules, 'rules');
-        payload = { ...payload, ...rulesUpdates };
+        if (typeof payload.rules === 'string') {
+          const rulesUpdates = parseMarkdownToFineGrained(payload.rules, 'rules');
+          payload = { ...payload, ...rulesUpdates };
+        } else if (typeof payload.rules === 'object' && payload.rules !== null) {
+          payload = { ...payload, ...(payload.rules as any) };
+        }
       }
       if (payload.skills && typeof payload.skills === 'string') {
         // Special case where skills might be sent as a markdown block
@@ -409,17 +417,23 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
       
       // Sync from file content back to structured fields
       if (filePayload.path === 'soul') {
-        const soulUpdates = parseMarkdownToFineGrained(filePayload.content, 'soul');
-        nextState = { ...nextState, ...soulUpdates };
-        if (soulUpdates['core-identity']) {
-          nextState.manifest = { ...nextState.manifest, description: soulUpdates['core-identity'] };
+        if (typeof filePayload.content === 'string') {
+          const soulUpdates = parseMarkdownToFineGrained(filePayload.content, 'soul');
+          nextState = { ...nextState, ...soulUpdates };
+          if (soulUpdates['core-identity']) {
+            nextState.manifest = { ...nextState.manifest, description: soulUpdates['core-identity'] };
+          }
         }
       } else if (filePayload.path === 'rules') {
-        const rulesUpdates = parseMarkdownToFineGrained(filePayload.content, 'rules');
-        nextState = { ...nextState, ...rulesUpdates };
+        if (typeof filePayload.content === 'string') {
+          const rulesUpdates = parseMarkdownToFineGrained(filePayload.content, 'rules');
+          nextState = { ...nextState, ...rulesUpdates };
+        }
       } else if (filePayload.path === 'skills') {
-        const skillsUpdates = parseMarkdownToFineGrained(filePayload.content, 'skills');
-        nextState = { ...nextState, ...skillsUpdates };
+        if (typeof filePayload.content === 'string') {
+          const skillsUpdates = parseMarkdownToFineGrained(filePayload.content, 'skills');
+          nextState = { ...nextState, ...skillsUpdates };
+        }
       }
 
       return nextState;

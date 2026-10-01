@@ -4,7 +4,14 @@ import { SkillEntry, ParsedSkill } from './types';
 /**
  * Parses markdown back into fine-grained fields for the wizard.
  */
-export function parseMarkdownToFineGrained(content: string, type: 'soul' | 'rules' | 'skills' | 'duties'): any {
+export function parseMarkdownToFineGrained(content: any, type: 'soul' | 'rules' | 'skills' | 'duties'): any {
+  if (!content) return {};
+  if (typeof content !== 'string') {
+    if (typeof content === 'object') {
+      return content;
+    }
+    return {};
+  }
   if (type === 'soul') {
     return parseMarkdownSections(content, SOUL_SECTIONS);
   }
@@ -17,8 +24,8 @@ export function parseMarkdownToFineGrained(content: string, type: 'soul' | 'rule
   return {};
 }
 
-function parseMarkdownSections(content: string, sections: { title: string, key: string }[]): Record<string, string> {
-  if (!content) return {};
+function parseMarkdownSections(content: any, sections: { title: string, key: string }[]): Record<string, string> {
+  if (!content || typeof content !== 'string') return {};
   
   const result: Record<string, string> = {};
   const lines = content.split('\n');
@@ -53,8 +60,8 @@ function parseMarkdownSections(content: string, sections: { title: string, key: 
   return result;
 }
 
-function parseSkillsMarkdown(content: string): { skillsList: SkillEntry[], skills: Record<string, ParsedSkill> } {
-  if (!content) return { skillsList: [], skills: {} };
+function parseSkillsMarkdown(content: any): { skillsList: SkillEntry[], skills: Record<string, ParsedSkill> } {
+  if (!content || typeof content !== 'string') return { skillsList: [], skills: {} };
 
   const skillsList: SkillEntry[] = [];
   const skills: Record<string, ParsedSkill> = {};

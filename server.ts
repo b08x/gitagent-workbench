@@ -680,6 +680,18 @@ async function startServer() {
     try {
       if (apiKey) {
         const result = await executeUniversalGeneration(providerId, cleanModelId, apiKey, prompt, options);
+        if (prompt.schema && !result.object && result.text) {
+          try {
+            result.object = JSON.parse(result.text);
+          } catch {
+            const match = result.text.match(/```json\s*([\s\S]*?)\s*```/) || result.text.match(/{[\s\S]*}/);
+            if (match) {
+              try {
+                result.object = JSON.parse(match[1] || match[0]);
+              } catch {}
+            }
+          }
+        }
         return res.json(result);
       }
     } catch (primaryError: any) {
@@ -871,6 +883,29 @@ async function startServer() {
               ...llmResult.object.manifest
             }
           };
+
+          // Guarantee soul, rules, skills are strings
+          if (typeof finalSpec.soul === 'object' && finalSpec.soul !== null) {
+            finalSpec.soul = Object.entries(finalSpec.soul)
+              .map(([k, v]) => `## ${k.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}\n${v}`)
+              .join('\n\n');
+          }
+          if (typeof finalSpec.rules === 'object' && finalSpec.rules !== null) {
+            finalSpec.rules = Object.entries(finalSpec.rules)
+              .map(([k, v]) => `## ${k.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}\n${v}`)
+              .join('\n\n');
+          }
+          if (Array.isArray(finalSpec.skills)) {
+            finalSpec.skills = finalSpec.skills.map((s: any) => {
+              if (typeof s === 'string') return s;
+              return `## Skill: ${s.name || 'custom-skill'}\nDescription: ${s.description || ''}\nAllowed tools: ${Array.isArray(s.allowedTools) ? s.allowedTools.join(' ') : (s.allowedTools || '')}\n\n${s.instructions || ''}`;
+            }).join('\n\n');
+          } else if (typeof finalSpec.skills === 'object' && finalSpec.skills !== null) {
+            finalSpec.skills = Object.entries(finalSpec.skills).map(([name, s]: [string, any]) => {
+              if (typeof s === 'string') return `## Skill: ${name}\n\n${s}`;
+              return `## Skill: ${name}\nDescription: ${s.description || ''}\nAllowed tools: ${Array.isArray(s.allowedTools) ? s.allowedTools.join(' ') : (s.allowedTools || '')}\n\n${s.instructions || ''}`;
+            }).join('\n\n');
+          }
         }
       } catch (e: any) {
         clearInterval(heartbeatInterval);

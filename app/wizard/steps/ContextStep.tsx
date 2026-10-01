@@ -89,7 +89,9 @@ export function ContextStep() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{file.name}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase">{file.type.split('/')[1]}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">
+                      {file.type ? (file.type.includes('/') ? file.type.split('/')[1] : file.type) : 'FILE'}
+                    </p>
                   </div>
                 </div>
                 <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeFile(file.name)}>

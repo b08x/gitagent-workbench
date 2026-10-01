@@ -19,18 +19,21 @@ import { GitIntegration } from '../app/workbench/GitIntegration';
 import { DocsPage } from '../app/documentation/DocsPage';
 import { SettingsView } from '../app/settings/SettingsView';
 import { AppLayout } from '../components/AppLayout';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 export default function App() {
   return (
-    <SettingsProvider>
-      <AgentProvider>
-        <SkillWorkbenchProvider>
-          <BrowserRouter>
-            <AppContent />
-          </BrowserRouter>
-        </SkillWorkbenchProvider>
-      </AgentProvider>
-    </SettingsProvider>
+    <ErrorBoundary>
+      <SettingsProvider>
+        <AgentProvider>
+          <SkillWorkbenchProvider>
+            <BrowserRouter>
+              <AppContent />
+            </BrowserRouter>
+          </SkillWorkbenchProvider>
+        </AgentProvider>
+      </SettingsProvider>
+    </ErrorBoundary>
   );
 }
 
