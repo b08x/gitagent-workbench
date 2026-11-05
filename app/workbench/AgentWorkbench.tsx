@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { assembleSystemPrompt } from '../../lib/gitagent/assembleSystemPrompt';
 import { auditToolMappings } from '../../lib/gitagent/toolVerification';
+import { evaluateSharedReadiness, repairSkillKebabCase, repairRemoveUnsupportedTool } from '../../lib/gitagent/readinessEngine';
 import { AGENT_FRAMEWORK_OPTIONS } from '../../lib/gitagent/constants';
 import { AgentFramework } from '../../lib/gitagent/types';
 import { 
@@ -175,6 +176,13 @@ export function AgentWorkbench() {
   const completeness = Math.round((metCriteriaCount / healthChecklist.length) * 100);
   const [showHealthBreakdown, setShowHealthBreakdown] = useState(true);
 
+  // Shared readiness evaluation across specification, runtime, and testing
+  const readiness = useMemo(() => evaluateSharedReadiness(state, {
+    effectiveTestModel: settings.taskModels.chatTests?.modelId,
+    lastTestedRevision: state.lastTestedRevision,
+    lastTestedModel: state.lastTestedModel
+  }), [state, settings.taskModels.chatTests?.modelId]);
+
   // Pre-flight tool audit & skill scope analysis
   const toolAudit = useMemo(() => auditToolMappings(state), [state]);
   const globalSkillsCount = (state.skillsList || []).filter(s => s.scope !== 'task_scoped').length;
@@ -203,40 +211,40 @@ export function AgentWorkbench() {
                   <Loader2 className="size-2.5 animate-spin" /> GEN: Synthesizing
                 </Badge>
               ) : state.git?.stagedFiles?.length || !state.git?.commits?.length ? (
-                <Badge variant="amber" className="text-[9px] px-1.5 py-0" title="Uncommitted workspace draft modifications">
-                  GEN: Draft
+                <Badge variant="amber" className="text-[9px] px-1.5 py-0" title={`Workspace draft at revision #${state.revision || 1}`}>
+                  GEN: Draft (rev #{state.revision || 1})
                 </Badge>
               ) : (
-                <Badge variant="green" className="text-[9px] px-1.5 py-0" title={`Clean committed baseline revision: ${state.git?.head?.slice(0, 7) || 'clean'}`}>
+                <Badge variant="green" className="text-[9px] px-1.5 py-0" title={`Clean committed baseline: ${state.git?.head?.slice(0, 7) || 'clean'}`}>
                   GEN: Committed ({state.git?.head?.slice(0, 7) || 'clean'})
                 </Badge>
               )}
 
               {/* 2. Specification State */}
               <Badge 
-                variant={completeness === 100 ? "green" : "amber"} 
+                variant={readiness.validity.isValid ? "green" : "amber"} 
                 className="text-[9px] px-1.5 py-0"
-                title={`${metCriteriaCount} of ${healthChecklist.length} specification slots configured`}
+                title={`${readiness.completeness.metCount} of ${readiness.completeness.totalCount} slots configured`}
               >
-                SPEC: {completeness}% ({metCriteriaCount}/5)
+                {readiness.validity.isValid ? `SPEC: Valid (${readiness.completeness.percentage}%)` : `SPEC: ${readiness.validity.errorsCount} Error(s)`}
               </Badge>
 
               {/* 3. Runtime Compatibility State */}
               <Badge
-                variant={toolAudit.unmappedCount === 0 ? "green" : "amber"}
+                variant={readiness.compatibility.isCompatible ? "green" : "amber"}
                 className="text-[9px] px-1.5 py-0"
-                title={`${toolAudit.verifiedCount} verified tools, ${toolAudit.unmappedCount} unmapped claims`}
+                title={`${readiness.compatibility.verifiedToolsCount} verified tools, ${readiness.compatibility.unmappedToolsCount} unmapped claims`}
               >
-                HARNESS: {toolAudit.unmappedCount === 0 ? `${activeFrameworkMeta.shortLabel} (${toolAudit.verifiedCount} Mapped)` : `${toolAudit.unmappedCount} Unmapped`}
+                HARNESS: {readiness.compatibility.isCompatible ? `${activeFrameworkMeta.shortLabel} (${readiness.compatibility.verifiedToolsCount} Mapped)` : `${readiness.compatibility.unmappedToolsCount} Unmapped`}
               </Badge>
 
               {/* 4. Test State */}
               <Badge
-                variant={state.evals?.goodOutputs?.length ? "green" : "outline"}
+                variant={readiness.testing.testStatus === 'passed' ? "green" : readiness.testing.testStatus === 'stale' ? "amber" : "outline"}
                 className="text-[9px] px-1.5 py-0"
-                title={state.evals?.goodOutputs?.length ? `${state.evals.goodOutputs.length} passing evals recorded` : "No test evals recorded yet"}
+                title={readiness.testing.summary}
               >
-                TEST: {state.evals?.goodOutputs?.length ? `Verified (${state.evals.goodOutputs.length})` : "Untested"}
+                {readiness.testing.testStatus === 'stale' ? 'TEST: Stale (Re-test)' : readiness.testing.testStatus === 'passed' ? `TEST: Verified (${readiness.testing.evalsCount || 1})` : 'TEST: Untested'}
               </Badge>
             </div>
           </div>
@@ -315,12 +323,13 @@ export function AgentWorkbench() {
           </Button>
 
           <Button 
-            variant="default"
+            variant="outline" 
             size="sm" 
             onClick={() => dispatch({ type: 'SAVE_SNAPSHOT', payload: 'Manual Save' })}
-            className="text-xs gap-1.5 font-sans font-semibold text-[#fcfaf4] dark:text-[#151619]"
+            className="text-xs font-mono gap-1.5 border-border text-foreground hover:bg-muted font-semibold"
+            title="Save workspace snapshot"
           >
-            <Save className="size-3.5" />
+            <Save className="size-3.5 text-foreground" />
             <span className="hidden sm:inline">Snapshot</span>
           </Button>
 
@@ -362,14 +371,14 @@ export function AgentWorkbench() {
                     className={cn(
                       "flex items-center gap-2.5 px-3 py-1.5 rounded-none transition-none cursor-pointer text-left group",
                       isCurrent 
-                        ? "bg-card border border-primary shadow-xs" 
+                        ? "bg-card border-2 border-primary shadow-xs" 
                         : "hover:bg-muted border border-transparent"
                     )}
                   >
                     <div className={cn(
                       "size-6 rounded-none flex items-center justify-center text-[11px] font-mono font-bold transition-none shrink-0",
                       isCurrent 
-                        ? "bg-primary text-[#fcfaf4] dark:text-[#151619] shadow-xs" 
+                        ? "bg-primary text-primary-foreground font-bold shadow-xs" 
                         : isPast 
                         ? "bg-[#14532d]/15 text-[#14532d] dark:text-[#86efac] border border-[#14532d]/40" 
                         : "bg-background text-foreground/80 border border-border group-hover:text-foreground"
@@ -836,11 +845,25 @@ export function AgentWorkbench() {
                   <Label className="text-[11px] font-semibold text-foreground font-sans">Max Context Tokens</Label>
                   <Input 
                     type="number"
-                    value={state.manifest.memory?.max_tokens || 8192} 
-                    onChange={(e) => dispatch({
-                      type: 'UPDATE_MANIFEST',
-                      payload: { memory: { ...state.manifest.memory, max_tokens: parseInt(e.target.value) || 8192 } }
-                    })}
+                    min={512}
+                    max={2000000}
+                    value={state.manifest.memory?.max_tokens || state.modelConfig?.constraints?.max_tokens || 8192} 
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 8192;
+                      dispatch({
+                        type: 'UPDATE_WORKSPACE',
+                        payload: {
+                          manifest: {
+                            ...state.manifest,
+                            memory: { ...state.manifest.memory, max_tokens: val }
+                          },
+                          modelConfig: {
+                            ...state.modelConfig,
+                            constraints: { ...state.modelConfig?.constraints, max_tokens: val }
+                          }
+                        }
+                      });
+                    }}
                     className="h-8 text-xs font-mono rounded-none bg-background border-border"
                   />
                 </div>

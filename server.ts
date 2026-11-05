@@ -714,7 +714,8 @@ async function startServer() {
           console.warn("Architect generation did not produce a valid manifest object. Synthesizing specification with built-in architecture engine...");
           const userText = extractUserPromptText(prompt);
           const targetFramework = (req.body?.targetFramework || options?.targetFramework || prompt?.targetFramework || 'hermes_agent') as any;
-          const synth = synthesizeAgentSpec(userText || 'Autonomous Specialist Agent', '', targetFramework);
+          const existingAgent = req.body?.existingAgent || prompt?.existingAgent;
+          const synth = synthesizeAgentSpec(userText || 'Autonomous Specialist Agent', '', targetFramework, existingAgent);
           return res.json({ object: synth, _fallbackUsed: true, _originalText: result.text });
         }
 
@@ -755,8 +756,9 @@ async function startServer() {
     if (isArchitectRequest) {
       const userText = extractUserPromptText(prompt);
       const targetFramework = (req.body?.targetFramework || options?.targetFramework || prompt?.targetFramework || prompt?.options?.targetFramework || 'hermes_agent') as any;
+      const existingAgent = req.body?.existingAgent || prompt?.existingAgent;
       console.log(`Synthesizing agent specification with built-in architecture engine for target harness "${targetFramework}"...`);
-      const synth = synthesizeAgentSpec(userText || 'Autonomous Specialist Agent', '', targetFramework);
+      const synth = synthesizeAgentSpec(userText || 'Autonomous Specialist Agent', '', targetFramework, existingAgent);
       return res.json({ object: synth, _fallbackUsed: true, _originalError: primaryErrorMessage });
     }
 

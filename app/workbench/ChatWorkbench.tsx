@@ -265,6 +265,16 @@ export function ChatWorkbench() {
         return next;
       });
 
+      // Record test result into shared workspace state for freshness and readiness evaluation
+      dispatch({
+        type: 'RECORD_TEST_RESULT',
+        payload: {
+          status: violation.flagged ? 'failed' : 'passed',
+          model: chatModel.modelId,
+          revision: state.git?.head || `rev-${state.revision || 1}`
+        }
+      });
+
     } catch (err: any) {
       if (err.name === 'AbortError' || abortControllerRef.current?.signal.aborted) return;
       console.error(err);

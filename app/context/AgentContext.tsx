@@ -49,6 +49,9 @@ type Action =
   | { type: 'SYNC_GIT'; payload?: { remoteName?: string; forceError?: string } }
   | { type: 'SIMULATE_GIT_BEHIND'; payload?: number }
   | { type: 'SET_GIT_SYNC_ERROR'; payload: string | null }
+  | { type: 'APPLY_DRAFT_PATCH'; payload: { patch: Partial<ExtendedWorkspace>; baseRevision?: number; jobId?: string } }
+  | { type: 'APPLY_REPAIR'; payload: Partial<ExtendedWorkspace> }
+  | { type: 'RECORD_TEST_RESULT'; payload: { status: 'passed' | 'failed'; model: string; revision?: string } }
   | { type: 'RESET_WORKSPACE'; payload?: { template?: StructureType; targetFramework?: AgentFramework; repoName?: string; keepHistory?: boolean } };
 
 export interface ToolEntry {
@@ -179,9 +182,15 @@ interface ExtendedWorkspace extends AgentWorkspace {
   evals?: { goodOutputs?: string[] };
   runtimeProviderId: string;
   git: GitRepoState;
+  revision: number;
+  lastTestedRevision?: string;
+  lastTestedModel?: string;
+  testStatus?: 'not_run' | 'passed' | 'failed' | 'stale';
 }
 
 export const initialState: ExtendedWorkspace = {
+  revision: 1,
+  testStatus: 'not_run',
   selectedTemplate: 'standard',
   meta: {
     structureType: 'standard',
@@ -324,6 +333,7 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
     case 'SET_WORKSPACE':
       return { 
         ...action.payload, 
+        revision: (state.revision || 1) + 1,
         selectedTemplate: state.selectedTemplate,
         modelConfig: (action.payload as any).modelConfig || initialState.modelConfig,
         runtimeConfig: (action.payload as any).runtimeConfig || initialState.runtimeConfig,
@@ -349,13 +359,38 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         git: (action.payload as any).git || state.git || initialState.git,
       };
     case 'UPDATE_META':
-      const newState = { ...state, meta: { ...state.meta, ...action.payload } };
+      const newState = { ...state, meta: { ...state.meta, ...action.payload }, revision: (state.revision || 1) + 1 };
       if (action.payload.structureType && ['minimal', 'standard', 'full', 'data-analyst', 'web-scraper', 'researcher'].includes(action.payload.structureType)) {
         newState.selectedTemplate = action.payload.structureType as any;
       }
       return newState;
     case 'UPDATE_MANIFEST':
-      return { ...state, manifest: { ...state.manifest, ...action.payload } };
+      return { ...state, manifest: { ...state.manifest, ...action.payload }, revision: (state.revision || 1) + 1 };
+    case 'APPLY_DRAFT_PATCH': {
+      const nextRev = (state.revision || 1) + 1;
+      const patchedWorkspace = {
+        ...state,
+        ...action.payload.patch,
+        revision: nextRev,
+        testStatus: state.lastTestedRevision && state.lastTestedRevision !== (state.git?.head || `rev-${nextRev}`) ? ('stale' as const) : state.testStatus
+      };
+      return patchedWorkspace as ExtendedWorkspace;
+    }
+    case 'APPLY_REPAIR': {
+      return {
+        ...state,
+        ...action.payload,
+        revision: (state.revision || 1) + 1,
+      };
+    }
+    case 'RECORD_TEST_RESULT': {
+      return {
+        ...state,
+        testStatus: action.payload.status,
+        lastTestedModel: action.payload.model,
+        lastTestedRevision: action.payload.revision || state.git?.head || `rev-${state.revision || 1}`
+      };
+    }
     case 'UPDATE_WORKSPACE':
       let payload = { ...action.payload };
       
@@ -364,7 +399,8 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         if (typeof payload.soul === 'string') {
           const soulUpdates = parseMarkdownToFineGrained(payload.soul, 'soul');
           payload = { ...payload, ...soulUpdates };
-          if (soulUpdates['core-identity']) {
+          // Only populate manifest.description if empty, never overwrite user's custom description
+          if (soulUpdates['core-identity'] && (!state.manifest?.description || !state.manifest.description.trim())) {
             payload.manifest = { 
               ...(state.manifest || {}), 
               ...(payload.manifest || {}), 
@@ -419,17 +455,18 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         };
       }
 
-      return { ...state, ...payload } as ExtendedWorkspace;
+      return { ...state, ...payload, revision: (state.revision || 1) + 1 } as ExtendedWorkspace;
     case 'SET_FILE':
       const filePayload = action.payload;
       const safeContent = typeof filePayload.content === 'string' ? filePayload.content : String(filePayload.content ?? '');
-      let nextState = { ...state, [filePayload.path]: safeContent };
+      let nextState = { ...state, [filePayload.path]: safeContent, revision: (state.revision || 1) + 1 };
       
       // Sync from file content back to structured fields
       if (filePayload.path === 'soul') {
         const soulUpdates = parseMarkdownToFineGrained(safeContent, 'soul');
         nextState = { ...nextState, ...soulUpdates };
-        if (soulUpdates['core-identity']) {
+        // Only set description if empty
+        if (soulUpdates['core-identity'] && (!nextState.manifest?.description || !nextState.manifest.description.trim())) {
           nextState.manifest = { ...nextState.manifest, description: soulUpdates['core-identity'] };
         }
       } else if (filePayload.path === 'rules') {
@@ -442,7 +479,7 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
 
       return nextState;
     case 'SET_TEMPLATE':
-      return { ...state, selectedTemplate: action.payload, meta: { ...state.meta, structureType: action.payload } };
+      return { ...state, selectedTemplate: action.payload, meta: { ...state.meta, structureType: action.payload }, revision: (state.revision || 1) + 1 };
     case 'ADD_SKILL':
       return {
         ...state,

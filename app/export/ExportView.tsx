@@ -2,11 +2,12 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAgentWorkspace } from '../context/AgentContext';
 import { useSettings } from '../context/SettingsContext';
-import { serializeWorkspace, downloadZip } from '../../lib/gitagent/serializer';
+import { serializeWorkspace, downloadZip, getWorkspaceFileInventory } from '../../lib/gitagent/serializer';
 import { assembleCLAUDEmd } from '../../lib/gitagent/assembleCLAUDEmd';
 import { exportGeminiZip } from '../../lib/gitagent/exportGemini';
 import { exportToHermesPython } from '../../lib/gitagent/adapters/hermes-python';
 import { auditToolMappings } from '../../lib/gitagent/toolVerification';
+import { evaluateSharedReadiness, repairSkillKebabCase, repairRemoveUnsupportedTool } from '../../lib/gitagent/readinessEngine';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -30,7 +31,9 @@ import {
   Sliders,
   Layers,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  FileCode,
+  Wrench
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,17 +45,41 @@ export function ExportView() {
   const [pythonExport, setPythonExport] = React.useState<{ source: string; filename: string } | null>(null);
   const [showFullPython, setShowFullPython] = React.useState(false);
   const [showAllToolClaims, setShowAllToolClaims] = React.useState(false);
+  const [showFileInventory, setShowFileInventory] = React.useState(false);
 
-  // Pre-flight audit of tool claims vs verified runtime access
+  // Evaluate shared readiness and exact serializer inventory
+  const readiness = useMemo(() => evaluateSharedReadiness(state), [state]);
+  const fileInventory = useMemo(() => getWorkspaceFileInventory(state), [state]);
   const toolAudit = useMemo(() => auditToolMappings(state), [state]);
+
   const globalSkillsCount = (state.skillsList || []).filter(s => s.scope !== 'task_scoped').length;
   const taskSkillsCount = (state.skillsList || []).filter(s => s.scope === 'task_scoped').length;
 
-  const handleDownload = async () => {
-    const blob = await serializeWorkspace(state);
-    const filename = `${state.manifest.name || 'agent'}-v${state.manifest.version || '1.0.0'}.zip`;
+  const handleDownload = async (isRawDraft = false) => {
+    const blob = await serializeWorkspace(state, { rawDraft: isRawDraft });
+    const prefix = isRawDraft ? 'draft-' : '';
+    const filename = `${prefix}${state.manifest.name || 'agent'}-v${state.manifest.version || '1.0.0'}.zip`;
     downloadZip(blob, filename);
     dispatch({ type: 'UPDATE_META', payload: { lastDownloadedAt: new Date() } });
+  };
+
+  const handleRepairKebab = (diag: any) => {
+    if (diag.repairPayload?.oldName) {
+      const repaired = repairSkillKebabCase(state, diag.repairPayload.oldName, diag.repairPayload.target);
+      dispatch({ type: 'APPLY_REPAIR', payload: repaired });
+    } else if (diag.repairPayload?.type === 'agent_name') {
+      dispatch({
+        type: 'UPDATE_MANIFEST',
+        payload: { name: diag.repairPayload.target }
+      });
+    }
+  };
+
+  const handleRepairRemoveTool = (diag: any) => {
+    if (diag.repairPayload?.toolName) {
+      const repaired = repairRemoveUnsupportedTool(state, diag.repairPayload.toolName, diag.repairPayload.skillName);
+      dispatch({ type: 'APPLY_REPAIR', payload: repaired });
+    }
   };
 
   const handleExportClaude = () => {
@@ -313,36 +340,131 @@ export function ExportView() {
           </TabsList>
 
           <TabsContent value="zip" className="space-y-4">
-            <Card className="border-border/80 bg-card rounded-sm shadow-xs">
+            <Card className="border-border bg-card rounded-none shadow-xs">
               <CardHeader className="p-5 pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-bold">
-                  <CheckCircle className="size-4 text-emerald-500" />
-                  Specification Compliant (v1.0.0)
+                  {readiness.isExportReady ? (
+                    <>
+                      <CheckCircle className="size-4 text-[#1f6a38]" />
+                      <span>Verified Specification Compliant (rev-{state.git?.head?.slice(0, 7) || 'clean'})</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="size-4 text-[#b45309]" />
+                      <span>Validation Errors Detected ({readiness.blockingExportReasons.length} Blocking Issue{readiness.blockingExportReasons.length === 1 ? '' : 's'})</span>
+                    </>
+                  )}
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  All workspace files synthesized into a GitAgent compliant bundle.
+                  {readiness.isExportReady 
+                    ? "All schema invariants, naming standards, and tool mappings verified against target runtime."
+                    : "Standard export is blocked until naming and tool compatibility constraints are resolved."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-5 pt-0 space-y-4">
-                <div className="p-3 bg-muted/40 rounded-sm border border-border/60 space-y-2">
+                {/* Blocking Diagnostics Panel with One-Click Repairs */}
+                {!readiness.isExportReady && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-xs rounded-none space-y-2.5 font-sans">
+                    <div className="font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider text-[10px] font-mono flex items-center gap-1.5">
+                      <ShieldAlert className="size-3.5 text-amber-600 dark:text-amber-400" /> Action Required Before Compliant Export
+                    </div>
+                    <div className="space-y-2">
+                      {readiness.allDiagnostics.filter(d => d.severity === 'error').map((diag) => (
+                        <div key={diag.id} className="p-2 bg-background border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <span className="font-mono font-bold text-foreground text-[11px] block">{diag.file}</span>
+                            <p className="text-[11px] text-muted-foreground">{diag.message}</p>
+                          </div>
+                          {diag.repairAction === 'kebab_case' && (
+                            <Button 
+                              size="xs" 
+                              variant="warm"
+                              onClick={() => handleRepairKebab(diag)}
+                              className="text-[10px] font-mono h-6 px-2 shrink-0 gap-1"
+                            >
+                              <Wrench className="size-2.5" /> {diag.actionLabel || "Auto-Fix Kebab-Case"}
+                            </Button>
+                          )}
+                          {diag.repairAction === 'remove_tool' && (
+                            <Button 
+                              size="xs" 
+                              variant="destructive"
+                              onClick={() => handleRepairRemoveTool(diag)}
+                              className="text-[10px] font-mono h-6 px-2 shrink-0 gap-1"
+                            >
+                              <Wrench className="size-2.5" /> {diag.actionLabel || "Remove Tool"}
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-3 bg-muted border border-border space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground font-mono">ZIP PACKAGE:</span>
                     <span className="font-mono font-bold text-foreground">
                       {state.manifest.name || 'agent'}-v{state.manifest.version || '1.0.0'}.zip
                     </span>
                   </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground font-mono">TOTAL FILES:</span>
-                    <span className="font-mono font-bold text-primary">{calculateFileCount()} files</span>
+                  <div className="flex justify-between text-xs items-center">
+                    <span className="text-muted-foreground font-mono">SERIALIZER INVENTORY:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-foreground">{fileInventory.length} files (includes VALIDATION_REPORT.md)</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowFileInventory(!showFileInventory)}
+                        className="text-[10px] font-mono text-primary underline cursor-pointer"
+                      >
+                        {showFileInventory ? 'Hide' : 'Inspect'}
+                      </button>
+                    </div>
                   </div>
+
+                  {showFileInventory && (
+                    <div className="pt-2 border-t border-border space-y-1 max-h-48 overflow-y-auto">
+                      {fileInventory.map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-[11px] font-mono py-0.5 px-1 bg-background border border-border/50">
+                          <span className="text-foreground flex items-center gap-1.5 truncate">
+                            <FileCode className="size-3 text-primary" /> {item.path}
+                          </span>
+                          <span className="text-muted-foreground text-[10px] shrink-0">
+                            {Math.round(item.sizeBytes / 1024 * 10) / 10} KB • {item.description}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                <Button 
-                  className="w-full h-10 bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs rounded-sm shadow-xs" 
-                  onClick={handleDownload}
-                >
-                  <Download className="mr-2 size-4" /> Download Complete ZIP Bundle
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  {readiness.isExportReady ? (
+                    <Button 
+                      className="flex-1 h-10 bg-[#853b06] hover:bg-[#6e3004] text-white font-semibold text-xs shadow-xs" 
+                      onClick={() => handleDownload(false)}
+                    >
+                      <Download className="mr-2 size-4" /> Download Compliant ZIP Bundle
+                    </Button>
+                  ) : (
+                    <>
+                      <Button 
+                        disabled
+                        className="flex-1 h-10 opacity-50 bg-muted text-muted-foreground font-semibold text-xs border border-border"
+                      >
+                        <ShieldAlert className="mr-2 size-4" /> Compliant Export Blocked (Resolve Errors Above)
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        className="h-10 text-xs font-mono border-destructive/40 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDownload(true)}
+                        title="Export current workspace state ignoring validation rules"
+                      >
+                        <Download className="mr-2 size-3.5" /> Download Unvalidated Draft
+                      </Button>
+                    </>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

@@ -331,35 +331,28 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                       <Button
                         key={f.id}
                         type="button"
-                        variant={isPreviewing ? 'default' : 'outline'}
+                        variant="outline"
                         size="sm"
                         onClick={() => handleFrameworkPreview(f.id)}
                         className={cn(
                           "h-8 text-xs font-semibold transition-none relative cursor-pointer",
                           isPreviewing 
-                            ? "bg-primary text-[#fcfaf4] dark:text-[#151619] border-primary shadow-xs" 
+                            ? "bg-card text-foreground border-2 border-primary shadow-xs font-bold" 
                             : "bg-background text-foreground hover:bg-muted border-border"
                         )}
                       >
-                        {isPreviewing && <Eye className="h-3.5 w-3.5 mr-1 text-[#fcfaf4] dark:text-[#151619]" />}
+                        {isPreviewing && <Eye className="h-3.5 w-3.5 mr-1 text-primary" />}
                         {f.shortLabel}
                         {isSpecActive && (
-                          <span className={cn(
-                            "ml-1 text-[9px] px-1.5 py-0 rounded-none font-bold",
-                            isPreviewing 
-                              ? "bg-white/20 text-[#fcfaf4] dark:text-[#151619] dark:bg-black/20" 
-                              : "bg-[#14532d]/15 text-[#14532d] dark:text-[#86efac] border border-[#14532d]/40"
-                          )}>
+                          <span className="ml-1 text-[9px] px-1.5 py-0 rounded-none font-bold bg-[#14532d]/15 text-[#14532d] dark:text-[#86efac] border border-[#14532d]/40">
                             Active
                           </span>
                         )}
                         <Badge 
-                          variant={isPreviewing ? "secondary" : "outline"} 
+                          variant="outline" 
                           className={cn(
-                            "ml-1.5 px-1.5 py-0 text-[10px] h-4 font-bold",
-                            isPreviewing 
-                              ? "bg-white/20 text-[#fcfaf4] dark:text-[#151619] border-transparent dark:bg-black/20" 
-                              : "text-foreground border-border"
+                            "ml-1.5 px-1.5 py-0 text-[10px] h-4 font-bold border-border",
+                            isPreviewing ? "bg-muted text-foreground" : "text-muted-foreground"
                           )}
                         >
                           {toolCount}

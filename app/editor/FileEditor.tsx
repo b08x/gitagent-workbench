@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FileText, Folder, ChevronRight, ChevronDown, AlertTriangle, AlertCircle, ArrowRight, MessageSquare, X, Code2, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getWorkspaceFileInventory } from '@/lib/gitagent/serializer';
 import { ChatEditorSidebar } from './ChatEditorSidebar';
 
 export function FileEditor() {
@@ -13,6 +14,8 @@ export function FileEditor() {
   const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<string | null>('agent.yaml');
   const [showChat, setShowChat] = useState(false);
+
+  const fileInventory = getWorkspaceFileInventory(state);
 
   const getFileContent = (path: string) => {
     if (path === 'agent.yaml') return JSON.stringify(state.manifest, null, 2);
@@ -55,13 +58,13 @@ export function FileEditor() {
   return (
     <div className="h-full w-full overflow-hidden flex flex-row bg-background text-foreground select-text">
       {/* File Tree Sidebar with adequate breathing room */}
-      <div className="w-72 md:w-80 shrink-0 border-r border-[#A0D2EB]/15 bg-[#141A20]/80 flex flex-col overflow-hidden select-none">
-        <div className="h-11 px-4 border-b border-[#A0D2EB]/15 bg-[#141A20] flex items-center justify-between shrink-0">
-          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#A0D2EB]/70 flex items-center gap-2">
-            <Code2 className="size-3.5 text-[#E76F51]" /> Repository Tree
+      <div className="w-72 md:w-80 shrink-0 border-r border-border bg-card flex flex-col overflow-hidden select-none">
+        <div className="h-11 px-4 border-b border-border bg-muted/40 flex items-center justify-between shrink-0">
+          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+            <Code2 className="size-3.5 text-primary" /> Repository Tree
           </span>
-          <Badge variant="outline" className="text-[9px] font-mono text-[#A0D2EB]/60 border-[#A0D2EB]/20">
-            {1 + (state.rules ? 1 : 0) + (state.soul ? 1 : 0) + (state.prompt_md ? 1 : 0) + Object.keys(state.skills || {}).length} files
+          <Badge variant="outline" className="text-[9px] font-mono text-muted-foreground border-border">
+            {fileInventory.length} files
           </Badge>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
@@ -71,9 +74,9 @@ export function FileEditor() {
 
       {/* Editor & Validation Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
-        <div className="h-11 border-b border-[#A0D2EB]/15 bg-[#141A20]/60 px-4 flex items-center justify-between shrink-0">
+        <div className="h-11 border-b border-border bg-card px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <FileText className="size-3.5 text-[#E76F51] shrink-0" />
+            <FileText className="size-3.5 text-primary shrink-0" />
             <span className="text-xs font-mono font-semibold text-foreground truncate">{selectedFile}</span>
           </div>
           <div className="flex gap-2 items-center">
@@ -83,15 +86,16 @@ export function FileEditor() {
             <Button 
               variant="ghost"
               size="xs"
-              className={cn("text-xs font-mono text-[#A0D2EB]/70 hover:text-foreground", showChat && "bg-[#A0D2EB]/10 text-foreground")}
+              className={cn("text-xs font-mono text-muted-foreground hover:text-foreground", showChat && "bg-muted text-foreground")}
               onClick={() => setShowChat(!showChat)}
             >
-              <MessageSquare className="mr-1 size-3 text-[#E76F51]" />
+              <MessageSquare className="mr-1 size-3 text-primary" />
               {showChat ? 'Hide AI Assistant' : 'AI Assistant'}
             </Button>
             <Button 
+              variant="amber"
               size="xs" 
-              className="bg-gradient-to-r from-[#E76F51] to-[#E9C46A] hover:brightness-110 text-[#141A20] font-semibold text-xs rounded-sm shadow-xs" 
+              className="font-semibold text-xs shadow-xs" 
               onClick={() => navigate('/export')}
             >
               <Download className="mr-1 size-3" /> Export ZIP

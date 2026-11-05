@@ -19,13 +19,22 @@ export interface SynthesizedAgentResult {
     model?: any;
     tags?: string[];
     metadata?: Record<string, any>;
+    memory?: {
+      strategy?: 'ephemeral' | 'buffer' | 'vector' | 'summary';
+      max_tokens?: number;
+    };
   };
+  modelConfig?: any;
+  runtimeConfig?: any;
   targetFramework?: AgentFramework;
   harness?: AgentFramework;
   soul: string;
   rules: string;
   skills: string;
   explanation: string;
+  isFieldPatch?: boolean;
+  fieldError?: string;
+  proposedPatch?: any;
 }
 
 export interface ExistingAgentContext {
@@ -36,6 +45,10 @@ export interface ExistingAgentContext {
   skills?: string | Record<string, any>;
   skillsList?: any[];
   targetFramework?: string;
+  manifest?: any;
+  modelConfig?: any;
+  runtimeConfig?: any;
+  memory?: any;
 }
 
 export function synthesizeAgentSpec(
@@ -46,6 +59,75 @@ export function synthesizeAgentSpec(
 ): SynthesizedAgentResult {
   const cleanPrompt = promptText.trim();
   const lower = cleanPrompt.toLowerCase();
+
+  // 1. Check for Bounded Edits to an existing agent or parameter-specific commands
+  const contextTokenMatch = cleanPrompt.match(/(?:configure|set|change|update|make|adjust)\s*(?:the\s*)?(?:context\s*window|context\s*tokens|max\s*tokens|token\s*limit)\s*(?:to|as|at|:|=)?\s*([0-9,]+)\s*(?:tokens?)?/i) ||
+    cleanPrompt.match(/(?:context\s*window|context\s*tokens|max\s*tokens|token\s*limit)\s*(?:to|:|=|is)\s*([0-9,]+)/i) ||
+    cleanPrompt.match(/([0-9,]+)\s*(?:tokens|toks?)\s*(?:context|window|limit)/i);
+
+  if (contextTokenMatch) {
+    const rawNum = contextTokenMatch[1];
+    const parsedTokens = parseInt(rawNum.replace(/,/g, ''), 10);
+    const agentName = existingAgent?.name && existingAgent.name !== 'untitled-agent' ? existingAgent.name : 'agent';
+    const desc = existingAgent?.description || existingAgent?.manifest?.description || 'Autonomous specialist agent';
+
+    // Validate 512 to 2,000,000 bounds
+    if (isNaN(parsedTokens) || parsedTokens < 512 || parsedTokens > 2000000) {
+      const err = `Invalid context window tokens: ${rawNum} (must be between 512 and 2,000,000 tokens).`;
+      return {
+        manifest: {
+          ...(existingAgent?.manifest || {}),
+          name: agentName,
+          description: desc,
+          memory: { ...(existingAgent?.manifest?.memory || {}), max_tokens: existingAgent?.manifest?.memory?.max_tokens || 8192 }
+        },
+        modelConfig: {
+          ...(existingAgent?.modelConfig || {}),
+          constraints: { ...(existingAgent?.modelConfig?.constraints || {}), max_tokens: existingAgent?.modelConfig?.constraints?.max_tokens || 8192 }
+        },
+        soul: typeof existingAgent?.soul === 'string' ? existingAgent.soul : '',
+        rules: typeof existingAgent?.rules === 'string' ? existingAgent.rules : '',
+        skills: typeof existingAgent?.skills === 'string' ? existingAgent.skills : '',
+        explanation: err,
+        isFieldPatch: true,
+        fieldError: err,
+        proposedPatch: null
+      };
+    }
+
+    const currentManifest = existingAgent?.manifest || {};
+    const currentModelConfig = existingAgent?.modelConfig || {};
+
+    const updatedPatch = {
+      manifest: {
+        ...currentManifest,
+        name: agentName,
+        description: desc,
+        memory: {
+          ...(currentManifest.memory || {}),
+          max_tokens: parsedTokens
+        }
+      },
+      modelConfig: {
+        ...currentModelConfig,
+        constraints: {
+          ...(currentModelConfig.constraints || {}),
+          max_tokens: parsedTokens
+        }
+      }
+    };
+
+    return {
+      manifest: updatedPatch.manifest,
+      modelConfig: updatedPatch.modelConfig,
+      soul: typeof existingAgent?.soul === 'string' ? existingAgent.soul : '',
+      rules: typeof existingAgent?.rules === 'string' ? existingAgent.rules : '',
+      skills: typeof existingAgent?.skills === 'string' ? existingAgent.skills : '',
+      explanation: `Configured context window to ${parsedTokens.toLocaleString()} tokens in manifest memory and model constraints.`,
+      isFieldPatch: true,
+      proposedPatch: updatedPatch
+    };
+  }
 
   // Check if this is a narrow edit to an existing agent
   const hasExistingAgent = !!(existingAgent?.name && existingAgent.name.trim() !== '' && existingAgent.name !== 'untitled-agent');
@@ -295,10 +377,15 @@ export function universalSynthesize(prompt: any, targetFramework: AgentFramework
     return {
       object: {
         manifest: spec.manifest,
+        modelConfig: spec.modelConfig,
+        runtimeConfig: spec.runtimeConfig,
         soul: spec.soul,
         rules: spec.rules,
         skills: spec.skills,
-        explanation: spec.explanation
+        explanation: spec.explanation,
+        isFieldPatch: spec.isFieldPatch,
+        fieldError: spec.fieldError,
+        proposedPatch: spec.proposedPatch
       }
     };
   }

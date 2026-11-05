@@ -47,7 +47,11 @@ import {
   Clock,
   Activity,
   RefreshCw,
-  Edit3
+  Edit3,
+  Wrench,
+  CheckCheck,
+  Eye,
+  AlertTriangle
 } from 'lucide-react';
 import { ResetRestartDialog } from './components/ResetRestartDialog';
 import { cn, formatErrorMessage } from '../../lib/utils';
@@ -57,6 +61,32 @@ import { assertHarnessMatch } from '../../lib/generation/harnessVerifier';
 import { AGENT_FRAMEWORK_OPTIONS, AGENT_FRAMEWORK_TOOLS } from '../../lib/gitagent/constants';
 import { AgentFramework } from '../../lib/gitagent/types';
 import { inferFrameworkTools } from '../../lib/gitagent/contextToolInference';
+import { evaluateSharedReadiness } from '../../lib/gitagent/readinessEngine';
+
+export interface GenerationJob {
+  id: string;
+  baseRevision: number;
+  baseHead: string;
+  baseCommitMessage: string;
+  baseBranch: string;
+  status: 'running' | 'completed' | 'cancelled' | 'failed';
+  prompt: string;
+  files: File[];
+  stage: GenerationStage;
+  stageProgress: number;
+  stageMessage: string;
+  draftSpec: any | null;
+  proposedPatch: any | null;
+  explanation?: string;
+  isFieldPatch?: boolean;
+  fieldError?: string;
+  hasConflict?: boolean;
+  conflictRevision?: number;
+  isApplied?: boolean;
+  error?: string;
+  startedAt: number;
+  completedAt?: number;
+}
 
 interface ChatMessage {
   id: string;
@@ -88,6 +118,7 @@ interface ChatMessage {
     hasSoul: boolean;
     hasRules: boolean;
   };
+  job?: GenerationJob;
 }
 
 type GenerationStage = 'intent' | 'manifest' | 'soul' | 'rules' | 'skills' | 'finalizing' | 'complete';
@@ -163,6 +194,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   const [inlineKeyInput, setInlineKeyInput] = useState('');
   const [showInlineKeyInput, setShowInlineKeyInput] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [activeJob, setActiveJob] = useState<GenerationJob | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -170,6 +202,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const progressiveTimersRef = useRef<NodeJS.Timeout[]>([]);
   const lastUserPromptRef = useRef<string>('');
+  const activeJobRef = useRef<GenerationJob | null>(null);
   const preGenerationSnapshotRef = useRef<{
     workspace: any;
     commitHash: string;
@@ -181,6 +214,28 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   const clearProgressiveTimers = () => {
     progressiveTimersRef.current.forEach(t => clearTimeout(t));
     progressiveTimersRef.current = [];
+  };
+
+  const applyDraftToWorkspace = (jobToApply?: GenerationJob) => {
+    const targetJob = jobToApply || activeJob;
+    if (!targetJob || !targetJob.proposedPatch) return;
+    dispatch({
+      type: 'APPLY_DRAFT_PATCH',
+      payload: {
+        patch: targetJob.proposedPatch,
+        baseRevision: targetJob.baseRevision,
+        jobId: targetJob.id
+      }
+    });
+    setActiveJob(prev => prev && prev.id === targetJob.id ? { ...prev, isApplied: true } : prev);
+  };
+
+  const discardDraft = (jobToDiscard?: GenerationJob) => {
+    const targetId = jobToDiscard?.id || activeJob?.id;
+    if (activeJob?.id === targetId) {
+      setActiveJob(null);
+      activeJobRef.current = null;
+    }
   };
 
   const currentProviderId = settings.taskModels.architect?.providerId || 'google';
@@ -373,18 +428,20 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     clearProgressiveTimers();
     setIsProcessing(false);
     
-    const snapshot = preGenerationSnapshotRef.current;
-    if (snapshot) {
-      // Restore clean committed revision into workspace state
-      dispatch({ type: 'SET_WORKSPACE', payload: snapshot.workspace });
-    } else {
-      dispatch({ type: 'UPDATE_WORKSPACE', payload: { isCompilingSpec: false } });
+    const currentJob = activeJobRef.current;
+    if (activeJobRef.current) {
+      activeJobRef.current.status = 'cancelled';
     }
+    setActiveJob(null);
+    activeJobRef.current = null;
+
+    dispatch({ type: 'UPDATE_WORKSPACE', payload: { isCompilingSpec: false } });
     
     const cancelledDuration = elapsedSeconds;
     const promptText = lastUserPromptRef.current;
-    const restoredRevShort = snapshot ? snapshot.commitHash.slice(0, 7) : (state.git?.head?.slice(0, 7) || 'baseline');
-    const restoredBranch = snapshot?.branch || state.git?.currentBranch || 'main';
+    const baseRev = currentJob?.baseRevision || state.revision || 1;
+    const restoredRevShort = currentJob?.baseHead ? currentJob.baseHead.slice(0, 7) : (state.git?.head?.slice(0, 7) || 'baseline');
+    const restoredBranch = currentJob?.baseBranch || state.git?.currentBranch || 'main';
 
     setMessages(prev => {
       const filtered = prev.filter(m => !(m.role === 'assistant' && (m.content.includes('Analyzing') || m.id.startsWith('asst-'))));
@@ -393,13 +450,13 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         {
           id: `cancel-${Date.now()}`,
           role: 'assistant',
-          content: `Generation halted by user after ${cancelledDuration.toFixed(1)}s. Workspace was cleanly restored to committed revision "${restoredRevShort}" (${snapshot?.commitMessage || 'Committed Baseline'}) on branch "${restoredBranch}". All in-flight draft mutations were discarded.`,
+          content: `Generation halted by user after ${cancelledDuration.toFixed(1)}s. Workspace remained cleanly untouched at revision #${baseRev} ("${restoredRevShort}") on branch "${restoredBranch}". In-flight draft mutations were completely discarded.`,
           isCancelled: true,
           cancelledPrompt: promptText,
           cancelledDuration: cancelledDuration,
-          restoredRevision: snapshot?.commitHash || state.git?.head,
+          restoredRevision: currentJob?.baseHead || state.git?.head,
           restoredBranch: restoredBranch,
-          restoredCommitMessage: snapshot?.commitMessage || 'Committed Baseline',
+          restoredCommitMessage: currentJob?.baseCommitMessage || 'Committed Baseline',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ];
@@ -476,11 +533,32 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     setStageProgress(15);
     setStageMessage(`Parsing intent & runtime constraints for ${activeFrameworkMeta.label}...`);
 
-    // Capture pre-generation clean snapshot to ensure cancellation restores committed baseline
+    // Capture pre-generation clean snapshot and initialize job draft
+    const jobId = `job-${Date.now()}`;
+    const baseRevision = state.revision || 1;
     const currentCommit = state.git?.commits?.[0];
     const commitHash = currentCommit?.hash || state.git?.head || 'rev-baseline';
     const commitMessage = currentCommit?.message || 'Committed Baseline';
     const branch = state.git?.currentBranch || 'main';
+
+    const newJob: GenerationJob = {
+      id: jobId,
+      baseRevision,
+      baseHead: commitHash,
+      baseCommitMessage: commitMessage,
+      baseBranch: branch,
+      status: 'running',
+      prompt: promptToSend,
+      files: filesToSend,
+      stage: 'intent',
+      stageProgress: 15,
+      stageMessage: `Parsing intent & runtime constraints for ${activeFrameworkMeta.label}...`,
+      draftSpec: null,
+      proposedPatch: null,
+      startedAt: Date.now()
+    };
+    setActiveJob(newJob);
+    activeJobRef.current = newJob;
 
     preGenerationSnapshotRef.current = {
       workspace: JSON.parse(JSON.stringify(state)),
@@ -504,17 +582,19 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     // Synthesize structured deterministic baseline specification for immediate progressive streaming
     const interimSpec = synthesizeAgentSpec(promptToSend, '', activeFramework, existingAgent);
 
-    // Staged progressive update 1: Manifest metadata & Kebab-case identifier at 1.5s
+    // Staged progressive preview 1: Manifest metadata & Kebab-case identifier at 1.5s
     const t1 = setTimeout(() => {
       setGenerationStage('manifest');
       setStageProgress(35);
       const msg = `Drafting manifest metadata for ${interimSpec.manifest.name}...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: {
-          isCompilingSpec: true,
-          compilationStage: 'Drafting manifest...',
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stage: 'manifest',
+        stageProgress: 35,
+        stageMessage: msg,
+        draftSpec: {
+          ...prev.draftSpec,
           manifest: {
             ...state.manifest,
             name: interimSpec.manifest.name,
@@ -523,150 +603,163 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
             compliance: interimSpec.manifest.compliance
           }
         }
-      });
+      } : prev);
     }, 1500);
 
-    // Staged progressive update 2: Identity & SOUL.md at 3.2s
+    // Staged progressive preview 2: Identity & SOUL.md at 3.2s
     const t2 = setTimeout(() => {
       setGenerationStage('soul');
       setStageProgress(55);
       const msg = `Composing Core Identity & values into SOUL.md...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: {
-          isCompilingSpec: true,
-          compilationStage: 'Composing soul (SOUL.md)...',
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stage: 'soul',
+        stageProgress: 55,
+        stageMessage: msg,
+        draftSpec: {
+          ...prev.draftSpec,
           soul: interimSpec.soul
         }
-      });
+      } : prev);
     }, 3200);
 
-    // Staged progressive update 3: Operational Rules at 4.8s
+    // Staged progressive preview 3: Operational Rules at 4.8s
     const t3 = setTimeout(() => {
       setGenerationStage('rules');
       setStageProgress(75);
       const msg = `Establishing operational boundaries into RULES.md...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: {
-          isCompilingSpec: true,
-          compilationStage: 'Defining rules (RULES.md)...',
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stage: 'rules',
+        stageProgress: 75,
+        stageMessage: msg,
+        draftSpec: {
+          ...prev.draftSpec,
           rules: interimSpec.rules
         }
-      });
+      } : prev);
     }, 4800);
 
-    // Staged progressive update 4: Domain Skills & Tools at 6.5s
+    // Staged progressive preview 4: Domain Skills & Tools at 6.5s
     const t4 = setTimeout(() => {
       setGenerationStage('skills');
       setStageProgress(90);
       const msg = `Mapping domain tools & skills to ${activeFrameworkMeta.label} matrix...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: {
-          isCompilingSpec: true,
-          compilationStage: 'Assigning skills & tools...',
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stage: 'skills',
+        stageProgress: 90,
+        stageMessage: msg,
+        draftSpec: {
+          ...prev.draftSpec,
           skills: interimSpec.skills
         }
-      });
+      } : prev);
     }, 6500);
 
-    // Staged progressive update 5: Finalizing at 8.0s
+    // Staged progressive preview 5: Finalizing at 8.0s
     const t5 = setTimeout(() => {
       setGenerationStage('finalizing');
       setStageProgress(94);
       const msg = `Finalizing specification health and verifying ${activeFrameworkMeta.label} harness...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: {
-          isCompilingSpec: true,
-          compilationStage: 'Finalizing agent...'
-        }
-      });
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stage: 'finalizing',
+        stageProgress: 94,
+        stageMessage: msg
+      } : prev);
     }, 8000);
 
     const t6 = setTimeout(() => {
       setStageProgress(95);
       const msg = `Synthesizing deep identity directives & domain principles into SOUL.md...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: { isCompilingSpec: true, compilationStage: msg }
-      });
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stageProgress: 95,
+        stageMessage: msg
+      } : prev);
     }, 14000);
 
     const t7 = setTimeout(() => {
       setStageProgress(96);
       const msg = `Formulating operational rules, safety boundaries, and constraint invariants (RULES.md)...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: { isCompilingSpec: true, compilationStage: msg }
-      });
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stageProgress: 96,
+        stageMessage: msg
+      } : prev);
     }, 22000);
 
     const t8 = setTimeout(() => {
       setStageProgress(96);
       const msg = `Mapping executable tool signatures and parameter contracts to ${activeFrameworkMeta.label} matrix...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: { isCompilingSpec: true, compilationStage: msg }
-      });
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stageProgress: 96,
+        stageMessage: msg
+      } : prev);
     }, 32000);
 
     const t9 = setTimeout(() => {
       setStageProgress(97);
       const msg = `Deep LLM synthesis in progress with ${currentModelId.replace(/^.*\//, '')} (generating multi-file blueprint)...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: { isCompilingSpec: true, compilationStage: msg }
-      });
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stageProgress: 97,
+        stageMessage: msg
+      } : prev);
     }, 45000);
 
     const t10 = setTimeout(() => {
       setStageProgress(97);
       const msg = `Structuring tool schemas, parameter contracts, and memory partition boundaries...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: { isCompilingSpec: true, compilationStage: msg }
-      });
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stageProgress: 97,
+        stageMessage: msg
+      } : prev);
     }, 60000);
 
     const t11 = setTimeout(() => {
       setStageProgress(98);
       const msg = `Validating JSON schema integrity and cross-referencing injection slots across artifacts...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: { isCompilingSpec: true, compilationStage: msg }
-      });
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stageProgress: 98,
+        stageMessage: msg
+      } : prev);
     }, 75000);
 
     const t12 = setTimeout(() => {
       setStageProgress(98);
       const msg = `Processing extended token stream (${currentModelId.replace(/^.*\//, '')}) — assembling manifest & tool parameters...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: { isCompilingSpec: true, compilationStage: msg }
-      });
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stageProgress: 98,
+        stageMessage: msg
+      } : prev);
     }, 90000);
 
     const t13 = setTimeout(() => {
       setStageProgress(99);
       const msg = `Performing final specification assembly and packaging live workspace...`;
       setStageMessage(msg);
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: { isCompilingSpec: true, compilationStage: msg }
-      });
+      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+        ...prev,
+        stageProgress: 99,
+        stageMessage: msg
+      } : prev);
     }, 105000);
 
     progressiveTimersRef.current = [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13];
@@ -814,31 +907,36 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                 const dataStr = line.slice(5).trim();
                 if (dataStr === '[DONE]') break;
                 try {
+                  // Ignore events for cancelled or superseded jobs
+                  if (!activeJobRef.current || activeJobRef.current.id !== jobId || activeJobRef.current.status === 'cancelled') {
+                    break;
+                  }
                   const eventData = JSON.parse(dataStr);
                   if (currentEvent === 'stage') {
                     if (eventData.stage) setGenerationStage(eventData.stage);
                     if (eventData.label) setStageMessage(eventData.label);
                     if (eventData.progress) setStageProgress(eventData.progress);
-                    dispatch({
-                      type: 'UPDATE_WORKSPACE',
-                      payload: {
-                        isCompilingSpec: true,
-                        compilationStage: eventData.label
-                      }
-                    });
+                    setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+                      ...prev,
+                      stage: eventData.stage || prev.stage,
+                      stageProgress: eventData.progress ?? prev.stageProgress,
+                      stageMessage: eventData.label || prev.stageMessage
+                    } : prev);
                   } else if (currentEvent === 'partial') {
                     if (eventData.stage) setGenerationStage(eventData.stage);
                     if (eventData.label) setStageMessage(eventData.label);
                     if (eventData.progress) setStageProgress(eventData.progress);
                     if (eventData.data) {
-                      dispatch({
-                        type: 'UPDATE_WORKSPACE',
-                        payload: {
-                          isCompilingSpec: true,
-                          compilationStage: eventData.label,
+                      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+                        ...prev,
+                        stage: eventData.stage || prev.stage,
+                        stageProgress: eventData.progress ?? prev.stageProgress,
+                        stageMessage: eventData.label || prev.stageMessage,
+                        draftSpec: {
+                          ...prev.draftSpec,
                           ...eventData.data
                         }
-                      });
+                      } : prev);
                     }
                   } else if (currentEvent === 'complete') {
                     result = eventData.object;
@@ -908,6 +1006,38 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
       setStageProgress(100);
       setGenerationStage('complete');
 
+      // Ignore completions for cancelled or superseded jobs
+      if (!activeJobRef.current || activeJobRef.current.id !== jobId || activeJobRef.current.status === 'cancelled') {
+        return;
+      }
+
+      if (result?.fieldError) {
+        setIsProcessing(false);
+        dispatch({ type: 'UPDATE_WORKSPACE', payload: { isCompilingSpec: false } });
+
+        const failedJob: GenerationJob = {
+          ...activeJobRef.current,
+          status: 'failed',
+          fieldError: result.fieldError,
+          completedAt: Date.now()
+        };
+        setActiveJob(failedJob);
+        activeJobRef.current = failedJob;
+
+        setMessages(prev => [
+          ...prev.slice(0, -1),
+          {
+            id: `err-${Date.now()}`,
+            role: 'assistant',
+            content: `Validation Error: ${result.fieldError}`,
+            isError: true,
+            failedPrompt: promptToSend,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
+        return;
+      }
+
       if (!result || !result.manifest) {
         console.warn("Structured specification not returned from LLM. Utilizing built-in synthesized specification.");
         result = interimSpec;
@@ -962,32 +1092,81 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         stage: 'architect_synthesis'
       });
 
-      // Update workspace with explicit framework binding and mark compilation complete
-      dispatch({
-        type: 'UPDATE_WORKSPACE',
-        payload: {
-          isCompilingSpec: false,
+      const isFieldPatch = !!result.isFieldPatch;
+      let proposedPatch: any;
+
+      if (isFieldPatch) {
+        proposedPatch = {
+          manifest: {
+            ...state.manifest,
+            ...result.manifest,
+            memory: result.memory || result.manifest?.memory || state.manifest?.memory
+          },
+          modelConfig: result.modelConfig ? {
+            ...state.modelConfig,
+            ...result.modelConfig,
+            constraints: {
+              ...(state.modelConfig?.constraints || {}),
+              ...(result.modelConfig?.constraints || {})
+            }
+          } : state.modelConfig
+        };
+      } else {
+        proposedPatch = {
           targetFramework: activeFramework,
           manifest: {
             ...state.manifest,
             name: result.manifest.name,
             description: result.manifest.description,
+            memory: result.memory || state.manifest?.memory,
             metadata: {
-              ...(state.manifest.metadata || {}),
+              ...(state.manifest?.metadata || {}),
               harness: activeFramework,
               targetFramework: activeFramework
             }
           },
           soul: result.soul,
           rules: result.rules,
-          skills: result.skills
-        }
-      });
+          skills: result.skills,
+          modelConfig: result.modelConfig || state.modelConfig
+        };
+      }
+
+      const hasConflict = (state.revision || 1) !== baseRevision;
 
       let explanation = result.explanation;
       if (!explanation || !explanation.toLowerCase().includes(activeFrameworkMeta.label.toLowerCase())) {
-        explanation = `Configured complete agent workspace "${result.manifest.name}" for harness "${activeFramework}". Allowed tools for all generated skills have been contextually aligned with the framework matrix.`;
+        explanation = isFieldPatch 
+          ? `Updated configuration for "${state.manifest?.name || 'agent'}" while preserving its persona and core identity.`
+          : `Configured complete agent workspace "${result.manifest.name}" for harness "${activeFramework}". Allowed tools for all generated skills have been contextually aligned with the framework matrix.`;
       }
+
+      const completedJob: GenerationJob = {
+        ...activeJobRef.current,
+        status: 'completed',
+        stage: 'complete',
+        stageProgress: 100,
+        stageMessage: 'Draft generation completed. Ready for review.',
+        draftSpec: result,
+        proposedPatch,
+        isFieldPatch,
+        explanation,
+        hasConflict,
+        conflictRevision: hasConflict ? state.revision : undefined,
+        isApplied: false,
+        completedAt: Date.now()
+      };
+
+      setActiveJob(completedJob);
+      activeJobRef.current = completedJob;
+
+      // Reset loading flag without modifying committed files
+      dispatch({
+        type: 'UPDATE_WORKSPACE',
+        payload: {
+          isCompilingSpec: false
+        }
+      });
 
       setMessages(prev => {
         // Mark all previous error notices as resolved in place
@@ -1016,6 +1195,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
             role: 'assistant', 
             content: explanation,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            job: completedJob,
             completionData: {
               agentName: result.manifest.name,
               agentDescription: result.manifest.description,
@@ -1621,69 +1801,195 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                         </div>
                       </div>
                     );
-                  })() : (m.completionData || (m.role === 'assistant' && (m.content.includes("Configured complete agent workspace") || m.content.includes("Allowed tools for all generated skills")))) ? (
-                    /* High-Contrast Agent Blueprint Delivery & Next Steps Hub */
+                  })() : (m.completionData || (m.role === 'assistant' && (m.content.includes("Configured complete agent workspace") || m.content.includes("Allowed tools for all generated skills") || m.job?.status === 'completed'))) ? (
+                    /* High-Contrast Agent Blueprint Delivery, Review & Next Steps Hub */
                     <div className="space-y-4 font-sans">
                       {/* 1. Header & Explanation */}
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="olive" className="text-[10px] font-mono">
-                            ✓ Blueprint Generated
+                          <Badge variant={m.job && !m.job.isApplied ? "amber" : "olive"} className="text-[10px] font-mono">
+                            {m.job && !m.job.isApplied ? "● Proposed Draft (Pending Review)" : "✓ Blueprint Committed"}
                           </Badge>
                           <Badge variant="outline" className="text-[10px] font-mono">
                             {m.completionData?.targetFrameworkLabel || activeFrameworkMeta.label}
                           </Badge>
                           <span className="font-mono text-xs font-bold text-foreground">
-                            {m.completionData?.agentName || state.manifest.name}
+                            {m.completionData?.agentName || m.job?.draftSpec?.manifest?.name || state.manifest.name}
                           </span>
+                          {m.job && (
+                            <span className="text-[10px] font-mono text-muted-foreground">
+                              Base: rev #{m.job.baseRevision}
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs leading-relaxed text-foreground font-normal">
                           {m.content}
                         </p>
                       </div>
 
-                      {/* 2. Generated Artifacts Spec Grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                        <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
-                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
-                            <FileCode className="size-3 text-[#a03e3d]" /> MANIFEST
+                      {/* 2. Transactional Draft Review: Shown when draft is pending review */}
+                      {m.job && !m.job.isApplied ? (
+                        <div className="p-3.5 border-2 border-primary bg-card space-y-3 shadow-xs">
+                          <div className="flex items-center justify-between pb-1.5 border-b border-border">
+                            <div className="flex items-center gap-2">
+                              <Eye className="size-4 text-primary" />
+                              <span className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+                                Proposed Workspace Changes
+                              </span>
+                            </div>
+                            <Badge variant="amber" className="text-[9px]">
+                              UNCOMMITTED DRAFT
+                            </Badge>
                           </div>
-                          <div className="font-bold text-foreground truncate">
-                            {m.completionData?.agentName || state.manifest.name || "agent.yaml"}
-                          </div>
-                          <div className="text-[9px] text-muted-foreground">v{state.manifest.version || '1.0.0'} • {state.manifest.compliance?.risk_tier || 'T1'}</div>
-                        </div>
 
-                        <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
-                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
-                            <ShieldCheck className="size-3 text-[#a03e3d]" /> SOUL.md
-                          </div>
-                          <div className="font-bold text-foreground">
-                            {state.soul ? `${Math.round(state.soul.length / 4)} tokens` : 'Defined'}
-                          </div>
-                          <div className="text-[9px] text-muted-foreground">Identity & Principles</div>
-                        </div>
+                          {/* Conflict Warning if workspace was modified after draft generation started */}
+                          {m.job.hasConflict && (
+                            <div className="p-2.5 bg-amber-500/10 border border-amber-600/40 text-amber-950 dark:text-amber-200 text-xs font-mono space-y-1">
+                              <div className="flex items-center gap-1.5 font-bold text-[#b45309]">
+                                <AlertTriangle className="size-4 shrink-0" />
+                                <span>Workspace Conflict Notice</span>
+                              </div>
+                              <p className="text-[11px] leading-relaxed">
+                                Workspace was modified (now rev #{state.revision}) since this draft was initiated (base rev #{m.job.baseRevision}). Applying will update the workspace from this draft. Review changes carefully.
+                              </p>
+                            </div>
+                          )}
 
-                        <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
-                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
-                            <Shield className="size-3 text-[#a03e3d]" /> RULES.md
-                          </div>
-                          <div className="font-bold text-foreground">
-                            {state.rules ? `${Math.round(state.rules.length / 4)} tokens` : 'Defined'}
-                          </div>
-                          <div className="text-[9px] text-muted-foreground">Guardrails & Invariants</div>
-                        </div>
+                          {/* Specific Field Changes Diff */}
+                          {m.job.isFieldPatch ? (
+                            <div className="p-2.5 bg-muted/40 border border-border space-y-1.5 text-xs font-mono">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                Bounded Field Patch:
+                              </div>
+                              <div className="space-y-1 text-[11px]">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground">• Agent Identity:</span>
+                                  <strong className="text-foreground">{state.manifest.name}</strong>
+                                  <span className="text-[10px] text-[#1f6a38] font-bold">(Preserved)</span>
+                                </div>
+                                {(m.job.proposedPatch?.manifest?.memory?.max_tokens || m.job.proposedPatch?.memory?.max_tokens) && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">• Max Context Tokens:</span>
+                                    <span className="line-through text-muted-foreground">{state.manifest?.memory?.max_tokens || 8192}</span>
+                                    <span>→</span>
+                                    <strong className="text-[#1f6a38] font-bold">
+                                      {(m.job.proposedPatch?.manifest?.memory?.max_tokens || m.job.proposedPatch?.memory?.max_tokens).toLocaleString()} tokens
+                                    </strong>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            /* Full Agent Artifacts Spec Grid */
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                              <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                                <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                                  <FileCode className="size-3 text-[#a03e3d]" /> MANIFEST
+                                </div>
+                                <div className="font-bold text-foreground truncate">
+                                  {m.job.draftSpec?.manifest?.name || m.completionData?.agentName || state.manifest.name}
+                                </div>
+                                <div className="text-[9px] text-muted-foreground">
+                                  v{m.job.draftSpec?.manifest?.version || state.manifest.version || '1.0.0'}
+                                </div>
+                              </div>
 
-                        <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
-                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
-                            <Zap className="size-3 text-[#a03e3d]" /> SKILLS
+                              <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                                <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                                  <ShieldCheck className="size-3 text-[#a03e3d]" /> SOUL.md
+                                </div>
+                                <div className="font-bold text-foreground">
+                                  {m.job.draftSpec?.soul ? `${Math.round(m.job.draftSpec.soul.length / 4)} tokens` : 'Defined'}
+                                </div>
+                                <div className="text-[9px] text-muted-foreground">Identity & Principles</div>
+                              </div>
+
+                              <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                                <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                                  <Shield className="size-3 text-[#a03e3d]" /> RULES.md
+                                </div>
+                                <div className="font-bold text-foreground">
+                                  {m.job.draftSpec?.rules ? `${Math.round(m.job.draftSpec.rules.length / 4)} tokens` : 'Defined'}
+                                </div>
+                                <div className="text-[9px] text-muted-foreground">Guardrails & Invariants</div>
+                              </div>
+
+                              <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                                <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                                  <Zap className="size-3 text-[#a03e3d]" /> SKILLS
+                                </div>
+                                <div className="font-bold text-[#a03e3d]">
+                                  {m.completionData?.skillsCount || (m.job.draftSpec?.skills ? (m.job.draftSpec.skills.match(/## Skill:/g) || []).length : 1)} attached
+                                </div>
+                                <div className="text-[9px] text-muted-foreground">Tools mapped</div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Action Buttons for applying or discarding draft */}
+                          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
+                            <Button
+                              variant="amber"
+                              size="sm"
+                              onClick={() => applyDraftToWorkspace(m.job)}
+                              className="text-xs font-semibold gap-1.5 shadow-xs cursor-pointer"
+                            >
+                              <CheckCheck className="size-3.5" /> Apply Changes to Workspace
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => discardDraft(m.job)}
+                              className="text-xs font-semibold gap-1.5 border-border hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                            >
+                              <X className="size-3.5" /> Discard Draft
+                            </Button>
                           </div>
-                          <div className="font-bold text-[#a03e3d]">
-                            {m.completionData?.skillsCount || state.manifest.skills?.length || 1} attached
-                          </div>
-                          <div className="text-[9px] text-muted-foreground">Harness tools mapped</div>
                         </div>
-                      </div>
+                      ) : (
+                        /* Standard Spec Grid when applied or historical */
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                          <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                            <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                              <FileCode className="size-3 text-[#a03e3d]" /> MANIFEST
+                            </div>
+                            <div className="font-bold text-foreground truncate">
+                              {m.completionData?.agentName || state.manifest.name || "agent.yaml"}
+                            </div>
+                            <div className="text-[9px] text-muted-foreground">v{state.manifest.version || '1.0.0'} • {state.manifest.compliance?.risk_tier || 'T1'}</div>
+                          </div>
+
+                          <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                            <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                              <ShieldCheck className="size-3 text-[#a03e3d]" /> SOUL.md
+                            </div>
+                            <div className="font-bold text-foreground">
+                              {state.soul ? `${Math.round(state.soul.length / 4)} tokens` : 'Defined'}
+                            </div>
+                            <div className="text-[9px] text-muted-foreground">Identity & Principles</div>
+                          </div>
+
+                          <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                            <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                              <Shield className="size-3 text-[#a03e3d]" /> RULES.md
+                            </div>
+                            <div className="font-bold text-foreground">
+                              {state.rules ? `${Math.round(state.rules.length / 4)} tokens` : 'Defined'}
+                            </div>
+                            <div className="text-[9px] text-muted-foreground">Guardrails & Invariants</div>
+                          </div>
+
+                          <div className="p-2.5 border border-border bg-surface-container-low font-mono text-[11px] space-y-0.5">
+                            <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                              <Zap className="size-3 text-[#a03e3d]" /> SKILLS
+                            </div>
+                            <div className="font-bold text-[#a03e3d]">
+                              {m.completionData?.skillsCount || state.manifest.skills?.length || 1} attached
+                            </div>
+                            <div className="text-[9px] text-muted-foreground">Harness tools mapped</div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* 3. Unmistakable & Obvious "RECOMMENDED NEXT STEPS" Action Hub */}
                       <div className="p-3.5 border-2 border-[#171611] bg-card space-y-3 shadow-xs">

@@ -2,7 +2,8 @@ import JSZip from 'jszip';
 import yaml from 'js-yaml';
 import { AgentWorkspace } from './types';
 
-export async function serializeWorkspace(workspace: AgentWorkspace): Promise<Blob> {
+export async function serializeWorkspace(workspace: AgentWorkspace, options?: { rawDraft?: boolean; customReport?: string } | boolean): Promise<Blob> {
+  const opts = typeof options === 'boolean' ? { rawDraft: options } : options;
   const zip = new JSZip();
 
   // ── agent.yaml ─────────────────────────────────────────────────────────────
@@ -377,6 +378,10 @@ echo '{"action": "allow", "modifications": null}'`;
     }
   }
 
+  // ── VALIDATION_REPORT.md ──────────────────────────────────────────────────
+  const reportContent = opts?.customReport || generateValidationReportMd(workspace, opts?.rawDraft);
+  zip.file('VALIDATION_REPORT.md', reportContent);
+
   return await zip.generateAsync({ type: 'blob' });
 }
 
@@ -452,6 +457,125 @@ export async function serializeSkillZip(skill: any): Promise<Blob> {
   }
 
   return await zip.generateAsync({ type: 'blob' });
+}
+
+export interface SerializerFileEntry {
+  path: string;
+  category: 'core' | 'skill' | 'tool' | 'workflow' | 'knowledge' | 'memory' | 'report';
+  description?: string;
+  sizeBytes?: number;
+}
+
+export function getWorkspaceFileInventory(workspace: AgentWorkspace): SerializerFileEntry[] {
+  const ext = workspace as any;
+  const entries: SerializerFileEntry[] = [
+    { path: 'agent.yaml', category: 'core', description: 'Agent manifest, metadata & model configuration' }
+  ];
+
+  if (workspace.hermesConfig) entries.push({ path: 'config.yaml', category: 'core', description: 'Hermes runtime config' });
+  if (workspace.soul) entries.push({ path: 'SOUL.md', category: 'core', description: 'Identity, behavioral baseline & communication style' });
+  if (workspace.rules) entries.push({ path: 'RULES.md', category: 'core', description: 'Safety invariants & operational boundaries' });
+  if (workspace.prompt_md) entries.push({ path: 'PROMPT.md', category: 'core', description: 'System prompt instructions' });
+  if (ext.dutiesConfig?.roles?.length > 0 || workspace.duties) entries.push({ path: 'DUTIES.md', category: 'core', description: 'Segregation of duties & conflict policy' });
+  if (workspace.agents_md) entries.push({ path: 'AGENTS.md', category: 'core', description: 'Multi-agent network topology' });
+
+  // Skills
+  const skillNames = new Set<string>();
+  if (Array.isArray(ext.skillsList)) {
+    for (const s of ext.skillsList) {
+      if (s?.name) skillNames.add(s.name);
+    }
+  }
+  if (workspace.skills) {
+    for (const name of Object.keys(workspace.skills)) {
+      skillNames.add(name);
+    }
+  }
+  for (const skillName of skillNames) {
+    entries.push({ path: `skills/${skillName}/SKILL.md`, category: 'skill', description: 'Skill definition with YAML frontmatter' });
+    entries.push({ path: `skills/${skillName}/references/README.md`, category: 'skill', description: 'Reference documents' });
+    entries.push({ path: `skills/${skillName}/templates/README.md`, category: 'skill', description: 'Template definitions' });
+    entries.push({ path: `skills/${skillName}/scripts/README.md`, category: 'skill', description: 'Executable scripts' });
+  }
+
+  // Tools
+  const toolNames = new Set<string>();
+  if (Array.isArray(ext.toolsList)) {
+    for (const t of ext.toolsList) {
+      if (t?.name) toolNames.add(t.name);
+    }
+  }
+  if (workspace.tools) {
+    for (const name of Object.keys(workspace.tools)) {
+      toolNames.add(name);
+    }
+  }
+  for (const toolName of toolNames) {
+    entries.push({ path: `tools/${toolName}.yaml`, category: 'tool', description: 'MCP-compatible tool schema' });
+  }
+
+  // Workflows
+  if (workspace.workflows && Object.keys(workspace.workflows).length > 0) {
+    for (const name of Object.keys(workspace.workflows)) {
+      entries.push({ path: `workflows/${name}.yaml`, category: 'workflow', description: 'Automated workflow pipeline' });
+    }
+  }
+
+  // Memory
+  if (ext.memoryConfig || workspace.memory) {
+    entries.push({ path: 'memory/memory.yaml', category: 'memory', description: 'Memory partition parameters' });
+    entries.push({ path: 'memory/MEMORY.md', category: 'memory', description: 'Session scratchpad & memory bootstrap' });
+    entries.push({ path: 'memory/archive/.gitkeep', category: 'memory', description: 'Archived session log directory' });
+  }
+
+  // Knowledge
+  if ((workspace.knowledgeDocs && workspace.knowledgeDocs.length > 0) || (workspace.knowledge?.documents && workspace.knowledge.documents.length > 0)) {
+    entries.push({ path: 'knowledge/index.yaml', category: 'knowledge', description: 'Semantic knowledge index' });
+  }
+
+  // Validation report
+  entries.push({ path: 'VALIDATION_REPORT.md', category: 'report', description: 'Derived validation, audit & compliance report' });
+
+  return entries;
+}
+
+export function generateValidationReportMd(workspace: AgentWorkspace, isRawDraft: boolean = false): string {
+  const ext = workspace as any;
+  const revision = ext.git?.head || ext.git?.commits?.[0]?.hash || 'rev-baseline';
+  const branch = ext.git?.currentBranch || 'main';
+  const targetHarness = workspace.targetFramework || 'hermes_agent';
+  const dateStr = new Date().toISOString();
+
+  let md = `# GitAgent Validation & Integrity Report\n\n`;
+  md += `- **Generated At**: \`${dateStr}\`\n`;
+  md += `- **Agent Identifier**: \`${workspace.manifest.name || 'untitled-agent'}\` (v${workspace.manifest.version || '1.0.0'})\n`;
+  md += `- **Committed Revision**: \`${revision.slice(0, 7)}\` (branch: \`${branch}\`)\n`;
+  md += `- **Target Harness**: \`${targetHarness}\`\n`;
+  md += `- **Export Status**: ${isRawDraft ? '**⚠️ UNVALIDATED DRAFT (Exported with overrides)**' : '**✓ VALIDATED SPECIFICATION**'}\n\n`;
+
+  md += `## 1. File Inventory\n\n`;
+  const inventory = getWorkspaceFileInventory(workspace);
+  md += `Total Files in Bundle: **${inventory.length}**\n\n`;
+  md += `| File Path | Category | Purpose |\n|---|---|---|\n`;
+  for (const f of inventory) {
+    md += `| \`${f.path}\` | ${f.category} | ${f.description || ''} |\n`;
+  }
+  md += `\n`;
+
+  md += `## 2. Model Roles Configuration\n\n`;
+  md += `- **Export Target Model**: \`${ext.modelConfig?.preferred || 'claude-sonnet-4-5'}\`\n`;
+  md += `- **Context Window Limit**: \`${workspace.manifest.memory?.max_tokens || ext.modelConfig?.constraints?.max_tokens || 8192} tokens\`\n`;
+  md += `- **Sampling Temperature**: \`${ext.modelConfig?.constraints?.temperature ?? 0.3}\`\n\n`;
+
+  md += `## 3. Runtime Verification & Test Status\n\n`;
+  const evals = ext.evals?.goodOutputs || [];
+  if (evals.length > 0) {
+    md += `✓ **Runtime Tested**: Evaluated with ${evals.length} recorded passing evaluations.\n`;
+  } else {
+    md += `ℹ️ **Not runtime-tested**: This package is schema-valid and specification-compliant, but has not completed live execution verification in the Test Lab.\n`;
+  }
+
+  return md;
 }
 
 // Recursively remove null/undefined so serialized YAML is clean and doesn't

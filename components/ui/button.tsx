@@ -10,9 +10,9 @@ const buttonVariants = cva(
       variant: {
         // Neutral Primary: Solid fill of Carbon Ink with Paper text (Contrast: 17.5:1)
         default:
-          "bg-primary text-primary-foreground text-[#fcfaf4] dark:text-[#151619] border-primary hover:bg-primary/90 font-semibold active:translate-y-px",
+          "bg-primary text-primary-foreground border-primary hover:bg-primary/90 font-semibold active:translate-y-px",
         primary:
-          "bg-primary text-primary-foreground text-[#fcfaf4] dark:text-[#151619] border-primary hover:bg-primary/90 font-semibold active:translate-y-px",
+          "bg-primary text-primary-foreground border-primary hover:bg-primary/90 font-semibold active:translate-y-px",
         // Accent: Warm Amber CTA calibrated for WCAG AAA (Contrast: 8.04:1 vs white text)
         amber:
           "bg-[#853b06] text-white border-[#853b06] hover:bg-[#6e3004] font-semibold active:translate-y-px shadow-xs",
@@ -22,11 +22,11 @@ const buttonVariants = cva(
           "bg-[#853b06] text-white border-[#853b06] hover:bg-[#6e3004] font-semibold shadow-xs",
         // Neutral Secondary & Outline: High contrast ink-on-canvas (Contrast: 17.5:1)
         secondary:
-          "bg-transparent text-foreground border-border hover:bg-[#f3efe6] dark:hover:bg-[#252830] font-semibold",
+          "bg-card text-foreground border-border hover:bg-muted font-semibold",
         outline:
-          "border-border bg-transparent text-foreground hover:bg-[#f3efe6] dark:hover:bg-[#252830] font-semibold",
+          "border-border bg-card text-foreground hover:bg-muted font-semibold",
         ghost:
-          "border-transparent bg-transparent text-foreground hover:bg-[#f3efe6] dark:hover:bg-[#252830] font-semibold",
+          "border-transparent bg-transparent text-foreground hover:bg-muted font-semibold",
         // State Warning: High contrast amber tone (Contrast: 8.78:1 in light, 14.58:1 in dark)
         warning:
           "bg-[#fef3c7] text-[#78350f] border-[#b45309]/50 hover:bg-[#fde68a] dark:bg-[#451a03] dark:text-[#fef3c7] dark:border-[#f59e0b]/50 dark:hover:bg-[#5a2204] font-semibold",
@@ -38,7 +38,7 @@ const buttonVariants = cva(
         link:
           "text-primary underline-offset-4 hover:underline border-none font-semibold",
         ice:
-          "bg-[#f3efe6] text-foreground border-border hover:bg-[#ede8dc] dark:bg-[#252830] dark:text-foreground dark:hover:bg-[#2d313b] font-mono text-xs font-semibold",
+          "bg-muted text-foreground border-border hover:bg-muted/80 font-mono text-xs font-semibold",
       },
       size: {
         default:

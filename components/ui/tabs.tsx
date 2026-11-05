@@ -57,8 +57,8 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex h-[calc(100%-2px)] flex-1 items-center justify-center gap-1.5 rounded-none border border-transparent px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider text-foreground/85 transition-none group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground focus-visible:outline-none focus-visible:border-border disabled:pointer-events-none disabled:opacity-60 cursor-pointer",
-        "data-active:bg-primary data-active:text-primary-foreground data-active:text-[#fcfaf4] dark:data-active:text-[#151619] data-[state=active]:bg-primary data-[state=active]:text-[#fcfaf4] dark:data-[state=active]:text-[#151619] data-active:border-primary font-bold shadow-xs",
+        "relative inline-flex h-[calc(100%-2px)] flex-1 items-center justify-center gap-1.5 rounded-none border border-transparent px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-none group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground focus-visible:outline-none focus-visible:border-border disabled:pointer-events-none disabled:opacity-60 cursor-pointer",
+        "data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:border-border data-[state=active]:font-bold data-[state=active]:shadow-xs data-selected:bg-card data-selected:text-foreground data-selected:border-border data-selected:font-bold data-selected:shadow-xs",
         className
       )}
       {...props}
