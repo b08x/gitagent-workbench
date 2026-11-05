@@ -68,6 +68,9 @@ interface ChatMessage {
   isCancelled?: boolean;
   cancelledPrompt?: string;
   cancelledDuration?: number;
+  restoredRevision?: string;
+  restoredBranch?: string;
+  restoredCommitMessage?: string;
   failedPrompt?: string;
   failedFiles?: File[];
   resolved?: boolean;
@@ -167,6 +170,13 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const progressiveTimersRef = useRef<NodeJS.Timeout[]>([]);
   const lastUserPromptRef = useRef<string>('');
+  const preGenerationSnapshotRef = useRef<{
+    workspace: any;
+    commitHash: string;
+    commitMessage: string;
+    branch: string;
+    timestamp: number;
+  } | null>(null);
 
   const clearProgressiveTimers = () => {
     progressiveTimersRef.current.forEach(t => clearTimeout(t));
@@ -362,10 +372,19 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     }
     clearProgressiveTimers();
     setIsProcessing(false);
-    dispatch({ type: 'UPDATE_WORKSPACE', payload: { isCompilingSpec: false } });
+    
+    const snapshot = preGenerationSnapshotRef.current;
+    if (snapshot) {
+      // Restore clean committed revision into workspace state
+      dispatch({ type: 'SET_WORKSPACE', payload: snapshot.workspace });
+    } else {
+      dispatch({ type: 'UPDATE_WORKSPACE', payload: { isCompilingSpec: false } });
+    }
     
     const cancelledDuration = elapsedSeconds;
     const promptText = lastUserPromptRef.current;
+    const restoredRevShort = snapshot ? snapshot.commitHash.slice(0, 7) : (state.git?.head?.slice(0, 7) || 'baseline');
+    const restoredBranch = snapshot?.branch || state.git?.currentBranch || 'main';
 
     setMessages(prev => {
       const filtered = prev.filter(m => !(m.role === 'assistant' && (m.content.includes('Analyzing') || m.id.startsWith('asst-'))));
@@ -374,14 +393,18 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         {
           id: `cancel-${Date.now()}`,
           role: 'assistant',
-          content: `Generation halted by user after ${cancelledDuration.toFixed(1)}s. Workspace changes were discarded.`,
+          content: `Generation halted by user after ${cancelledDuration.toFixed(1)}s. Workspace was cleanly restored to committed revision "${restoredRevShort}" (${snapshot?.commitMessage || 'Committed Baseline'}) on branch "${restoredBranch}". All in-flight draft mutations were discarded.`,
           isCancelled: true,
           cancelledPrompt: promptText,
           cancelledDuration: cancelledDuration,
+          restoredRevision: snapshot?.commitHash || state.git?.head,
+          restoredBranch: restoredBranch,
+          restoredCommitMessage: snapshot?.commitMessage || 'Committed Baseline',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ];
     });
+    preGenerationSnapshotRef.current = null;
   };
 
   const handleRestartChat = () => {
@@ -453,17 +476,33 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     setStageProgress(15);
     setStageMessage(`Parsing intent & runtime constraints for ${activeFrameworkMeta.label}...`);
 
-    dispatch({
-      type: 'UPDATE_WORKSPACE',
-      payload: {
-        isCompilingSpec: true,
-        compilationStage: `Parsing intent (${activeFrameworkMeta.shortLabel})...`,
-        targetFramework: activeFramework
-      }
-    });
+    // Capture pre-generation clean snapshot to ensure cancellation restores committed baseline
+    const currentCommit = state.git?.commits?.[0];
+    const commitHash = currentCommit?.hash || state.git?.head || 'rev-baseline';
+    const commitMessage = currentCommit?.message || 'Committed Baseline';
+    const branch = state.git?.currentBranch || 'main';
+
+    preGenerationSnapshotRef.current = {
+      workspace: JSON.parse(JSON.stringify(state)),
+      commitHash,
+      commitMessage,
+      branch,
+      timestamp: Date.now()
+    };
+
+    // Construct existing agent context to preserve identity during narrow edits
+    const existingAgent = {
+      name: state.manifest?.name,
+      description: state.manifest?.description,
+      soul: state.soul || undefined,
+      rules: state.rules || undefined,
+      skills: typeof state.skills === 'string' ? state.skills : (state.skills ? JSON.stringify(state.skills) : undefined),
+      skillsList: state.skillsList,
+      targetFramework: activeFramework
+    };
 
     // Synthesize structured deterministic baseline specification for immediate progressive streaming
-    const interimSpec = synthesizeAgentSpec(promptToSend, '', activeFramework);
+    const interimSpec = synthesizeAgentSpec(promptToSend, '', activeFramework, existingAgent);
 
     // Staged progressive update 1: Manifest metadata & Kebab-case identifier at 1.5s
     const t1 = setTimeout(() => {
@@ -665,12 +704,20 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         });
       }));
       
-      const systemInstruction = `You are an expert AI Architect. Your goal is to design an agent specification specifically tailored for the target harness "${activeFramework}".
+      const systemInstruction = `You are an expert AI Architect. Your goal is to design or refine an agent specification specifically tailored for the target harness "${activeFramework}".
       
       CRITICAL TARGET RUNTIME CONSTRAINTS:
       - Target Execution Runtime / Harness: ${activeFramework} (${activeFrameworkMeta.label})
       - Inferred tools and skill definitions MUST align with the ${activeFramework} harness toolset.
+      ${state.manifest?.name ? `
+      EXISTING AGENT CONTEXT:
+      - Active Agent Name: "${state.manifest.name}"
+      - Current Description: "${state.manifest.description || ''}"
       
+      IDENTITY PRESERVATION FOR NARROW EDITS:
+      - If the user prompt is a narrow refinement, tone/style adjustment, rule modification, or capability addition to the existing agent, YOU MUST PRESERVE the existing agent name ("${state.manifest.name}") and base identity.
+      - Do NOT re-brand or replace the agent unless the user explicitly asks to "create a new agent", "start fresh", or "build a different agent".
+      ` : ''}
       You must respond in JSON format with the following schema:
       {
         "manifest": {
@@ -691,6 +738,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
 
       const promptObj = {
         system: systemInstruction,
+        existingAgent,
         messages: [
           {
             role: 'user',
@@ -740,6 +788,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
               targetFramework: activeFramework
             },
             targetFramework: activeFramework,
+            existingAgent,
             prompt: encodedPrompt
           }),
           signal: abortControllerRef.current.signal
@@ -823,6 +872,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                 targetFramework: activeFramework
               },
               targetFramework: activeFramework,
+              existingAgent,
               prompt: encodedPrompt
             }),
             signal: abortControllerRef.current.signal
@@ -1317,8 +1367,8 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                       {m.failedPrompt && (
                         <Button
                           size="xs"
-                          variant="default"
-                          className="bg-primary hover:bg-[#d96b43] text-primary-foreground text-xs font-mono gap-1.5 h-7 shadow-xs cursor-pointer"
+                          variant="primary"
+                          className="text-xs font-mono font-semibold gap-1.5 h-7 shadow-xs cursor-pointer"
                           onClick={() => handleRetryLLM(m.id, m.failedPrompt, m.failedFiles)}
                           disabled={isProcessing}
                         >
@@ -1383,6 +1433,23 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     {m.content}
                   </p>
+
+                  {/* Restored Committed Revision Banner */}
+                  {m.restoredRevision && (
+                    <div className="flex flex-wrap items-center gap-2 p-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-mono text-[11px] select-all">
+                      <Check className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="font-bold uppercase tracking-wider text-[10px]">Restored Revision:</span>
+                      <span className="bg-emerald-500/20 px-1.5 py-0.5 border border-emerald-500/40 font-bold text-foreground">
+                        rev-{m.restoredRevision.slice(0, 7)}
+                      </span>
+                      <span className="text-muted-foreground truncate max-w-xs">
+                        &ldquo;{m.restoredCommitMessage || 'Baseline Specification'}&rdquo;
+                      </span>
+                      <span className="ml-auto text-[10px] text-muted-foreground font-sans">
+                        branch: <strong className="font-mono text-foreground">{m.restoredBranch || 'main'}</strong>
+                      </span>
+                    </div>
+                  )}
 
                   {m.cancelledPrompt && (
                     <div className="p-2.5 bg-background border border-border text-[11px] font-mono text-foreground/80 line-clamp-2">

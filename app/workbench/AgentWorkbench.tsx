@@ -9,6 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { assembleSystemPrompt } from '../../lib/gitagent/assembleSystemPrompt';
+import { auditToolMappings } from '../../lib/gitagent/toolVerification';
+import { AGENT_FRAMEWORK_OPTIONS } from '../../lib/gitagent/constants';
+import { AgentFramework } from '../../lib/gitagent/types';
 import { 
   History, 
   GitBranch, 
@@ -88,6 +91,9 @@ export function AgentWorkbench() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { state, dispatch } = useAgentWorkspace();
   const { settings, updateSettings } = useSettings();
+
+  const activeFramework: AgentFramework = (state.targetFramework as AgentFramework) || 'hermes_agent';
+  const activeFrameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === activeFramework) || AGENT_FRAMEWORK_OPTIONS[0];
 
   const activeStep = normalizeStep(searchParams.get('tab'));
   const isArchitectMode = searchParams.get('tab') === 'architect';
@@ -169,6 +175,11 @@ export function AgentWorkbench() {
   const completeness = Math.round((metCriteriaCount / healthChecklist.length) * 100);
   const [showHealthBreakdown, setShowHealthBreakdown] = useState(true);
 
+  // Pre-flight tool audit & skill scope analysis
+  const toolAudit = useMemo(() => auditToolMappings(state), [state]);
+  const globalSkillsCount = (state.skillsList || []).filter(s => s.scope !== 'task_scoped').length;
+  const taskSkillsCount = (state.skillsList || []).filter(s => s.scope === 'task_scoped').length;
+
   return (
     <div className="h-full w-full overflow-hidden flex flex-col bg-transparent text-foreground select-text">
       {/* Top Action & Breadcrumb Bar */}
@@ -180,26 +191,75 @@ export function AgentWorkbench() {
           <div className="flex items-center gap-2 truncate">
             <span className="font-mono font-bold text-xs uppercase tracking-wider text-foreground">Agent Builder</span>
             <span className="text-muted-foreground text-xs">/</span>
-            <span className="font-mono text-xs font-bold text-foreground truncate">
+            <span className="font-mono text-xs font-bold text-foreground truncate max-w-[120px] sm:max-w-[180px]">
               {state.manifest.name || "untitled-agent"}
             </span>
-            <Badge 
-              variant={completeness === 100 ? "green" : "amber"} 
-              className="text-[9px] px-1.5 py-0"
-            >
-              {completeness}% SPECIFIED
-            </Badge>
+
+            {/* 4 Separate State Badges: Generation, Specification, Runtime Compatibility, and Test */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* 1. Generation State */}
+              {state.isCompilingSpec ? (
+                <Badge variant="amber" className="text-[9px] px-1.5 py-0 gap-1 animate-pulse">
+                  <Loader2 className="size-2.5 animate-spin" /> GEN: Synthesizing
+                </Badge>
+              ) : state.git?.stagedFiles?.length || !state.git?.commits?.length ? (
+                <Badge variant="amber" className="text-[9px] px-1.5 py-0" title="Uncommitted workspace draft modifications">
+                  GEN: Draft
+                </Badge>
+              ) : (
+                <Badge variant="green" className="text-[9px] px-1.5 py-0" title={`Clean committed baseline revision: ${state.git?.head?.slice(0, 7) || 'clean'}`}>
+                  GEN: Committed ({state.git?.head?.slice(0, 7) || 'clean'})
+                </Badge>
+              )}
+
+              {/* 2. Specification State */}
+              <Badge 
+                variant={completeness === 100 ? "green" : "amber"} 
+                className="text-[9px] px-1.5 py-0"
+                title={`${metCriteriaCount} of ${healthChecklist.length} specification slots configured`}
+              >
+                SPEC: {completeness}% ({metCriteriaCount}/5)
+              </Badge>
+
+              {/* 3. Runtime Compatibility State */}
+              <Badge
+                variant={toolAudit.unmappedCount === 0 ? "green" : "amber"}
+                className="text-[9px] px-1.5 py-0"
+                title={`${toolAudit.verifiedCount} verified tools, ${toolAudit.unmappedCount} unmapped claims`}
+              >
+                HARNESS: {toolAudit.unmappedCount === 0 ? `${activeFrameworkMeta.shortLabel} (${toolAudit.verifiedCount} Mapped)` : `${toolAudit.unmappedCount} Unmapped`}
+              </Badge>
+
+              {/* 4. Test State */}
+              <Badge
+                variant={state.evals?.goodOutputs?.length ? "green" : "outline"}
+                className="text-[9px] px-1.5 py-0"
+                title={state.evals?.goodOutputs?.length ? `${state.evals.goodOutputs.length} passing evals recorded` : "No test evals recorded yet"}
+              >
+                TEST: {state.evals?.goodOutputs?.length ? `Verified (${state.evals.goodOutputs.length})` : "Untested"}
+              </Badge>
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Quick Metrics Bar: Entity-first */}
-          <div className="hidden lg:flex items-center gap-3 px-3 py-1 bg-muted border border-border rounded-none text-[11px] font-mono">
-            <span className="text-muted-foreground">PAYLOAD // <strong className="text-foreground font-bold">{tokenEstimate.toLocaleString()} tok</strong></span>
+          {/* Quick Metrics Bar: Entity-first with Explicit Models and Skill Scopes */}
+          <div className="hidden xl:flex items-center gap-2.5 px-3 py-1 bg-muted border border-border rounded-none text-[11px] font-mono">
+            <span className="text-muted-foreground" title="AI Architect Builder Model">
+              BUILDER // <strong className="text-foreground font-bold">{settings.taskModels.architect?.modelId?.replace(/^.*\//, '') || 'gemini-3.7-flash'}</strong>
+            </span>
             <span className="text-border">|</span>
-            <span className="text-muted-foreground">HARNESS // <strong className="text-foreground font-bold">{state.manifest.skills?.length || 0} skills</strong></span>
+            <span className="text-muted-foreground" title="Target Export Model in Specification">
+              EXPORT // <strong className="text-foreground font-bold">{state.modelConfig?.preferred?.replace(/^.*\//, '') || 'claude-sonnet-4-5'}</strong>
+            </span>
             <span className="text-border">|</span>
-            <span className="text-muted-foreground">GOVERNANCE // <strong className="text-foreground font-bold">{state.manifest.compliance?.risk_tier || 'T1'}</strong></span>
+            <span className="text-muted-foreground" title="Test Runner Model in Test Lab">
+              TEST // <strong className="text-foreground font-bold">{settings.taskModels.chatTests?.modelId?.replace(/^.*\//, '') || 'gemini-3.8-flash'}</strong>
+            </span>
+            <span className="text-border">|</span>
+            <span className="text-muted-foreground" title="Skill Scopes Distribution (Global / Task-Scoped)">
+              SCOPES // <strong className="text-foreground font-bold">{globalSkillsCount}G / {taskSkillsCount}T</strong>
+            </span>
           </div>
 
           {/* Git Branch & Status Pill */}
@@ -258,7 +318,7 @@ export function AgentWorkbench() {
             variant="default"
             size="sm" 
             onClick={() => dispatch({ type: 'SAVE_SNAPSHOT', payload: 'Manual Save' })}
-            className="text-xs gap-1.5 font-sans"
+            className="text-xs gap-1.5 font-sans font-semibold text-[#fcfaf4] dark:text-[#151619]"
           >
             <Save className="size-3.5" />
             <span className="hidden sm:inline">Snapshot</span>
@@ -309,10 +369,10 @@ export function AgentWorkbench() {
                     <div className={cn(
                       "size-6 rounded-none flex items-center justify-center text-[11px] font-mono font-bold transition-none shrink-0",
                       isCurrent 
-                        ? "bg-primary text-primary-foreground" 
+                        ? "bg-primary text-[#fcfaf4] dark:text-[#151619] shadow-xs" 
                         : isPast 
-                        ? "bg-[#1f6a38]/15 text-[#1f6a38] border border-[#1f6a38]/30" 
-                        : "bg-background text-muted-foreground border border-border group-hover:text-foreground"
+                        ? "bg-[#14532d]/15 text-[#14532d] dark:text-[#86efac] border border-[#14532d]/40" 
+                        : "bg-background text-foreground/80 border border-border group-hover:text-foreground"
                     )}>
                       {isPast ? <Check className="size-3.5 stroke-[2.5]" /> : step.number}
                     </div>
@@ -320,7 +380,7 @@ export function AgentWorkbench() {
                     <div className="flex flex-col min-w-0">
                       <span className={cn(
                         "text-xs font-semibold font-sans leading-none",
-                        isCurrent ? "text-foreground" : isPast ? "text-foreground/90" : "text-muted-foreground group-hover:text-foreground"
+                        isCurrent ? "text-foreground font-bold" : isPast ? "text-foreground" : "text-foreground/80 group-hover:text-foreground"
                       )}>
                         {step.title}
                       </span>
@@ -581,6 +641,75 @@ export function AgentWorkbench() {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* Explicit Model Roles & Configurations */}
+              <div className="p-3 bg-muted/40 border border-border space-y-2.5 font-mono">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                    <Sliders className="size-3 text-primary" /> Active Model Roles
+                  </span>
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 border-border">
+                    3 Roles Active
+                  </Badge>
+                </div>
+                
+                <div className="space-y-1.5 text-[11px]">
+                  <div className="flex justify-between items-center p-1.5 bg-background border border-border">
+                    <span className="text-muted-foreground">BUILDER (Architect):</span>
+                    <strong className="text-foreground truncate max-w-[140px]">
+                      {settings.taskModels.architect?.modelId?.replace(/^.*\//, '') || 'gemini-3.7-flash'}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center p-1.5 bg-background border border-border">
+                    <span className="text-muted-foreground">EXPORT (Agent Target):</span>
+                    <strong className="text-foreground truncate max-w-[140px]">
+                      {state.modelConfig?.preferred?.replace(/^.*\//, '') || 'claude-sonnet-4-5'}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center p-1.5 bg-background border border-border">
+                    <span className="text-muted-foreground">TEST (Lab Runner):</span>
+                    <strong className="text-foreground truncate max-w-[140px]">
+                      {settings.taskModels.chatTests?.modelId?.replace(/^.*\//, '') || 'gemini-3.8-flash'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Explicit Skill Scopes & Tool Access Verification */}
+              <div className="p-3 bg-muted/40 border border-border space-y-2.5 font-mono">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                    <ShieldCheck className="size-3 text-[#1f6a38]" /> Scopes & Tool Access
+                  </span>
+                  <Badge 
+                    variant={toolAudit.unmappedCount === 0 ? "green" : "amber"} 
+                    className="text-[9px] px-1 py-0"
+                  >
+                    {toolAudit.unmappedCount === 0 ? "100% Verified" : `${toolAudit.unmappedCount} Unmapped`}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                  <div className="p-1.5 bg-background border border-border">
+                    <div className="text-muted-foreground">GLOBAL SCOPE</div>
+                    <div className="text-xs font-bold text-foreground">{globalSkillsCount} Skills</div>
+                  </div>
+                  <div className="p-1.5 bg-background border border-border">
+                    <div className="text-muted-foreground">TASK-SCOPED</div>
+                    <div className="text-xs font-bold text-foreground">{taskSkillsCount} Skills</div>
+                  </div>
+                  <div className="p-1.5 bg-background border border-border">
+                    <div className="text-muted-foreground">VERIFIED ACCESS</div>
+                    <div className="text-xs font-bold text-[#1f6a38]">{toolAudit.verifiedCount} Tools</div>
+                  </div>
+                  <div className="p-1.5 bg-background border border-border">
+                    <div className="text-muted-foreground">UNMAPPED CLAIMS</div>
+                    <div className={cn("text-xs font-bold", toolAudit.unmappedCount > 0 ? "text-[#b45309]" : "text-muted-foreground")}>
+                      {toolAudit.unmappedCount} Claims
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Manifest Metadata */}

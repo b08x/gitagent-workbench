@@ -160,11 +160,43 @@ export function ModelStep({ fieldErrors = {}, hideGeneration = false, hideRuntim
 
   return (
     <div className="flex flex-col gap-6 w-full overflow-y-auto">
+      {/* Explicit Model Roles Overview */}
+      <div className="p-4 bg-muted/40 border border-border font-mono space-y-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+            <Sliders className="size-3.5 text-primary" /> Multi-Tier Model Architecture
+          </span>
+          <Badge variant="outline" className="text-[9px] border-border">
+            Explicit Roles
+          </Badge>
+        </div>
+        <p className="text-xs text-muted-foreground font-sans leading-relaxed">
+          GitAgent strictly delineates models between agent authoring, test execution, and target bundle export.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs pt-1">
+          <div className="p-2 bg-background border border-border">
+            <div className="text-[10px] text-muted-foreground uppercase font-bold">1. Builder Model</div>
+            <div className="text-foreground font-bold truncate">{settings.taskModels.architect?.modelId || 'gemini-3.7-flash'}</div>
+            <div className="text-[10px] text-muted-foreground font-sans">Synthesizes manifest, soul, rules & tools</div>
+          </div>
+          <div className="p-2 bg-background border border-border">
+            <div className="text-[10px] text-muted-foreground uppercase font-bold">2. Test Runner Model</div>
+            <div className="text-foreground font-bold truncate">{settings.taskModels.chatTests?.modelId || 'gemini-3.8-flash'}</div>
+            <div className="text-[10px] text-muted-foreground font-sans">Executes interactive simulations in Test Lab</div>
+          </div>
+          <div className="p-2 bg-background border border-border">
+            <div className="text-[10px] text-muted-foreground uppercase font-bold">3. Export Target Model</div>
+            <div className="text-foreground font-bold truncate">{state.modelConfig?.preferred || 'claude-sonnet-4-5'}</div>
+            <div className="text-[10px] text-muted-foreground font-sans">Specified in manifest for production deployment</div>
+          </div>
+        </div>
+      </div>
+
       {!hideGeneration && (
         <section className="flex flex-col gap-5 w-full">
           <div>
-            <h2 className="text-xl font-bold tracking-tight text-foreground">Generation Model</h2>
-            <p className="text-xs text-muted-foreground">Choose which LLM endpoint will generate your agent code and artifacts.</p>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">Generation Model (Builder Role)</h2>
+            <p className="text-xs text-muted-foreground">Choose which LLM endpoint generates your agent code and artifacts.</p>
           </div>
 
           <div className="flex flex-col gap-4 w-full">
@@ -183,7 +215,7 @@ export function ModelStep({ fieldErrors = {}, hideGeneration = false, hideRuntim
                     <TabsTrigger 
                       key={p.id} 
                       value={p.id}
-                      className="px-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground h-9"
+                      className="px-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-active:bg-primary data-active:text-primary-foreground font-bold h-9"
                     >
                       <TooltipProvider>
                         <Tooltip>

@@ -28,7 +28,7 @@
   --color-surface-tint: #b45309;
 
   /* Primary: Deep Carbon Ink */
-  --color-primary: #171611;
+  --color-primary-static: #171611;
   --color-on-primary: #fcfaf4;
   --color-primary-container: #2c2a25;
   --color-on-primary-container: #95918a;
@@ -36,7 +36,7 @@
 
   /* Accent: Warm Amber (10% target visual ratio) */
   --color-accent-amber: #b45309;
-  --color-secondary: #b45309;
+  --color-secondary-static: #b45309;
   --color-on-secondary: #ffffff;
   --color-secondary-container: #fef3c7;
   --color-on-secondary-container: #78350f;
@@ -63,6 +63,12 @@
 
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
 
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
@@ -107,40 +113,40 @@
     --primary-foreground: #fcfaf4;
     --primary-hover: #2c2a25;
 
-    /* 10% Amber Accent */
-    --secondary: #b45309;
+    /* 10% Amber Accent calibrated for AAA contrast (8.04:1 vs white) */
+    --secondary: #853b06;
     --secondary-foreground: #ffffff;
 
-    /* Tonal Paper Layers */
+    /* Tonal Paper Layers calibrated for AAA contrast (9.15:1 vs canvas) */
     --muted: #f3efe6;
-    --muted-foreground: #5a574f;
+    --muted-foreground: #48453d;
 
     --accent: #fef3c7;
     --accent-foreground: #78350f;
 
-    /* 2% Destructive Red (STRICTLY for danger/destructive actions) */
-    --destructive: #b91c1c;
+    /* 2% Destructive Red calibrated for AAA contrast (8.28:1 vs white) */
+    --destructive: #991b1b;
     --destructive-foreground: #ffffff;
 
-    /* 3% State Green (Verification / Online / Validated) */
-    --success: #1f6a38;
-    --warning: #b45309;
+    /* 3% State Green calibrated for AAA contrast (8.76:1 vs paper) */
+    --success: #14532d;
+    --warning: #78350f;
 
     /* Crisp Ink-on-paper structural borders */
     --border: #2c2a25;
     --input: #2c2a25;
-    --ring: #b45309;
+    --ring: #853b06;
     --radius: 0px;
 
-    /* Sidebar Tokens: Cleanly aligned with main canvas tone (No pale/liminal mismatch) */
+    /* Sidebar Tokens: Cleanly aligned with main canvas tone */
     --sidebar: #fcfaf4;
     --sidebar-foreground: #171611;
-    --sidebar-primary: #b45309;
+    --sidebar-primary: #853b06;
     --sidebar-primary-foreground: #ffffff;
     --sidebar-accent: #f3efe6;
     --sidebar-accent-foreground: #171611;
     --sidebar-border: #2c2a25;
-    --sidebar-ring: #b45309;
+    --sidebar-ring: #853b06;
   }
 
   .dark {
@@ -156,16 +162,16 @@
     --primary-foreground: #151619;
     --primary-hover: #ede8dc;
 
-    --secondary: #d97706;
+    --secondary: #f59e0b;
     --secondary-foreground: #151619;
 
     --muted: #252830;
-    --muted-foreground: #a3a096;
+    --muted-foreground: #b5b2a8;
 
     --accent: #332712;
     --accent-foreground: #fef3c7;
 
-    --destructive: #dc2626;
+    --destructive: #991b1b;
     --destructive-foreground: #ffffff;
 
     --success: #22c55e;
@@ -173,18 +179,18 @@
 
     --border: #444854;
     --input: #444854;
-    --ring: #d97706;
+    --ring: #f59e0b;
     --radius: 0px;
 
     /* Dark mode sidebar aligned with canvas */
     --sidebar: #151619;
     --sidebar-foreground: #fcfaf4;
-    --sidebar-primary: #d97706;
+    --sidebar-primary: #f59e0b;
     --sidebar-primary-foreground: #151619;
     --sidebar-accent: #252830;
     --sidebar-accent-foreground: #fcfaf4;
     --sidebar-border: #444854;
-    --sidebar-ring: #d97706;
+    --sidebar-ring: #f59e0b;
   }
 
   /* Universal Sharp 90-degree corners across components */

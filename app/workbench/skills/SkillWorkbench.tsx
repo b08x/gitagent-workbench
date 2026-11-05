@@ -156,11 +156,12 @@ export function SkillWorkbench() {
           {topTab === 'my-skills' && (
             <Button 
               size="sm" 
+              variant="primary"
               onClick={() => {
                 const id = createSkill();
                 setActiveSkill(id);
               }}
-              className="bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs gap-1.5 rounded-sm shadow-xs transition-all"
+              className="font-semibold text-xs gap-1.5 rounded-none shadow-xs"
             >
               <Plus className="size-3.5" /> New Skill
             </Button>
@@ -258,10 +259,10 @@ export function SkillWorkbench() {
                         key={tab.id}
                         onClick={() => setSkillSubTab(tab.id)}
                         className={cn(
-                          "px-2.5 py-1 text-[11px] font-mono rounded-sm transition-colors uppercase font-medium",
+                          "px-2.5 py-1 text-[11px] font-mono rounded-none transition-none uppercase font-semibold cursor-pointer border",
                           skillSubTab === tab.id
-                            ? "bg-primary text-primary-foreground font-bold"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                            ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
+                            : "bg-transparent text-foreground/85 border-transparent hover:text-foreground hover:bg-muted"
                         )}
                       >
                         {tab.label}
@@ -272,8 +273,9 @@ export function SkillWorkbench() {
                   <div className="flex items-center gap-2">
                     <Button 
                       size="xs" 
+                      variant="primary"
                       onClick={handleAddSkillToAgent}
-                      className="bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-[10px] font-mono uppercase tracking-wider rounded-sm shadow-xs"
+                      className="font-bold text-[10px] font-mono uppercase tracking-wider rounded-none shadow-xs"
                     >
                       {addedFeedback ? <CheckCircle2 className="size-3 mr-1" /> : <Plus className="size-3 mr-1" />}
                       {addedFeedback ? "Attached!" : "Attach to Agent"}
@@ -377,15 +379,16 @@ export function SkillWorkbench() {
                 {/* Actions */}
                 <div className="space-y-2 pt-2">
                   <Button 
-                    className="w-full h-8.5 rounded-sm bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium text-xs shadow-xs transition-all flex items-center justify-center gap-2"
+                    variant="primary"
+                    className="w-full h-8.5 rounded-none font-semibold text-xs shadow-xs flex items-center justify-center gap-2"
                     onClick={handleAddSkillToAgent}
                   >
                     <Zap className="size-3.5" /> Attach to Agent Workspace
                   </Button>
 
                   <Button 
-                    variant="outline"
-                    className="w-full h-8 rounded-sm text-xs text-destructive hover:bg-destructive/10 hover:text-destructive flex items-center justify-center gap-2"
+                    variant="destructive"
+                    className="w-full h-8 rounded-none text-xs font-semibold shadow-xs flex items-center justify-center gap-2"
                     onClick={() => deleteSkill(activeSkill.id)}
                   >
                     <Trash2 className="size-3.5" /> Delete Skill

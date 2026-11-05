@@ -4,34 +4,41 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-none border border-transparent bg-clip-padding text-sm font-sans font-medium whitespace-nowrap outline-none select-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring active:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-none border border-transparent bg-clip-padding text-sm font-sans font-medium whitespace-nowrap outline-none select-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring active:translate-y-px disabled:pointer-events-none disabled:opacity-60 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        // Neutral Primary: Solid fill of Carbon Ink with Paper text
-        default: "bg-primary text-primary-foreground border-primary hover:bg-primary/90 active:translate-y-px",
-        primary: "bg-[#171611] text-[#fcfaf4] border-[#171611] hover:bg-[#2c2a25]",
-        // Accent: 10% Amber CTA for primary forward momentum
-        amber: "bg-[#b45309] text-white border-[#b45309] hover:bg-[#92400e] active:translate-y-px",
-        warm: "bg-[#b45309] text-white border-[#b45309] hover:bg-[#92400e] font-semibold active:translate-y-px",
-        maroon: "bg-[#b45309] text-white border-[#b45309] hover:bg-[#92400e]",
-        // Neutral Secondary: Transparent background with Ink border and paper hover
+        // Neutral Primary: Solid fill of Carbon Ink with Paper text (Contrast: 17.5:1)
+        default:
+          "bg-primary text-primary-foreground text-[#fcfaf4] dark:text-[#151619] border-primary hover:bg-primary/90 font-semibold active:translate-y-px",
+        primary:
+          "bg-primary text-primary-foreground text-[#fcfaf4] dark:text-[#151619] border-primary hover:bg-primary/90 font-semibold active:translate-y-px",
+        // Accent: Warm Amber CTA calibrated for WCAG AAA (Contrast: 8.04:1 vs white text)
+        amber:
+          "bg-[#853b06] text-white border-[#853b06] hover:bg-[#6e3004] font-semibold active:translate-y-px shadow-xs",
+        warm:
+          "bg-[#853b06] text-white border-[#853b06] hover:bg-[#6e3004] font-semibold active:translate-y-px shadow-xs",
+        maroon:
+          "bg-[#853b06] text-white border-[#853b06] hover:bg-[#6e3004] font-semibold shadow-xs",
+        // Neutral Secondary & Outline: High contrast ink-on-canvas (Contrast: 17.5:1)
         secondary:
-          "bg-transparent text-foreground border-border hover:bg-[#f3efe6]",
+          "bg-transparent text-foreground border-border hover:bg-[#f3efe6] dark:hover:bg-[#252830] font-semibold",
         outline:
-          "border-border bg-transparent text-foreground hover:bg-[#f3efe6]",
+          "border-border bg-transparent text-foreground hover:bg-[#f3efe6] dark:hover:bg-[#252830] font-semibold",
         ghost:
-          "border-transparent bg-transparent text-foreground hover:bg-[#f3efe6]",
-        // State Warning: Amber alert tone
+          "border-transparent bg-transparent text-foreground hover:bg-[#f3efe6] dark:hover:bg-[#252830] font-semibold",
+        // State Warning: High contrast amber tone (Contrast: 8.78:1 in light, 14.58:1 in dark)
         warning:
-          "bg-[#fef3c7] text-[#78350f] border-[#b45309]/40 hover:bg-[#fde68a]",
-        // State Destructive: STRICTLY reserved for Stop, Cancel, Delete, Wipe
+          "bg-[#fef3c7] text-[#78350f] border-[#b45309]/50 hover:bg-[#fde68a] dark:bg-[#451a03] dark:text-[#fef3c7] dark:border-[#f59e0b]/50 dark:hover:bg-[#5a2204] font-semibold",
+        // State Destructive: Deep carmine red calibrated for WCAG AAA (Contrast: 8.28:1 vs white text)
         destructive:
-          "bg-[#b91c1c] text-white border-[#b91c1c] hover:bg-[#991b1b] active:translate-y-px",
+          "bg-[#991b1b] text-white border-[#991b1b] hover:bg-[#7f1d1d] font-semibold active:translate-y-px shadow-xs",
         danger:
-          "bg-[#b91c1c] text-white border-[#b91c1c] hover:bg-[#991b1b] active:translate-y-px",
-        link: "text-primary underline-offset-4 hover:underline border-none",
-        ice: "bg-[#f3efe6] text-foreground border-border hover:bg-[#ede8dc] font-mono text-xs",
+          "bg-[#991b1b] text-white border-[#991b1b] hover:bg-[#7f1d1d] font-semibold active:translate-y-px shadow-xs",
+        link:
+          "text-primary underline-offset-4 hover:underline border-none font-semibold",
+        ice:
+          "bg-[#f3efe6] text-foreground border-border hover:bg-[#ede8dc] dark:bg-[#252830] dark:text-foreground dark:hover:bg-[#2d313b] font-mono text-xs font-semibold",
       },
       size: {
         default:

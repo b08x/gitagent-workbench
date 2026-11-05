@@ -113,7 +113,7 @@ export function SettingsPanel() {
           <span className="hidden sm:inline">Global</span>
         </TabsTrigger>
         <TabsTrigger value="git" className="flex items-center gap-2">
-          <GitBranch className="h-4 w-4 text-[#A0D2EB]" />
+          <GitBranch className="h-4 w-4 text-primary" />
           <span className="hidden sm:inline">Git & Remote</span>
         </TabsTrigger>
         <TabsTrigger value="generation" className="flex items-center gap-2">
@@ -205,7 +205,7 @@ export function SettingsPanel() {
           {/* Provider Selection */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-mono text-[#A0D2EB]">Git Provider</Label>
+              <Label className="text-xs font-mono font-bold text-foreground">Git Provider</Label>
               <span className="text-[10px] text-muted-foreground font-mono">Platform endpoint</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -222,10 +222,10 @@ export function SettingsPanel() {
                     }
                   }}
                   className={cn(
-                    "py-2 px-3 rounded-sm border font-mono text-xs capitalize transition-all text-center",
+                    "py-2 px-3 rounded-none border font-mono text-xs capitalize transition-none text-center cursor-pointer font-semibold",
                     gitProvider === p 
-                      ? "bg-[#A0D2EB]/20 text-white border-[#A0D2EB]/60 font-semibold shadow-xs" 
-                      : "bg-background/40 border-border/60 text-muted-foreground hover:text-foreground hover:bg-[#A0D2EB]/5"
+                      ? "bg-primary text-primary-foreground border-primary shadow-xs" 
+                      : "bg-background border-border text-foreground hover:bg-muted"
                   )}
                 >
                   {p}
@@ -237,7 +237,7 @@ export function SettingsPanel() {
           {/* Remote URL */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-mono text-[#A0D2EB]">Remote Repository URL (HTTPS or SSH)</Label>
+              <Label className="text-xs font-mono font-bold text-foreground">Remote Repository URL (HTTPS or SSH)</Label>
               <span className="text-[10px] text-muted-foreground font-mono">origin</span>
             </div>
             <Input 
@@ -262,11 +262,11 @@ export function SettingsPanel() {
           {/* Personal Access Token (PAT) */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-mono text-[#A0D2EB] flex items-center gap-1.5">
-                <Key className="size-3.5 text-[#A0D2EB]" />
+              <Label className="text-xs font-mono font-bold text-foreground flex items-center gap-1.5">
+                <Key className="size-3.5 text-primary" />
                 Personal Access Token (PAT)
               </Label>
-              <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400">
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
                 <ShieldCheck className="size-3" />
                 Session Encrypted
               </span>
@@ -287,10 +287,10 @@ export function SettingsPanel() {
               <button
                 type="button"
                 onClick={() => setShowGitPat(!showGitPat)}
-                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                className="absolute right-2.5 top-2.5 text-foreground/80 hover:text-foreground cursor-pointer"
                 title={showGitPat ? "Hide token" : "Show token"}
               >
-                {showGitPat ? <EyeOff className="size-4" /> : <Eye className="size-4 text-[#A0D2EB]" />}
+                {showGitPat ? <EyeOff className="size-4" /> : <Eye className="size-4 text-primary" />}
               </button>
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
@@ -301,7 +301,7 @@ export function SettingsPanel() {
           {/* Committer Identity */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border/40">
             <div className="space-y-1.5">
-              <Label className="text-xs font-mono text-[#A0D2EB]">Git Author Name</Label>
+              <Label className="text-xs font-mono font-bold text-foreground">Git Author Name</Label>
               <Input 
                 value={gitAuthorName}
                 onChange={e => setGitAuthorName(e.target.value)}
@@ -310,7 +310,7 @@ export function SettingsPanel() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-mono text-[#A0D2EB]">Git Author Email</Label>
+              <Label className="text-xs font-mono font-bold text-foreground">Git Author Email</Label>
               <Input 
                 value={gitAuthorEmail}
                 onChange={e => setGitAuthorEmail(e.target.value)}
@@ -329,7 +329,7 @@ export function SettingsPanel() {
                 size="sm"
                 onClick={handleTestGitConnection}
                 disabled={gitTestState.loading || !gitRemoteUrl.trim()}
-                className="text-xs font-mono border-[#A0D2EB]/30 text-[#A0D2EB] hover:bg-[#A0D2EB]/10 gap-1.5 h-8 px-3"
+                className="text-xs font-mono border-border text-foreground hover:bg-muted font-bold gap-1.5 h-8 px-3"
               >
                 <RefreshCw className={cn("size-3", gitTestState.loading && "animate-spin")} />
                 {gitTestState.loading ? 'Testing...' : 'Test Connection'}

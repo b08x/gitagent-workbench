@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAgentWorkspace } from '../context/AgentContext';
 import { useSettings } from '../context/SettingsContext';
 import { assembleSystemPrompt } from '../../lib/gitagent/assembleSystemPrompt';
+import { auditToolMappings } from '../../lib/gitagent/toolVerification';
 import { fetchChatModels, ModelOption, CURATED_MODELS } from '../../lib/gitagent/fetchChatModels';
 import { providers } from '../../lib/providers';
 import { Button } from '../../components/ui/button';
@@ -60,6 +61,11 @@ export function ChatWorkbench() {
   const [showSystemPrompt, setShowSystemPrompt] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+
+  const [showToolAudit, setShowToolAudit] = useState(false);
+  const toolAudit = useMemo(() => auditToolMappings(state), [state]);
+  const globalSkillsCount = (state.skillsList || []).filter(s => s.scope !== 'task_scoped').length;
+  const taskSkillsCount = (state.skillsList || []).filter(s => s.scope === 'task_scoped').length;
 
   const [chatModel, setChatModel] = useState<ChatModelState>(() => {
     const pId = settings.taskModels.chatTests?.providerId || 'google';
@@ -373,6 +379,77 @@ export function ChatWorkbench() {
         </div>
       </div>
 
+      {/* Explicit Model Roles & Pre-Flight Tool Access Bar */}
+      <div className="h-10 border-b border-border bg-muted/40 px-5 flex items-center justify-between text-[11px] font-mono shrink-0 select-none">
+        <div className="flex items-center gap-3 truncate">
+          <span className="text-muted-foreground">
+            TEST RUNNER: <strong className="text-foreground font-bold">{chatModel.modelId}</strong>
+          </span>
+          <span className="text-border">|</span>
+          <span className="text-muted-foreground hidden md:inline">
+            SPEC TARGET: <strong className="text-foreground font-bold">{state.modelConfig?.preferred?.replace(/^.*\//, '') || 'claude-sonnet-4-5'}</strong>
+          </span>
+          <span className="text-border hidden md:inline">|</span>
+          <span className="text-muted-foreground hidden lg:inline">
+            SCOPES: <strong className="text-foreground font-bold">{globalSkillsCount} Global / {taskSkillsCount} Task</strong>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {toolAudit.unmappedCount > 0 ? (
+            <Badge variant="amber" className="text-[10px] gap-1">
+              <ShieldAlert className="size-3 text-[#b45309]" /> {toolAudit.unmappedCount} Unmapped Claims
+            </Badge>
+          ) : (
+            <Badge variant="green" className="text-[10px] gap-1">
+              <ShieldCheck className="size-3 text-[#1f6a38]" /> {toolAudit.verifiedCount} Tools Verified
+            </Badge>
+          )}
+
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => setShowToolAudit(!showToolAudit)}
+            className={cn("text-[10px] font-mono h-6 px-2 gap-1 border border-border", showToolAudit && "bg-muted text-foreground font-bold")}
+          >
+            Tool Claims Audit {showToolAudit ? '▲' : '▼'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Tool Claims Audit Drawer / Banner */}
+      {showToolAudit && (
+        <div className="border-b border-border bg-card p-3 font-mono text-xs space-y-2 animate-in slide-in-from-top-2">
+          <div className="flex items-center justify-between">
+            <span className="font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+              <ShieldCheck className="size-3.5 text-primary" /> Active Tool Claims vs Verified Runtime Access ({toolAudit.frameworkLabel})
+            </span>
+            <span className="text-muted-foreground text-[10px]">
+              {toolAudit.verifiedCount} verified • {toolAudit.unmappedCount} unmapped
+            </span>
+          </div>
+
+          {toolAudit.unmappedCount > 0 && (
+            <div className="p-2 bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-[11px] font-sans">
+              <strong>Pre-Test Notice:</strong> {toolAudit.unmappedCount} tool claims cannot be executed in this harness. Invoking them will result in simulated refusals.
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-36 overflow-y-auto">
+            {toolAudit.claims.map((claim, i) => (
+              <div key={i} className="p-1.5 bg-background border border-border text-[10px] flex items-center justify-between">
+                <span className="truncate font-bold">`{claim.claim}`</span>
+                {claim.status === 'verified' ? (
+                  <Badge variant="green" className="text-[8px] py-0 px-1">VERIFIED</Badge>
+                ) : (
+                  <Badge variant="amber" className="text-[8px] py-0 px-1">UNMAPPED</Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Main Area */}
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left Drawer: System Prompt Inspector */}
@@ -597,8 +674,9 @@ export function ChatWorkbench() {
                   </Button>
                 ) : (
                   <Button 
+                    variant="primary"
                     size="sm" 
-                    className="h-10 px-4 rounded-sm bg-primary hover:bg-[#d96b43] text-primary-foreground font-medium shadow-xs"
+                    className="h-10 px-4 rounded-none font-semibold shadow-xs"
                     onClick={() => handleSend()}
                     disabled={!input.trim() || !chatModel.modelId}
                   >

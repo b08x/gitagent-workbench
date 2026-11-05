@@ -83,6 +83,7 @@ export interface AgentManifest {
 // ─── Skills ─────────────────────────────────────────────────────────────────
 
 export type SkillCategory = 'general' | 'research' | 'code' | 'compliance' | 'communication';
+export type SkillScope = 'global' | 'task_scoped';
 
 export interface SkillEntry {
   name: string;
@@ -90,6 +91,8 @@ export interface SkillEntry {
   instructions: string;
   allowedTools?: string;
   category: SkillCategory;
+  scope?: SkillScope;
+  riskTier?: 'standard' | 'elevated';
 }
 
 export interface SkillMetadata {

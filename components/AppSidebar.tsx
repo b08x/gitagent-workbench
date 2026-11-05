@@ -185,10 +185,10 @@ export function AppSidebar({
 
                     {!collapsed && item.badge && (
                       <span className={cn(
-                        "text-[9px] font-mono font-medium px-1 py-0.2 shrink-0 border",
+                        "text-[9px] font-mono font-bold px-1.5 py-0.2 shrink-0 border",
                         isActive 
-                          ? "bg-[#b45309] text-white border-[#b45309]" 
-                          : "bg-muted text-muted-foreground border-border"
+                          ? "bg-[#853b06] text-white border-[#853b06]" 
+                          : "bg-muted text-foreground/85 border-border"
                       )}>
                         {item.badge}
                       </span>
@@ -207,15 +207,15 @@ export function AppSidebar({
         {!collapsed && (
           <div className="p-2 border border-border bg-card flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="size-2 bg-[#1f6a38] border border-[#2c2a25] status-circle shrink-0" />
+              <span className="size-2 bg-[#14532d] dark:bg-[#22c55e] border border-[#2c2a25] status-circle shrink-0" />
               <div className="truncate">
-                <p className="text-[9px] font-mono uppercase text-muted-foreground">ACTIVE MANIFEST</p>
+                <p className="text-[9px] font-mono uppercase text-muted-foreground font-semibold">ACTIVE MANIFEST</p>
                 <p className="text-xs font-mono font-bold text-foreground truncate">
                   {state.manifest.name || "untitled-agent"}
                 </p>
               </div>
             </div>
-            <span className="text-[9px] font-mono font-bold text-[#b45309] bg-[#fef3c7] dark:bg-[#332712] px-1.5 py-0.5 border border-[#b45309]/40">
+            <span className="text-[9px] font-mono font-bold text-[#78350f] bg-[#fef3c7] dark:bg-[#451a03] dark:text-[#fef3c7] px-1.5 py-0.5 border border-[#853b06]/40">
               {state.manifest.compliance?.risk_tier || "T1"}
             </span>
           </div>
@@ -229,18 +229,18 @@ export function AppSidebar({
             onClick={toggleTheme}
             title={settings.theme === 'dark' ? "Switch to Paper & Ink Light Mode" : "Switch to Inverse Charcoal Mode"}
             className={cn(
-              "border-border bg-background text-foreground hover:bg-muted",
+              "border-border bg-background text-foreground hover:bg-muted font-semibold",
               !collapsed && "flex-1 justify-start gap-1.5 text-xs font-sans h-7"
             )}
           >
             {settings.theme === 'dark' ? (
               <>
-                <Sun className="size-3.5 text-[#b45309]" />
+                <Sun className="size-3.5 text-[#f59e0b]" />
                 {!collapsed && <span>Paper Mode</span>}
               </>
             ) : (
               <>
-                <Moon className="size-3.5 text-[#171611]" />
+                <Moon className="size-3.5 text-foreground" />
                 {!collapsed && <span>Ink Mode</span>}
               </>
             )}

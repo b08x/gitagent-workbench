@@ -335,18 +335,20 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                         size="sm"
                         onClick={() => handleFrameworkPreview(f.id)}
                         className={cn(
-                          "h-8 text-xs font-medium transition-all relative",
+                          "h-8 text-xs font-semibold transition-none relative cursor-pointer",
                           isPreviewing 
-                            ? "bg-primary text-primary-foreground shadow-xs" 
-                            : "bg-background hover:bg-muted"
+                            ? "bg-primary text-[#fcfaf4] dark:text-[#151619] border-primary shadow-xs" 
+                            : "bg-background text-foreground hover:bg-muted border-border"
                         )}
                       >
-                        {isPreviewing && <Eye className="h-3.5 w-3.5 mr-1" />}
+                        {isPreviewing && <Eye className="h-3.5 w-3.5 mr-1 text-[#fcfaf4] dark:text-[#151619]" />}
                         {f.shortLabel}
                         {isSpecActive && (
                           <span className={cn(
-                            "ml-1 text-[9px] px-1 py-0 rounded font-semibold",
-                            isPreviewing ? "bg-white/20 text-white" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                            "ml-1 text-[9px] px-1.5 py-0 rounded-none font-bold",
+                            isPreviewing 
+                              ? "bg-white/20 text-[#fcfaf4] dark:text-[#151619] dark:bg-black/20" 
+                              : "bg-[#14532d]/15 text-[#14532d] dark:text-[#86efac] border border-[#14532d]/40"
                           )}>
                             Active
                           </span>
@@ -354,8 +356,10 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                         <Badge 
                           variant={isPreviewing ? "secondary" : "outline"} 
                           className={cn(
-                            "ml-1.5 px-1.5 py-0 text-[10px] h-4",
-                            isPreviewing ? "bg-primary-foreground/20 text-primary-foreground border-transparent" : "text-muted-foreground"
+                            "ml-1.5 px-1.5 py-0 text-[10px] h-4 font-bold",
+                            isPreviewing 
+                              ? "bg-white/20 text-[#fcfaf4] dark:text-[#151619] border-transparent dark:bg-black/20" 
+                              : "text-foreground border-border"
                           )}
                         >
                           {toolCount}
@@ -536,8 +540,8 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                           <Trash2 className="h-4 w-4" />
                         </Button>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="grid gap-2">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="grid gap-1.5">
                             <Label htmlFor={`skill-name-${index}`}>Skill Name (kebab-case)</Label>
                             <Input 
                               id={`skill-name-${index}`}
@@ -547,7 +551,7 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                               className={cn((fieldErrors[`skillsList.${index}.name`]) && "border-destructive")}
                             />
                           </div>
-                          <div className="grid gap-2">
+                          <div className="grid gap-1.5">
                             <Label htmlFor={`skill-category-${index}`}>Category</Label>
                             <Select 
                               value={skill.category} 
@@ -565,6 +569,30 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                               </SelectContent>
                             </Select>
                           </div>
+                          <div className="grid gap-1.5">
+                            <Label htmlFor={`skill-scope-${index}`}>Skill Scope</Label>
+                            <Select 
+                              value={skill.scope || 'global'} 
+                              onValueChange={v => handleSkillChange(index, 'scope' as any, v)}
+                            >
+                              <SelectTrigger id={`skill-scope-${index}`}>
+                                <SelectValue placeholder="Select scope" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="global">Global Manifest Scope</SelectItem>
+                                <SelectItem value="task_scoped">Task-Scoped (Conditional)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 font-mono text-[10px]">
+                          <Badge variant={skill.scope === 'task_scoped' ? "outline" : "green"} className="text-[9px] px-1.5 py-0">
+                            {skill.scope === 'task_scoped' ? "TASK SCOPED" : "GLOBAL SCOPE"}
+                          </Badge>
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-border text-muted-foreground">
+                            CATEGORY: {skill.category.toUpperCase()}
+                          </Badge>
                         </div>
 
                         <div className="grid gap-2">

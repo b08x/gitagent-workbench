@@ -28,16 +28,47 @@ export interface SynthesizedAgentResult {
   explanation: string;
 }
 
-export function synthesizeAgentSpec(promptText: string, contextSummary: string = '', framework: AgentFramework = 'hermes_agent'): SynthesizedAgentResult {
+export interface ExistingAgentContext {
+  name?: string;
+  description?: string;
+  soul?: string;
+  rules?: string;
+  skills?: string | Record<string, any>;
+  skillsList?: any[];
+  targetFramework?: string;
+}
+
+export function synthesizeAgentSpec(
+  promptText: string, 
+  contextSummary: string = '', 
+  framework: AgentFramework = 'hermes_agent',
+  existingAgent?: ExistingAgentContext
+): SynthesizedAgentResult {
   const cleanPrompt = promptText.trim();
   const lower = cleanPrompt.toLowerCase();
+
+  // Check if this is a narrow edit to an existing agent
+  const hasExistingAgent = !!(existingAgent?.name && existingAgent.name.trim() !== '' && existingAgent.name !== 'untitled-agent');
+  const isExplicitReset = lower.includes('create a new agent') || 
+                          lower.includes('start over') || 
+                          lower.includes('start fresh') || 
+                          lower.includes('build a new agent') ||
+                          lower.includes('reset agent') ||
+                          lower.includes('different agent');
+  const isNarrowEdit = hasExistingAgent && !isExplicitReset;
 
   // Determine domain & naming
   let domain = 'general-assistant';
   let title = 'Agent';
   let description = '';
 
-  if (lower.includes('research') || lower.includes('pdf') || lower.includes('search') || lower.includes('rag') || lower.includes('scrape') || lower.includes('scraping')) {
+  if (isNarrowEdit) {
+    // Preserve existing agent identity
+    domain = existingAgent!.name!.toLowerCase();
+    const formattedTitle = domain.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    title = formattedTitle;
+    description = existingAgent!.description || `An autonomous AI specialist engineered to execute workflows.`;
+  } else if (lower.includes('research') || lower.includes('pdf') || lower.includes('search') || lower.includes('rag') || lower.includes('scrape') || lower.includes('scraping')) {
     domain = 'research-analyst';
     title = 'Deep Research & Document Intelligence Specialist';
     description = 'Analyzes multi-source documents, verifies citations, and produces structured technical research dossiers.';
@@ -70,7 +101,9 @@ export function synthesizeAgentSpec(promptText: string, contextSummary: string =
   }
 
   // Sanitize kebab-case name
-  const name = domain.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'custom-agent';
+  const name = isNarrowEdit && existingAgent?.name 
+    ? existingAgent.name 
+    : (domain.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'custom-agent');
 
   // Automatically infer framework tools for primary skills
   const coreSkillName = `${name}-core-ops`;
@@ -93,7 +126,7 @@ export function synthesizeAgentSpec(promptText: string, contextSummary: string =
   const coreToolsStr = coreSkillInference.tools.map(t => `\`${t}\``).join(', ');
   const auditToolsStr = auditSkillInference.tools.map(t => `\`${t}\``).join(', ');
 
-  const soul = `## Core Identity
+  const baseSoul = `## Core Identity
 You are **${title}**, an autonomous AI specialist purpose-built to execute high-precision workflows: "${cleanPrompt}".
 
 ## Emotional Baseline & Temperament
@@ -119,7 +152,7 @@ You are **${title}**, an autonomous AI specialist purpose-built to execute high-
 - Proactively summarize completed actions and outline next planned milestones.
 - Request explicit human confirmation prior to executing high-risk or irreversible operations.`;
 
-  const rules = `## Must Always
+  const baseRules = `## Must Always
 - Validate input schemas and file boundaries prior to processing data.
 - Maintain idempotency and audit logs for all automated actions.
 - Produce clean, modular outputs following established repository style guides.
@@ -141,7 +174,7 @@ You are **${title}**, an autonomous AI specialist purpose-built to execute high-
 - Operate strictly within declared tool permissions and context limits.
 - Delegate sub-tasks to specialized companion agents when operations exceed primary domain scope.`;
 
-  const skills = `## Skill: Core Operations & Workflow Execution
+  const baseSkills = `## Skill: Core Operations & Workflow Execution
 - **Description**: Executes primary domain operations, inspects workspace context, and executes targeted actions.
 - **Allowed Tools**: ${coreToolsStr || '`read_file`, `write_file`'}
 - **Preconditions**: Target files and inputs must be validated.
@@ -151,7 +184,66 @@ You are **${title}**, an autonomous AI specialist purpose-built to execute high-
 - **Allowed Tools**: ${auditToolsStr || '`read_file`, `execute_command`'}
 - **Postconditions**: Produces a structured pass/fail audit report with remedial suggestions.`;
 
-  const explanation = `Configured complete agent workspace "${name}" (${title}) for harness "${framework}". Allowed tools for all generated skills have been contextually aligned with the framework matrix.`;
+  let soul = baseSoul;
+  let rules = baseRules;
+  let skills = baseSkills;
+  let explanation = `Configured complete agent workspace "${name}" (${title}) for harness "${framework}". Allowed tools for all generated skills have been contextually aligned with the framework matrix.`;
+
+  if (isNarrowEdit) {
+    explanation = `Refined existing agent "${name}" according to specifications, preserving agent identity and updating targeted parameters for ${framework}.`;
+
+    // 1. Refine Soul if existing exists
+    if (existingAgent?.soul && typeof existingAgent.soul === 'string' && existingAgent.soul.trim()) {
+      soul = existingAgent.soul;
+      if (lower.includes('style') || lower.includes('tone') || lower.includes('concise') || lower.includes('terse') || lower.includes('verbose') || lower.includes('friendly') || lower.includes('formal') || lower.includes('voice')) {
+        const styleText = `- **Targeted Tone**: ${cleanPrompt}\n- **Clarity & Precision**: Rigorous communication aligned with operational objectives.`;
+        if (soul.includes('## Communication Style')) {
+          soul = soul.replace(/## Communication Style[\s\S]*?(?=\n## |$)/, `## Communication Style\n${styleText}\n`);
+        } else {
+          soul += `\n\n## Communication Style\n${styleText}`;
+        }
+      }
+    }
+
+    // 2. Refine Rules if existing exists
+    if (existingAgent?.rules && typeof existingAgent.rules === 'string' && existingAgent.rules.trim()) {
+      rules = existingAgent.rules;
+      if (lower.includes('rule') || lower.includes('must always') || lower.includes('must never') || lower.includes('never') || lower.includes('always') || lower.includes('safety') || lower.includes('boundary')) {
+        const newRule = `- ${cleanPrompt.replace(/^(add\s+rule|update\s+rules?|rule:?|please)\s*/i, '').trim()}`;
+        if (lower.includes('never') || lower.includes('don\'t') || lower.includes('do not')) {
+          if (rules.includes('## Must Never')) {
+            rules = rules.replace(/## Must Never/, `## Must Never\n${newRule}`);
+          } else {
+            rules += `\n\n## Must Never\n${newRule}`;
+          }
+        } else {
+          if (rules.includes('## Must Always')) {
+            rules = rules.replace(/## Must Always/, `## Must Always\n${newRule}`);
+          } else {
+            rules += `\n\n## Must Always\n${newRule}`;
+          }
+        }
+      }
+    }
+
+    // 3. Refine Skills if existing exists
+    if (existingAgent?.skills && typeof existingAgent.skills === 'string' && existingAgent.skills.trim()) {
+      skills = existingAgent.skills;
+      if (lower.includes('add skill') || lower.includes('new skill') || lower.includes('include skill') || lower.includes('add tool')) {
+        const cleanSkillToken = cleanPrompt.slice(0, 24).toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'specialist';
+        const addedSkillName = `${name}-${cleanSkillToken}-skill`;
+        const addedInference = inferFrameworkTools({
+          name: addedSkillName,
+          description: cleanPrompt,
+          category: 'general',
+          targetFramework: framework
+        });
+        const addedToolsStr = addedInference.tools.map(t => `\`${t}\``).join(', ');
+        const newSkillBlock = `\n\n## Skill: ${addedSkillName}\n- **Description**: ${cleanPrompt}\n- **Allowed Tools**: ${addedToolsStr || '`read_file`'}\n- **Preconditions**: Verified runtime access.`;
+        skills += newSkillBlock;
+      }
+    }
+  }
 
   return {
     manifest: {
@@ -191,14 +283,15 @@ You are **${title}**, an autonomous AI specialist purpose-built to execute high-
  * Universal contextual synthesizer for all generation prompts and schemas.
  * Returns either { object: ... } for JSON schemas or { text: ... } for markdown/text.
  */
-export function universalSynthesize(prompt: any, targetFramework: AgentFramework = 'hermes_agent'): { object?: any; text?: string } {
+export function universalSynthesize(prompt: any, targetFramework: AgentFramework = 'hermes_agent', existingAgent?: ExistingAgentContext): { object?: any; text?: string } {
   const userText = extractText(prompt?.user || prompt?.messages || prompt);
   const systemText = typeof prompt?.system === 'string' ? prompt.system : '';
   const schema = prompt?.schema;
+  const contextAgent = existingAgent || prompt?.existingAgent;
 
   // 1. Check for Architect Schema (Agent Architect prompt with manifest, soul, rules, skills, explanation)
   if (schema?.properties?.manifest || schema?.manifest) {
-    const spec = synthesizeAgentSpec(userText || 'Specialist Agent', '', targetFramework);
+    const spec = synthesizeAgentSpec(userText || 'Specialist Agent', '', targetFramework, contextAgent);
     return {
       object: {
         manifest: spec.manifest,

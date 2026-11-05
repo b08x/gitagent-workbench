@@ -4,15 +4,15 @@ import { cn } from "@/lib/utils"
 const Badge = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'amber' | 'green' | 'success' | 'maroon' | 'olive' }>(
   ({ className, variant = 'default', ...props }, ref) => {
     const variants = {
-      default: "border-primary bg-primary text-primary-foreground",
-      secondary: "border-border bg-muted text-foreground",
-      amber: "border-secondary/40 bg-secondary/10 text-secondary",
-      maroon: "border-secondary/40 bg-secondary/10 text-secondary",
-      green: "border-success/40 bg-success/10 text-success",
-      success: "border-success/40 bg-success/10 text-success",
-      olive: "border-success/40 bg-success/10 text-success",
-      destructive: "border-destructive/40 bg-destructive/10 text-destructive",
-      outline: "border-border bg-transparent text-foreground",
+      default: "border-primary bg-primary text-primary-foreground font-bold",
+      secondary: "border-border bg-muted text-foreground font-bold",
+      amber: "border-[#853b06]/50 bg-[#853b06]/10 text-[#78350f] dark:text-[#fde68a] dark:border-[#fde68a]/40 dark:bg-[#fde68a]/10 font-bold",
+      maroon: "border-[#853b06]/50 bg-[#853b06]/10 text-[#78350f] dark:text-[#fde68a] dark:border-[#fde68a]/40 dark:bg-[#fde68a]/10 font-bold",
+      green: "border-[#14532d]/50 bg-[#14532d]/10 text-[#14532d] dark:text-[#86efac] dark:border-[#86efac]/40 dark:bg-[#86efac]/10 font-bold",
+      success: "border-[#14532d]/50 bg-[#14532d]/10 text-[#14532d] dark:text-[#86efac] dark:border-[#86efac]/40 dark:bg-[#86efac]/10 font-bold",
+      olive: "border-[#14532d]/50 bg-[#14532d]/10 text-[#14532d] dark:text-[#86efac] dark:border-[#86efac]/40 dark:bg-[#86efac]/10 font-bold",
+      destructive: "border-[#7f1d1d]/50 bg-[#7f1d1d]/10 text-[#7f1d1d] dark:text-[#fca5a5] dark:border-[#fca5a5]/40 dark:bg-[#fca5a5]/10 font-bold",
+      outline: "border-border bg-transparent text-foreground font-bold",
     }
     return (
       <div

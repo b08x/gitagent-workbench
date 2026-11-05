@@ -1,25 +1,52 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAgentWorkspace } from '../context/AgentContext';
+import { useSettings } from '../context/SettingsContext';
 import { serializeWorkspace, downloadZip } from '../../lib/gitagent/serializer';
 import { assembleCLAUDEmd } from '../../lib/gitagent/assembleCLAUDEmd';
 import { exportGeminiZip } from '../../lib/gitagent/exportGemini';
 import { exportToHermesPython } from '../../lib/gitagent/adapters/hermes-python';
+import { auditToolMappings } from '../../lib/gitagent/toolVerification';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Download, CheckCircle, Terminal, Copy, Check, ArrowLeft, Wand2, AlertTriangle, Info, Package, Sparkles } from 'lucide-react';
+import { 
+  Download, 
+  CheckCircle, 
+  Terminal, 
+  Copy, 
+  Check, 
+  ArrowLeft, 
+  Wand2, 
+  AlertTriangle, 
+  Info, 
+  Package, 
+  Sparkles,
+  ShieldCheck,
+  ShieldAlert,
+  Sliders,
+  Layers,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function ExportView() {
   const { state, dispatch } = useAgentWorkspace();
+  const { settings } = useSettings();
   const navigate = useNavigate();
   const [copied, setCopied] = React.useState<string | null>(null);
   const [pythonExport, setPythonExport] = React.useState<{ source: string; filename: string } | null>(null);
   const [showFullPython, setShowFullPython] = React.useState(false);
+  const [showAllToolClaims, setShowAllToolClaims] = React.useState(false);
+
+  // Pre-flight audit of tool claims vs verified runtime access
+  const toolAudit = useMemo(() => auditToolMappings(state), [state]);
+  const globalSkillsCount = (state.skillsList || []).filter(s => s.scope !== 'task_scoped').length;
+  const taskSkillsCount = (state.skillsList || []).filter(s => s.scope === 'task_scoped').length;
 
   const handleDownload = async () => {
     const blob = await serializeWorkspace(state);
@@ -111,6 +138,170 @@ export function ExportView() {
           <Button variant="outline" size="sm" onClick={() => navigate('/editor')} className="text-xs">
             <ArrowLeft className="mr-1.5 size-3.5" /> Back to Editor
           </Button>
+        </div>
+
+        {/* Pre-Flight Tool Mapping & Verification Audit Panel */}
+        <div className="border border-border bg-card p-4 space-y-3 font-sans">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "p-1 border",
+                toolAudit.unmappedCount === 0 
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400" 
+                  : "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400"
+              )}>
+                {toolAudit.unmappedCount === 0 ? <ShieldCheck className="size-4" /> : <ShieldAlert className="size-4" />}
+              </span>
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-foreground">
+                  Harness Tool Mapping & Access Audit ({toolAudit.frameworkLabel})
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Verifying declared tool claims against executable capabilities in target runtime
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 font-mono text-xs">
+              <Badge variant="green" className="text-[10px]">
+                {toolAudit.verifiedCount} Verified Access
+              </Badge>
+              {toolAudit.unmappedCount > 0 ? (
+                <Badge variant="amber" className="text-[10px]">
+                  {toolAudit.unmappedCount} Unmapped Claims
+                </Badge>
+              ) : (
+                <Badge variant="green" className="text-[10px]">
+                  0 Unmapped
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          {/* Unavailable Tool Mappings Alert */}
+          {toolAudit.unmappedCount > 0 && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs rounded-none space-y-1 font-sans">
+              <div className="flex items-center gap-1.5 font-bold">
+                <AlertTriangle className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>Pre-Flight Notice: Unavailable Tool Mappings Detected</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-800/90 dark:text-amber-300/90">
+                {toolAudit.warningNotice}
+              </p>
+            </div>
+          )}
+
+          {/* Claims vs Verified Access Breakdown Table */}
+          {toolAudit.claims.length > 0 && (
+            <div className="border border-border bg-background p-2.5 space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground border-b border-border pb-1.5">
+                <span>Declared Tool Claims ({toolAudit.claims.length})</span>
+                <button
+                  type="button"
+                  onClick={() => setShowAllToolClaims(!showAllToolClaims)}
+                  className="text-primary hover:underline text-[10px] cursor-pointer flex items-center gap-1"
+                >
+                  {showAllToolClaims ? 'Show Compact' : 'Show All Details'}
+                  {showAllToolClaims ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+                </button>
+              </div>
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {(showAllToolClaims ? toolAudit.claims : toolAudit.claims.slice(0, 4)).map((item, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex flex-wrap items-center justify-between gap-2 p-1.5 bg-muted/30 border border-border text-[11px] font-mono"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="font-bold text-foreground">`{item.claim}`</span>
+                      <span className="text-muted-foreground text-[10px]">
+                        ({item.sourceSkill || 'skill'}) • scope: <strong className="text-foreground">{item.scope || 'global'}</strong>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {item.status === 'verified' ? (
+                        <span className="flex items-center gap-1 text-[#1f6a38] text-[10px] font-bold">
+                          <Check className="size-3 text-[#1f6a38]" /> VERIFIED ACCESS {item.mappedHarnessTool !== item.claim ? `→ ${item.mappedHarnessTool}` : ''}
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[#b45309] text-[10px] font-bold">
+                          <AlertTriangle className="size-3 text-[#b45309]" /> UNMAPPED CLAIM
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Explicit Model Roles & Skill Scopes Card */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="border-border bg-card rounded-none p-4 space-y-3 font-mono">
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                <Sliders className="size-3.5 text-primary" /> Explicit Model Roles
+              </span>
+              <Badge variant="outline" className="text-[9px] border-border">
+                Settings
+              </Badge>
+            </div>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center p-2 bg-muted/30 border border-border">
+                <span className="text-muted-foreground">BUILDER MODEL:</span>
+                <strong className="text-foreground truncate max-w-[170px]" title={settings.taskModels.architect?.modelId}>
+                  {settings.taskModels.architect?.modelId || 'gemini-3.7-flash'}
+                </strong>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-muted/30 border border-border">
+                <span className="text-muted-foreground">EXPORT TARGET MODEL:</span>
+                <strong className="text-foreground truncate max-w-[170px]" title={state.modelConfig?.preferred}>
+                  {state.modelConfig?.preferred || 'claude-sonnet-4-5'}
+                </strong>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-muted/30 border border-border">
+                <span className="text-muted-foreground">TEST RUNNER MODEL:</span>
+                <strong className="text-foreground truncate max-w-[170px]" title={settings.taskModels.chatTests?.modelId}>
+                  {settings.taskModels.chatTests?.modelId || 'gemini-3.8-flash'}
+                </strong>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="border-border bg-card rounded-none p-4 space-y-3 font-mono">
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                <Layers className="size-3.5 text-primary" /> Explicit Skill Scopes
+              </span>
+              <Badge variant="outline" className="text-[9px] border-border">
+                {(state.skillsList || []).length} Total Skills
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="p-2 bg-muted/30 border border-border">
+                <div className="text-muted-foreground text-[10px]">GLOBAL MANIFEST</div>
+                <div className="text-base font-bold text-foreground">{globalSkillsCount}</div>
+                <div className="text-[10px] text-muted-foreground">Active in all turns</div>
+              </div>
+              <div className="p-2 bg-muted/30 border border-border">
+                <div className="text-muted-foreground text-[10px]">TASK-SCOPED</div>
+                <div className="text-base font-bold text-foreground">{taskSkillsCount}</div>
+                <div className="text-[10px] text-muted-foreground">Trigger-dependent</div>
+              </div>
+              <div className="p-2 bg-muted/30 border border-border">
+                <div className="text-muted-foreground text-[10px]">MAX CONTEXT</div>
+                <div className="text-base font-bold text-foreground">{state.manifest.memory?.max_tokens || 8192}</div>
+                <div className="text-[10px] text-muted-foreground">tokens limit</div>
+              </div>
+              <div className="p-2 bg-muted/30 border border-border">
+                <div className="text-muted-foreground text-[10px]">RISK TIER</div>
+                <div className="text-base font-bold text-foreground">{state.manifest.compliance?.risk_tier || 'standard'}</div>
+                <div className="text-[10px] text-muted-foreground">governance level</div>
+              </div>
+            </div>
+          </Card>
         </div>
 
         <Tabs defaultValue="zip" className="w-full">

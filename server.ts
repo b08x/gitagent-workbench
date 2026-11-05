@@ -779,7 +779,7 @@ async function startServer() {
   // Streaming Agent Architect specification endpoint
   app.post("/api/agent/compile-stream", async (req, res) => {
     refreshEnvKeys();
-    let { prompt, modelId, providerId, options, apiKey: rawClientKey, targetFramework = 'hermes_agent' } = req.body;
+    let { prompt, modelId, providerId, options, apiKey: rawClientKey, targetFramework = 'hermes_agent', existingAgent } = req.body;
     prompt = decodePrompt(prompt);
     providerId = providerId || 'google';
     const cleanModelId = normalizeModelId(providerId, modelId);
@@ -814,7 +814,7 @@ async function startServer() {
     });
 
     // Synthesize structured baseline specification for immediate interim streaming
-    const baseSpec = synthesizeAgentSpec(userText || 'Specialist Agent', '', framework);
+    const baseSpec = synthesizeAgentSpec(userText || 'Specialist Agent', '', framework, existingAgent);
 
     // Stage 2: Manifest metadata
     sendEvent('partial', {
