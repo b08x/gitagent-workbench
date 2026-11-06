@@ -119,6 +119,8 @@ interface ChatMessage {
     hasRules: boolean;
   };
   job?: GenerationJob;
+  targetFramework?: string;
+  targetFrameworkLabel?: string;
 }
 
 type GenerationStage = 'intent' | 'manifest' | 'soul' | 'rules' | 'skills' | 'finalizing' | 'complete';
@@ -260,10 +262,22 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   }, [isProcessing]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, isProcessing, elapsedSeconds]);
+    // Keep initial greeting synchronized with currently selected runtime if only initial greeting exists
+    setMessages(prev => {
+      if (prev.length === 1 && prev[0].isInitializing) {
+        return [{
+          id: prev[0].id,
+          role: 'assistant',
+          content: `Hello! I am your AI Architect configured for the ${activeFrameworkMeta.label} runtime. Describe your agent's purpose, target workflows, or upload spec documents. I will configure the manifest, soul, rules, and skills in real time.`,
+          isInitializing: true,
+          timestamp: prev[0].timestamp,
+          targetFramework: activeFramework,
+          targetFrameworkLabel: activeFrameworkMeta.label
+        }];
+      }
+      return prev;
+    });
+  }, [activeFramework, activeFrameworkMeta.label]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -582,187 +596,10 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
     // Synthesize structured deterministic baseline specification for immediate progressive streaming
     const interimSpec = synthesizeAgentSpec(promptToSend, '', activeFramework, existingAgent);
 
-    // Staged progressive preview 1: Manifest metadata & Kebab-case identifier at 1.5s
-    const t1 = setTimeout(() => {
-      setGenerationStage('manifest');
-      setStageProgress(35);
-      const msg = `Drafting manifest metadata for ${interimSpec.manifest.name}...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stage: 'manifest',
-        stageProgress: 35,
-        stageMessage: msg,
-        draftSpec: {
-          ...prev.draftSpec,
-          manifest: {
-            ...state.manifest,
-            name: interimSpec.manifest.name,
-            description: interimSpec.manifest.description,
-            version: interimSpec.manifest.version || '1.0.0',
-            compliance: interimSpec.manifest.compliance
-          }
-        }
-      } : prev);
-    }, 1500);
-
-    // Staged progressive preview 2: Identity & SOUL.md at 3.2s
-    const t2 = setTimeout(() => {
-      setGenerationStage('soul');
-      setStageProgress(55);
-      const msg = `Composing Core Identity & values into SOUL.md...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stage: 'soul',
-        stageProgress: 55,
-        stageMessage: msg,
-        draftSpec: {
-          ...prev.draftSpec,
-          soul: interimSpec.soul
-        }
-      } : prev);
-    }, 3200);
-
-    // Staged progressive preview 3: Operational Rules at 4.8s
-    const t3 = setTimeout(() => {
-      setGenerationStage('rules');
-      setStageProgress(75);
-      const msg = `Establishing operational boundaries into RULES.md...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stage: 'rules',
-        stageProgress: 75,
-        stageMessage: msg,
-        draftSpec: {
-          ...prev.draftSpec,
-          rules: interimSpec.rules
-        }
-      } : prev);
-    }, 4800);
-
-    // Staged progressive preview 4: Domain Skills & Tools at 6.5s
-    const t4 = setTimeout(() => {
-      setGenerationStage('skills');
-      setStageProgress(90);
-      const msg = `Mapping domain tools & skills to ${activeFrameworkMeta.label} matrix...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stage: 'skills',
-        stageProgress: 90,
-        stageMessage: msg,
-        draftSpec: {
-          ...prev.draftSpec,
-          skills: interimSpec.skills
-        }
-      } : prev);
-    }, 6500);
-
-    // Staged progressive preview 5: Finalizing at 8.0s
-    const t5 = setTimeout(() => {
-      setGenerationStage('finalizing');
-      setStageProgress(94);
-      const msg = `Finalizing specification health and verifying ${activeFrameworkMeta.label} harness...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stage: 'finalizing',
-        stageProgress: 94,
-        stageMessage: msg
-      } : prev);
-    }, 8000);
-
-    const t6 = setTimeout(() => {
-      setStageProgress(95);
-      const msg = `Synthesizing deep identity directives & domain principles into SOUL.md...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stageProgress: 95,
-        stageMessage: msg
-      } : prev);
-    }, 14000);
-
-    const t7 = setTimeout(() => {
-      setStageProgress(96);
-      const msg = `Formulating operational rules, safety boundaries, and constraint invariants (RULES.md)...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stageProgress: 96,
-        stageMessage: msg
-      } : prev);
-    }, 22000);
-
-    const t8 = setTimeout(() => {
-      setStageProgress(96);
-      const msg = `Mapping executable tool signatures and parameter contracts to ${activeFrameworkMeta.label} matrix...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stageProgress: 96,
-        stageMessage: msg
-      } : prev);
-    }, 32000);
-
-    const t9 = setTimeout(() => {
-      setStageProgress(97);
-      const msg = `Deep LLM synthesis in progress with ${currentModelId.replace(/^.*\//, '')} (generating multi-file blueprint)...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stageProgress: 97,
-        stageMessage: msg
-      } : prev);
-    }, 45000);
-
-    const t10 = setTimeout(() => {
-      setStageProgress(97);
-      const msg = `Structuring tool schemas, parameter contracts, and memory partition boundaries...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stageProgress: 97,
-        stageMessage: msg
-      } : prev);
-    }, 60000);
-
-    const t11 = setTimeout(() => {
-      setStageProgress(98);
-      const msg = `Validating JSON schema integrity and cross-referencing injection slots across artifacts...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stageProgress: 98,
-        stageMessage: msg
-      } : prev);
-    }, 75000);
-
-    const t12 = setTimeout(() => {
-      setStageProgress(98);
-      const msg = `Processing extended token stream (${currentModelId.replace(/^.*\//, '')}) — assembling manifest & tool parameters...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stageProgress: 98,
-        stageMessage: msg
-      } : prev);
-    }, 90000);
-
-    const t13 = setTimeout(() => {
-      setStageProgress(99);
-      const msg = `Performing final specification assembly and packaging live workspace...`;
-      setStageMessage(msg);
-      setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
-        ...prev,
-        stageProgress: 99,
-        stageMessage: msg
-      } : prev);
-    }, 105000);
-
-    progressiveTimersRef.current = [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13];
+    // Initialize state with real start event
+    setGenerationStage('intent');
+    setStageProgress(0);
+    setStageMessage(`Connecting to AI Architect backend for ${activeFrameworkMeta.label}...`);
 
     try {
       const { providerId, modelId, parameters } = settings.taskModels.architect;
@@ -912,20 +749,26 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                     break;
                   }
                   const eventData = JSON.parse(dataStr);
-                  if (currentEvent === 'stage') {
+                  if (currentEvent === 'status' || currentEvent === 'stage') {
                     if (eventData.stage) setGenerationStage(eventData.stage);
                     if (eventData.label) setStageMessage(eventData.label);
-                    if (eventData.progress) setStageProgress(eventData.progress);
+                    if (eventData.progress !== undefined) setStageProgress(eventData.progress);
                     setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
                       ...prev,
                       stage: eventData.stage || prev.stage,
                       stageProgress: eventData.progress ?? prev.stageProgress,
                       stageMessage: eventData.label || prev.stageMessage
                     } : prev);
+                  } else if (currentEvent === 'keepalive') {
+                    if (eventData.label) setStageMessage(eventData.label);
+                    setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
+                      ...prev,
+                      stageMessage: eventData.label || prev.stageMessage
+                    } : prev);
                   } else if (currentEvent === 'partial') {
                     if (eventData.stage) setGenerationStage(eventData.stage);
                     if (eventData.label) setStageMessage(eventData.label);
-                    if (eventData.progress) setStageProgress(eventData.progress);
+                    if (eventData.progress !== undefined) setStageProgress(eventData.progress);
                     if (eventData.data) {
                       setActiveJob(prev => (prev && prev.id === jobId && prev.status === 'running') ? {
                         ...prev,
@@ -1681,34 +1524,27 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                     : "bg-card border-border/80 text-foreground"
                 )}>
                   {m.content.includes("Analyzing parameters") || (isProcessing && m.id.startsWith('asst-')) ? (() => {
-                    const isFinalizing = generationStage === 'finalizing' || (isProcessing && elapsedSeconds >= 8);
-                    const currentLiveMessage = isFinalizing 
-                      ? getDynamicFinalizingMessage(elapsedSeconds, activeFrameworkMeta.label, currentModelId)
-                      : (stageMessage || `Synthesizing ${activeFrameworkMeta.label} specification...`);
-                    const currentLiveProgress = generationStage === 'complete'
-                      ? 100
-                      : isFinalizing
-                      ? Math.min(99, Math.max(stageProgress, 94 + Math.floor(Math.min(elapsedSeconds - 8, 90) / 18)))
-                      : stageProgress;
+                    const currentLiveMessage = stageMessage || `Synthesizing ${activeFrameworkMeta.label} specification...`;
+                    const isLongRunning = elapsedSeconds > 25;
 
                     return (
                       <div className="space-y-3 font-mono">
-                        {/* Live Header & Timer */}
+                        {/* Live Header & Real Timer */}
                         <div className="flex items-center justify-between text-xs pb-1 border-b border-border/40">
                           <div className="flex items-center gap-2 text-foreground font-semibold">
                             <Loader2 className="size-3.5 animate-spin text-[#a03e3d] shrink-0" />
-                            <span>Generating Agent Blueprint ({activeFrameworkMeta.label})</span>
+                            <span>Synthesizing Agent Blueprint ({activeFrameworkMeta.label})</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-[10px] font-mono bg-surface-container text-foreground border-border py-0.5 px-2 flex items-center gap-1.5">
                               <span className="font-bold">⏱ {elapsedSeconds.toFixed(1)}s</span>
-                              <span className="text-muted-foreground font-normal">• {getEstimatedDuration(elapsedSeconds)}</span>
+                              <span className="text-muted-foreground font-normal">• Est. ~25s</span>
                             </Badge>
                             <Button
                               variant="ghost"
                               size="xs"
                               onClick={handleCancel}
-                              className="h-6 px-2 text-[11px] font-medium text-destructive hover:bg-destructive/10 border border-destructive/20 uppercase tracking-wider gap-1"
+                              className="h-6 px-2 text-[11px] font-medium text-destructive hover:bg-destructive/10 border border-destructive/20 uppercase tracking-wider gap-1 cursor-pointer"
                             >
                               <Square className="size-2.5 fill-current" />
                               Cancel
@@ -1716,88 +1552,56 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                           </div>
                         </div>
 
-                        {/* Multi-step Status Line */}
-                        <div className="p-2.5 rounded-none bg-surface-container-low border border-border space-y-2.5">
-                          <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground border-b border-border/40 pb-1.5">
-                            <span className="font-semibold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                              <Layers className="size-3 text-[#a03e3d]" /> Synthesis Pipeline
-                            </span>
-                            <span className="text-foreground font-bold">{currentLiveProgress}% Complete</span>
-                          </div>
-                          
-                          {/* Interactive Status Chain */}
-                          <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] font-mono">
-                            {GENERATION_STEPS.map((step, idx) => {
-                              const isPast = getStepOrder(generationStage) > idx;
-                              const isCurrent = generationStage === step.id;
-                              return (
-                                <React.Fragment key={step.id}>
-                                  <div className={cn(
-                                    "flex items-center gap-1 transition-none py-0.5 px-1.5 rounded-none",
-                                    isCurrent && "bg-primary text-primary-foreground font-bold",
-                                    isPast && "text-[#1f2f00] font-medium",
-                                    !isCurrent && !isPast && "text-muted-foreground/60"
-                                  )}>
-                                    {isPast ? (
-                                      <Check className="size-3 text-[#1f2f00] shrink-0 stroke-[2.5]" />
-                                    ) : isCurrent ? (
-                                      <span className="size-2 rounded-full bg-white animate-pulse shrink-0" />
-                                    ) : (
-                                      <span className="size-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-                                    )}
-                                    <span>{step.label}</span>
-                                  </div>
-                                  {idx < GENERATION_STEPS.length - 1 && (
-                                    <span className={cn(
-                                      "text-[10px]",
-                                      isPast ? "text-[#1f2f00]" : isCurrent ? "text-primary font-bold" : "text-muted-foreground/30"
-                                    )}>→</span>
-                                  )}
-                                </React.Fragment>
-                              );
-                            })}
-                          </div>
-
-                          {/* Live Detailed Stage Subtext */}
-                          <div className="pt-1.5 border-t border-border/30 space-y-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-1.5 text-[11px] text-foreground font-medium truncate">
-                                <span className="size-2 rounded-full bg-[#a03e3d] animate-ping shrink-0" />
-                                <span className="truncate">{currentLiveMessage}</span>
-                              </div>
-                              <span className="text-[10px] font-mono text-muted-foreground shrink-0 hidden sm:inline">
-                                Live Inspector Sync
-                              </span>
-                            </div>
-
-                            {/* Secondary Telemetry & Model Details */}
-                            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground pt-0.5">
-                              <div className="flex items-center gap-2">
-                                <span>Engine: <strong className="text-foreground font-mono">{currentModelId.replace(/^.*\//, '')}</strong></span>
-                                <span>•</span>
-                                <span>Harness: <strong className="text-foreground">{activeFrameworkMeta.shortLabel}</strong></span>
-                              </div>
-                              <span className="text-foreground font-medium">{elapsedSeconds.toFixed(1)}s elapsed</span>
-                            </div>
-                          </div>
-
-                          {/* Informative Note for prolonged generation (over 20 seconds) */}
-                          {elapsedSeconds > 20 && (
-                            <div className="p-2 border border-border bg-surface-container text-[10px] font-mono text-muted-foreground flex items-center gap-2 leading-relaxed">
-                              <Clock className="size-3.5 text-[#a03e3d] shrink-0" />
-                              <span>
-                                Deep multi-file synthesis is generating full specifications (SOUL.md, RULES.md, MANIFEST, and tool parameters). Complex blueprints typically take 45–90s.
-                              </span>
-                            </div>
-                          )}
+                        {/* Indeterminate Animated Progress Track (Truthful - no fake percentages) */}
+                        <div className="w-full h-1.5 bg-muted rounded-none overflow-hidden relative">
+                          <div 
+                            className="h-full bg-primary animate-pulse" 
+                            style={{ 
+                              width: '100%', 
+                              opacity: 0.85 
+                            }} 
+                          />
                         </div>
 
-                        {/* Progress Bar with animated track */}
-                        <div className="w-full h-1.5 bg-muted rounded-none overflow-hidden">
-                          <div 
-                            className="h-full bg-primary transition-all duration-300"
-                            style={{ width: `${currentLiveProgress}%` }}
-                          />
+                        {/* Real Backend Lifecycle Events Box */}
+                        <div className="p-3 rounded-none bg-surface-container-low border border-border space-y-2.5">
+                          <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground border-b border-border/40 pb-1.5">
+                            <span className="font-semibold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                              <Layers className="size-3 text-[#a03e3d]" /> Backend Lifecycle Event
+                            </span>
+                            <span className="text-foreground font-bold font-mono">
+                              STATUS: {generationStage.toUpperCase()}
+                            </span>
+                          </div>
+                          
+                          {/* Live Event Status Line */}
+                          <div className="flex items-center gap-2 text-[11px] text-foreground font-medium py-1">
+                            <span className="size-2 rounded-full bg-[#a03e3d] animate-ping shrink-0" />
+                            <span className="truncate">{currentLiveMessage}</span>
+                          </div>
+
+                          {/* Secondary Telemetry & Model Details */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground pt-1.5 border-t border-border/30">
+                            <div className="flex items-center gap-2">
+                              <span>Builder Model: <strong className="text-foreground font-mono">{currentModelId.replace(/^.*\//, '')}</strong></span>
+                              <span>•</span>
+                              <span>Runtime: <strong className="text-foreground">{activeFrameworkMeta.label}</strong></span>
+                            </div>
+                            <span className="text-foreground font-mono font-medium">{elapsedSeconds.toFixed(1)}s elapsed</span>
+                          </div>
+
+                          {/* Truthful Notice when exceeding typical estimated duration (> 25s) */}
+                          {isLongRunning && (
+                            <div className="p-2.5 border border-amber-500/40 bg-amber-500/10 text-amber-950 dark:text-amber-200 text-[11px] font-sans flex items-start gap-2 leading-relaxed">
+                              <AlertCircle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+                              <div className="space-y-0.5">
+                                <div className="font-bold">Generation is taking longer than typical estimate (~25s)</div>
+                                <div className="text-[10px] text-amber-900/90 dark:text-amber-200/90">
+                                  Extended model reasoning and multi-file token generation are in progress. You can wait or cancel safely without corrupting the committed workspace.
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -2142,14 +1946,21 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
                 </div>
               )}
 
-              {m.timestamp && !m.isAuditLog && (
-                <div className={cn(
-                  "text-[9px] font-mono text-muted-foreground uppercase px-1",
-                  m.role === 'user' ? "text-right" : "text-left"
-                )}>
-                  {m.timestamp}
-                </div>
-              )}
+              <div className={cn(
+                "flex items-center gap-2 px-1 pt-0.5",
+                m.role === 'user' ? "justify-end" : "justify-start"
+              )}>
+                {m.targetFramework && m.targetFramework !== activeFramework && (
+                  <Badge variant="outline" className="text-[9px] font-mono text-muted-foreground border-border bg-muted/40 py-0 px-1.5">
+                    Historical ({m.targetFrameworkLabel || m.targetFramework})
+                  </Badge>
+                )}
+                {m.timestamp && !m.isAuditLog && (
+                  <div className="text-[9px] font-mono text-muted-foreground uppercase">
+                    {m.timestamp}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ))}

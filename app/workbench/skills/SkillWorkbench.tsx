@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSkillWorkbench } from '../../context/SkillWorkbenchContext';
 import { useAgentWorkspace } from '../../context/AgentContext';
 import { SkillDefinition, ParsedSkill } from '../../../lib/gitagent/types';
@@ -18,6 +19,7 @@ import {
   ListChecks, 
   FileText, 
   ChevronRight, 
+  ChevronLeft,
   Search, 
   Download, 
   ArrowRight, 
@@ -42,7 +44,8 @@ import { cn } from '../../../lib/utils';
 
 export function SkillWorkbench() {
   const { state, createSkill, updateSkill, setActiveSkill, deleteSkill } = useSkillWorkbench();
-  const { dispatch: agentDispatch } = useAgentWorkspace();
+  const { state: agentState, dispatch: agentDispatch } = useAgentWorkspace();
+  const navigate = useNavigate();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [topTab, setTopTab] = useState<'my-skills' | 'blueprints' | 'import'>('my-skills');
@@ -77,7 +80,7 @@ export function SkillWorkbench() {
       }
     });
     setAddedFeedback(true);
-    setTimeout(() => setAddedFeedback(false), 2000);
+    setTimeout(() => setAddedFeedback(false), 3000);
   };
 
   const handleImportSkill = (skill: ParsedSkill) => {
@@ -116,15 +119,29 @@ export function SkillWorkbench() {
       {/* Top Header Bar */}
       <div className="h-14 border-b border-border/80 bg-card/60 backdrop-blur-md px-5 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3">
+          <Button 
+            variant="outline" 
+            size="xs" 
+            onClick={() => navigate('/workbench/agent?tab=capabilities')}
+            className="h-7 text-xs font-mono gap-1 text-foreground hover:bg-muted cursor-pointer"
+          >
+            <ChevronLeft className="size-3.5" /> Back to Agent Capabilities
+          </Button>
+
+          <div className="h-5 w-px bg-border/80" />
+
           <div className="size-8 rounded-sm bg-primary/10 text-primary flex items-center justify-center terracotta-glow-sm shrink-0">
             <Zap className="size-4.5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-bold text-sm tracking-tight text-foreground">Skill Workbench</h1>
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-primary px-1.5 py-0.2 bg-primary/10 rounded-sm">
-                STANDALONE
-              </span>
+              <Badge variant="outline" className="text-[10px] font-mono">
+                Reusable Library: {state.skills.length}
+              </Badge>
+              <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground">
+                Agent Attached: {agentState.skillsList?.length || 0}
+              </Badge>
             </div>
             <p className="text-[10px] font-mono text-muted-foreground">Modular tools, instructions & execution scripts</p>
           </div>
@@ -206,6 +223,7 @@ export function SkillWorkbench() {
               {filteredSkills.map((s) => {
                 const isActive = activeSkill?.id === s.id;
                 const toolCount = s.allowedTools?.length || 0;
+                const isAttached = agentState.skillsList?.some(item => item.name.toLowerCase() === s.name.toLowerCase());
 
                 return (
                   <div
@@ -218,11 +236,18 @@ export function SkillWorkbench() {
                         : "bg-transparent border-transparent hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs truncate max-w-[140px] text-foreground">{s.name}</span>
-                      <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 uppercase text-primary border-primary/30">
-                        {s.metadata?.version || '1.0.0'}
-                      </Badge>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-xs truncate max-w-[120px] text-foreground">{s.name}</span>
+                      <div className="flex items-center gap-1">
+                        {isAttached && (
+                          <Badge variant="green" className="text-[7px] py-0 px-1 font-mono">
+                            ATTACHED
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 uppercase text-primary border-primary/30">
+                          {s.metadata?.version || '1.0.0'}
+                        </Badge>
+                      </div>
                     </div>
 
                     <p className="text-[10px] text-muted-foreground line-clamp-1 leading-relaxed">
@@ -378,17 +403,24 @@ export function SkillWorkbench() {
 
                 {/* Actions */}
                 <div className="space-y-2 pt-2">
+                  {addedFeedback && (
+                    <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-mono flex items-center gap-1.5 leading-relaxed">
+                      <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                      <span>Attached deep copy to agent. Edits to either version remain safely isolated.</span>
+                    </div>
+                  )}
+
                   <Button 
                     variant="primary"
-                    className="w-full h-8.5 rounded-none font-semibold text-xs shadow-xs flex items-center justify-center gap-2"
+                    className="w-full h-8.5 rounded-none font-semibold text-xs shadow-xs flex items-center justify-center gap-2 cursor-pointer"
                     onClick={handleAddSkillToAgent}
                   >
-                    <Zap className="size-3.5" /> Attach to Agent Workspace
+                    <Zap className="size-3.5" /> Attach Copy to Agent Workspace
                   </Button>
 
                   <Button 
                     variant="destructive"
-                    className="w-full h-8 rounded-none text-xs font-semibold shadow-xs flex items-center justify-center gap-2"
+                    className="w-full h-8 rounded-none text-xs font-semibold shadow-xs flex items-center justify-center gap-2 cursor-pointer"
                     onClick={() => deleteSkill(activeSkill.id)}
                   >
                     <Trash2 className="size-3.5" /> Delete Skill

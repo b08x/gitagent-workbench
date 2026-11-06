@@ -26,6 +26,8 @@ import {
   CheckCircle2,
   ShieldCheck
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import { AGENT_FRAMEWORK_TOOLS, AGENT_FRAMEWORK_OPTIONS, AgentFramework } from '../../lib/gitagent/constants';
 import { cn, formatErrorMessage } from '../../lib/utils';
 
 interface Message {
@@ -78,6 +80,53 @@ export function ChatWorkbench() {
       fetchError: null
     };
   });
+
+  const activeFramework: AgentFramework = (state.targetFramework as AgentFramework) || 'hermes_agent';
+  const activeFrameworkMeta = AGENT_FRAMEWORK_OPTIONS.find(f => f.id === activeFramework) || AGENT_FRAMEWORK_OPTIONS[0];
+  const frameworkAllowedTools = useMemo(() => AGENT_FRAMEWORK_TOOLS[activeFramework] || [], [activeFramework]);
+
+  const assignedTools = useMemo(() => {
+    const list: string[] = [];
+    if (state.manifest?.tools) {
+      if (Array.isArray(state.manifest.tools)) {
+        list.push(...state.manifest.tools);
+      } else if (typeof state.manifest.tools === 'object') {
+        list.push(...Object.keys(state.manifest.tools));
+      }
+    }
+    (state.skillsList || []).forEach(skill => {
+      const toolTokens = Array.isArray(skill.allowedTools) 
+        ? skill.allowedTools 
+        : (typeof skill.allowedTools === 'string' ? skill.allowedTools.split(' ').filter(Boolean) : []);
+      toolTokens.forEach((t: string) => {
+        if (!list.includes(t)) list.push(t);
+      });
+    });
+    return Array.from(new Set(list));
+  }, [state.manifest, state.skillsList]);
+
+  const deterministicCapabilities = useMemo(() => {
+    const allTools = Array.from(new Set([...assignedTools, ...toolAudit.claims.map(c => c.claim)]));
+    return allTools.map(tName => {
+      const isAssigned = assignedTools.includes(tName);
+      const isCompatible = frameworkAllowedTools.map(t => t.toLowerCase()).includes(tName.toLowerCase());
+      return {
+        name: tName,
+        assigned: isAssigned,
+        compatible: isCompatible,
+        testLabScope: 'Simulated in prompt only',
+        executionStatus: 'Not tested'
+      };
+    });
+  }, [assignedTools, toolAudit, frameworkAllowedTools]);
+
+  const configuredRuntimeModel = state.modelConfig?.preferred || 'claude-sonnet-4-5 (Default)';
+  const builderModel = `${settings.taskModels.architect?.providerId || 'google'} / ${settings.taskModels.architect?.modelId || 'gemini-3.7-flash'}`;
+  const isModelMismatch = Boolean(
+    state.modelConfig?.preferred && 
+    !state.modelConfig.preferred.includes(chatModel.modelId) && 
+    !chatModel.modelId.includes(state.modelConfig.preferred)
+  );
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -332,7 +381,7 @@ export function ChatWorkbench() {
           <div className="flex items-center gap-2 truncate">
             <h1 className="font-bold text-sm tracking-tight text-foreground">Agent Test Lab</h1>
             <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-primary px-1.5 py-0.2 bg-primary/10 rounded-sm">
-              LIVE RUNTIME
+              SIMULATED EVALUATION
             </span>
           </div>
         </div>
@@ -372,7 +421,7 @@ export function ChatWorkbench() {
             size="sm" 
             onClick={handleReset}
             disabled={messages.length === 0}
-            className="text-xs"
+            className="text-xs cursor-pointer"
           >
             <RotateCcw className="size-3.5 mr-1" /> Reset
           </Button>
@@ -381,7 +430,7 @@ export function ChatWorkbench() {
             variant="ghost" 
             size="sm" 
             onClick={() => setShowSystemPrompt(!showSystemPrompt)}
-            className={cn("text-xs font-mono", showSystemPrompt && "bg-muted/80 text-foreground")}
+            className={cn("text-xs font-mono cursor-pointer", showSystemPrompt && "bg-muted/80 text-foreground")}
           >
             <Terminal className="size-3.5 mr-1 text-primary" />
             Prompt ({Math.round(assembledPrompt.length / 4)} tok)
@@ -389,20 +438,38 @@ export function ChatWorkbench() {
         </div>
       </div>
 
+      {/* Truthful Evaluation Scope Disclaimer Banner */}
+      <div className="bg-amber-500/10 border-b border-amber-500/30 px-5 py-2 text-[11px] flex flex-wrap items-center justify-between gap-2 text-amber-950 dark:text-amber-200 shrink-0">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="size-3.5 text-amber-600 shrink-0" />
+          <span>
+            <strong>Evaluation Scope:</strong> Simulated Prompt-Response Evaluation. Evaluates prompt triggers, instructions, tone, and guardrails. Does not execute live system or cloud sandbox tools.
+          </span>
+        </div>
+        <span className="font-mono text-[10px] text-amber-900/80 dark:text-amber-300/80">
+          Assistant tool claims in prose ≠ Verified executable access
+        </span>
+      </div>
+
       {/* Explicit Model Roles & Pre-Flight Tool Access Bar */}
-      <div className="h-10 border-b border-border bg-muted/40 px-5 flex items-center justify-between text-[11px] font-mono shrink-0 select-none">
-        <div className="flex items-center gap-3 truncate">
+      <div className="border-b border-border bg-muted/40 px-5 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono shrink-0 select-none">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="text-muted-foreground">
-            TEST RUNNER: <strong className="text-foreground font-bold">{chatModel.modelId}</strong>
+            BUILDER MODEL: <strong className="text-foreground font-bold">{builderModel}</strong>
           </span>
           <span className="text-border">|</span>
-          <span className="text-muted-foreground hidden md:inline">
-            SPEC TARGET: <strong className="text-foreground font-bold">{state.modelConfig?.preferred?.replace(/^.*\//, '') || 'claude-sonnet-4-5'}</strong>
+          <span className="text-muted-foreground">
+            RUNTIME SPEC: <strong className="text-foreground font-bold">{configuredRuntimeModel}</strong>
           </span>
-          <span className="text-border hidden md:inline">|</span>
-          <span className="text-muted-foreground hidden lg:inline">
-            SCOPES: <strong className="text-foreground font-bold">{globalSkillsCount} Global / {taskSkillsCount} Task</strong>
+          <span className="text-border">|</span>
+          <span className="text-muted-foreground">
+            TEST RUNNER: <strong className="text-foreground font-bold">{chatModel.providerId.toUpperCase()} ({chatModel.modelId})</strong>
           </span>
+          {isModelMismatch && (
+            <Badge variant="amber" className="text-[10px] gap-1 font-mono">
+              Model Divergence (Testing with {chatModel.modelId})
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -412,7 +479,7 @@ export function ChatWorkbench() {
             </Badge>
           ) : (
             <Badge variant="green" className="text-[10px] gap-1">
-              <ShieldCheck className="size-3 text-[#1f6a38]" /> {toolAudit.verifiedCount} Tools Verified
+              <ShieldCheck className="size-3 text-[#1f6a38]" /> {toolAudit.verifiedCount} Tools Compatible
             </Badge>
           )}
 
@@ -420,42 +487,87 @@ export function ChatWorkbench() {
             variant="ghost"
             size="xs"
             onClick={() => setShowToolAudit(!showToolAudit)}
-            className={cn("text-[10px] font-mono h-6 px-2 gap-1 border border-border", showToolAudit && "bg-muted text-foreground font-bold")}
+            className={cn("text-[10px] font-mono h-6 px-2 gap-1 border border-border cursor-pointer", showToolAudit && "bg-muted text-foreground font-bold")}
           >
-            Tool Claims Audit {showToolAudit ? '▲' : '▼'}
+            Deterministic Capability Panel {showToolAudit ? '▲' : '▼'}
           </Button>
         </div>
       </div>
 
-      {/* Tool Claims Audit Drawer / Banner */}
+      {/* Deterministic Capability Panel Drawer */}
       {showToolAudit && (
-        <div className="border-b border-border bg-card p-3 font-mono text-xs space-y-2 animate-in slide-in-from-top-2">
-          <div className="flex items-center justify-between">
-            <span className="font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-              <ShieldCheck className="size-3.5 text-primary" /> Active Tool Claims vs Verified Runtime Access ({toolAudit.frameworkLabel})
-            </span>
+        <div className="border-b border-border bg-card p-4 font-mono text-xs space-y-3 animate-in slide-in-from-top-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-border">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-primary" />
+              <span className="font-bold uppercase tracking-wider text-foreground text-xs">
+                Deterministic Workspace Capability Matrix ({activeFrameworkMeta.label})
+              </span>
+            </div>
             <span className="text-muted-foreground text-[10px]">
-              {toolAudit.verifiedCount} verified • {toolAudit.unmappedCount} unmapped
+              {assignedTools.length} assigned in spec • {toolAudit.verifiedCount} runtime compatible • {toolAudit.unmappedCount} unmapped
             </span>
           </div>
 
-          {toolAudit.unmappedCount > 0 && (
-            <div className="p-2 bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-[11px] font-sans">
-              <strong>Pre-Test Notice:</strong> {toolAudit.unmappedCount} tool claims cannot be executed in this harness. Invoking them will result in simulated refusals.
-            </div>
-          )}
+          <div className="p-2 bg-muted/40 border border-border text-[11px] font-sans text-muted-foreground leading-relaxed">
+            <strong>Truthful Verification Standard:</strong> Assistant model responses to &ldquo;What tools do you have?&rdquo; are generated prose, not executable access. The table below represents the true deterministic capabilities derived from the workspace configuration.
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-36 overflow-y-auto">
-            {toolAudit.claims.map((claim, i) => (
-              <div key={i} className="p-1.5 bg-background border border-border text-[10px] flex items-center justify-between">
-                <span className="truncate font-bold">`{claim.claim}`</span>
-                {claim.status === 'verified' ? (
-                  <Badge variant="green" className="text-[8px] py-0 px-1">VERIFIED</Badge>
+          <div className="border border-border rounded-sm overflow-hidden">
+            <table className="w-full text-left border-collapse text-[11px] font-mono">
+              <thead>
+                <tr className="bg-muted/60 border-b border-border text-muted-foreground text-[10px] uppercase tracking-wider">
+                  <th className="py-1.5 px-3">Tool Name</th>
+                  <th className="py-1.5 px-3">Assigned in Spec</th>
+                  <th className="py-1.5 px-3">{activeFrameworkMeta.shortLabel} Support</th>
+                  <th className="py-1.5 px-3">Test Lab Scope</th>
+                  <th className="py-1.5 px-3">Verified Execution</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {deterministicCapabilities.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-3 px-3 text-center text-muted-foreground italic font-sans">
+                      No tools assigned in workspace or detected in active skills.
+                    </td>
+                  </tr>
                 ) : (
-                  <Badge variant="amber" className="text-[8px] py-0 px-1">UNMAPPED</Badge>
+                  deterministicCapabilities.map((cap, i) => (
+                    <tr key={i} className="hover:bg-muted/30">
+                      <td className="py-1.5 px-3 font-bold text-foreground">`{cap.name}`</td>
+                      <td className="py-1.5 px-3">
+                        {cap.assigned ? (
+                          <Badge variant="outline" className="text-[9px] bg-primary/10 text-primary border-primary/30">
+                            ASSIGNED
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-[10px]">Not in spec</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 px-3">
+                        {cap.compatible ? (
+                          <Badge variant="green" className="text-[9px]">
+                            COMPATIBLE
+                          </Badge>
+                        ) : (
+                          <Badge variant="amber" className="text-[9px]">
+                            UNMAPPED
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-1.5 px-3 text-muted-foreground text-[10px]">
+                        {cap.testLabScope}
+                      </td>
+                      <td className="py-1.5 px-3">
+                        <Badge variant="outline" className="text-[9px] bg-muted text-muted-foreground border-border">
+                          {cap.executionStatus}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))
                 )}
-              </div>
-            ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -624,6 +736,29 @@ export function ChatWorkbench() {
                           )}
                         </div>
                       )
+                    ) : m.role === 'assistant' ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed font-sans break-words space-y-1.5">
+                        <ReactMarkdown
+                          components={{
+                            code({ className, children, ...props }) {
+                              return (
+                                <code className={cn("px-1 py-0.5 rounded bg-muted font-mono text-[11px] text-foreground border border-border/40", className)} {...props}>
+                                  {children}
+                                </code>
+                              );
+                            },
+                            pre({ children }) {
+                              return (
+                                <pre className="p-2.5 rounded bg-muted/80 font-mono text-[11px] overflow-x-auto text-foreground border border-border/80 my-2">
+                                  {children}
+                                </pre>
+                              );
+                            }
+                          }}
+                        >
+                          {m.content}
+                        </ReactMarkdown>
+                      </div>
                     ) : (
                       <div className="whitespace-pre-wrap">{m.content}</div>
                     )}

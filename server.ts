@@ -807,90 +807,54 @@ async function startServer() {
 
     const userText = extractUserPromptText(prompt);
     const framework = (targetFramework || options?.targetFramework || 'hermes_agent') as any;
+    const FRAMEWORK_LABELS: Record<string, string> = {
+      hermes_agent: 'Hermes Agent',
+      claude_code: 'Claude Code',
+      google_antigravity: 'Google Antigravity',
+      mistral_vibe: 'Mistral Vibe'
+    };
+    const frameworkLabel = FRAMEWORK_LABELS[framework] || framework;
 
-    // Stage 1: Intent & Runtime analysis
-    sendEvent('stage', {
-      stage: 'intent',
-      label: `Parsing intent & runtime constraints (${framework})...`,
-      progress: 15
+    // Stage 1: Truthful lifecycle event - Preparing
+    sendEvent('status', {
+      stage: 'preparing',
+      label: `Parsing intent & runtime constraints for ${frameworkLabel}...`
     });
 
-    // Synthesize structured baseline specification for immediate interim streaming
+    // Synthesize structured baseline specification (used as fallback or for bounded edit detection)
     const baseSpec = synthesizeAgentSpec(userText || 'Specialist Agent', '', framework, existingAgent);
 
-    // Stage 2: Manifest metadata
-    sendEvent('partial', {
-      stage: 'manifest',
-      label: `Drafting manifest metadata for ${baseSpec.manifest.name}...`,
-      progress: 35,
-      data: {
-        manifest: {
-          name: baseSpec.manifest.name,
-          description: baseSpec.manifest.description,
-          version: baseSpec.manifest.version || '1.0.0',
-          compliance: baseSpec.manifest.compliance
-        }
-      }
+    // If prompt is a bounded edit, return immediately
+    if (baseSpec.isFieldPatch) {
+      sendEvent('status', {
+        stage: 'validating',
+        label: `Validated bounded edit patch for ${baseSpec.manifest?.name || 'agent'}`
+      });
+      sendEvent('complete', { object: baseSpec });
+      return res.end();
+    }
+
+    // Stage 2: Truthful lifecycle event - Executing model query
+    sendEvent('status', {
+      stage: 'generating',
+      label: `Deep LLM synthesis in progress with ${cleanModelId} (${providerId})...`
     });
 
-    // Stage 3: Identity & Soul
-    sendEvent('partial', {
-      stage: 'soul',
-      label: 'Composing Identity & Soul (SOUL.md)...',
-      progress: 60,
-      data: {
-        soul: baseSpec.soul
-      }
-    });
-
-    // Stage 4: Operational Rules
-    sendEvent('partial', {
-      stage: 'rules',
-      label: 'Establishing operational boundaries (RULES.md)...',
-      progress: 80,
-      data: {
-        rules: baseSpec.rules
-      }
-    });
-
-    // Stage 5: Domain Skills & Matrix Mapping
-    sendEvent('partial', {
-      stage: 'skills',
-      label: `Mapping domain skills and tools to ${framework} matrix...`,
-      progress: 92,
-      data: {
-        skills: baseSpec.skills
-      }
-    });
-
-    // Execute LLM for refined specification if API key is present
     let finalSpec = baseSpec;
     if (apiKey) {
-      let heartbeatCount = 0;
-      const heartbeatStages = [
-        { label: `Synthesizing deep instructions & persona values for ${framework}...`, progress: 94 },
-        { label: `Formulating operational boundaries, safety invariants, and constraints (RULES.md)...`, progress: 95 },
-        { label: `Mapping executable tool signatures and schema definitions to ${framework} runtime...`, progress: 96 },
-        { label: `Executing deep reasoning pass for domain skills and parameter contracts...`, progress: 97 },
-        { label: `Validating output schema against ${framework} agent harness matrix...`, progress: 98 },
-        { label: `Compiling multi-document injection slots (MANIFEST, SOUL, RULES)...`, progress: 98 },
-        { label: `Deep LLM generation in progress: parsing structured specification tokens...`, progress: 99 },
-        { label: `Finalizing specification integrity checks and preparing live workspace...`, progress: 99 },
-      ];
-
+      const startTime = Date.now();
       const heartbeatInterval = setInterval(() => {
         if (res.writableEnded || res.destroyed) {
           clearInterval(heartbeatInterval);
           return;
         }
-        heartbeatCount++;
-        const item = heartbeatStages[Math.min(heartbeatCount - 1, heartbeatStages.length - 1)];
-        sendEvent('stage', {
-          stage: 'finalizing',
-          label: item.label,
-          progress: item.progress
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        sendEvent('keepalive', {
+          stage: 'generating',
+          label: `Extended synthesis in progress with ${cleanModelId} (${elapsed}s elapsed)...`,
+          elapsedSeconds: elapsed
         });
-      }, 4500);
+      }, 5000);
 
       req.on('close', () => {
         clearInterval(heartbeatInterval);
@@ -937,6 +901,11 @@ async function startServer() {
         console.warn("Stream LLM refinement fell back to built-in synthesis:", e.message);
       }
     }
+
+    sendEvent('status', {
+      stage: 'validating',
+      label: `Validating specification schema against ${frameworkLabel} harness...`
+    });
 
     sendEvent('complete', {
       stage: 'done',

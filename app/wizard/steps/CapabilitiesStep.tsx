@@ -41,7 +41,10 @@ import {
   RefreshCw,
   Eye,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Save,
+  ArrowRight,
+  X
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -63,7 +66,7 @@ const toKebabCase = (str: string) => {
 
 export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<string, string> }) {
   const { state, dispatch } = useAgentWorkspace();
-  const { state: workbenchState } = useSkillWorkbench();
+  const { state: workbenchState, createSkill, updateSkill } = useSkillWorkbench();
   const navigate = useNavigate();
 
   const [loadingSkills, setLoadingSkills] = useState<Record<number, boolean>>({});
@@ -71,6 +74,9 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
   const [showAllTools, setShowAllTools] = useState(false);
   const [showMatrixModal, setShowMatrixModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showAttachLibraryModal, setShowAttachLibraryModal] = useState(false);
+  const [collisionSkill, setCollisionSkill] = useState<SkillEntry | null>(null);
+  const [libraryToast, setLibraryToast] = useState<string | null>(null);
   const [expandedToolsSkill, setExpandedToolsSkill] = useState<number | null>(null);
 
   // Active framework is the persisted agent specification setting
@@ -246,6 +252,91 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
     };
 
     updateSkills([...state.skillsList, newSkill]);
+  };
+
+  const handleSaveToLibrary = (skill: SkillEntry) => {
+    if (!skill.name.trim()) return;
+    const existing = workbenchState.skills.find(s => s.name.toLowerCase() === skill.name.toLowerCase());
+    if (existing) {
+      setCollisionSkill(skill);
+      return;
+    }
+
+    const newId = createSkill();
+    updateSkill(newId, {
+      name: skill.name,
+      description: skill.description || '',
+      instructions: skill.instructions || '',
+      allowedTools: (skill.allowedTools || '').split(' ').filter(Boolean),
+      metadata: {
+        category: skill.category || 'general',
+        version: '1.0.0',
+        author: state.manifest?.name || 'Agent Architect'
+      }
+    });
+
+    setLibraryToast(`Saved "${skill.name}" to Reusable Skill Library`);
+    setTimeout(() => setLibraryToast(null), 3000);
+  };
+
+  const handleResolveCollisionOverwrite = () => {
+    if (!collisionSkill) return;
+    const existing = workbenchState.skills.find(s => s.name.toLowerCase() === collisionSkill.name.toLowerCase());
+    if (existing) {
+      updateSkill(existing.id, {
+        name: collisionSkill.name,
+        description: collisionSkill.description || existing.description,
+        instructions: collisionSkill.instructions || existing.instructions,
+        allowedTools: (collisionSkill.allowedTools || '').split(' ').filter(Boolean),
+        metadata: {
+          ...existing.metadata,
+          category: collisionSkill.category || existing.metadata?.category || 'general'
+        }
+      });
+      setLibraryToast(`Overwrote "${collisionSkill.name}" in Reusable Skill Library`);
+      setTimeout(() => setLibraryToast(null), 3000);
+    }
+    setCollisionSkill(null);
+  };
+
+  const handleResolveCollisionRename = () => {
+    if (!collisionSkill) return;
+    const copyName = `${collisionSkill.name}-copy`;
+    const newId = createSkill();
+    updateSkill(newId, {
+      name: copyName,
+      description: collisionSkill.description || '',
+      instructions: collisionSkill.instructions || '',
+      allowedTools: (collisionSkill.allowedTools || '').split(' ').filter(Boolean),
+      metadata: {
+        category: collisionSkill.category || 'general',
+        version: '1.0.0',
+        author: state.manifest?.name || 'Agent Architect'
+      }
+    });
+    setLibraryToast(`Saved as copy "${copyName}" in Reusable Skill Library`);
+    setTimeout(() => setLibraryToast(null), 3000);
+    setCollisionSkill(null);
+  };
+
+  const handleAttachFromLibrary = (skillDef: any) => {
+    const tools = skillDef.allowedTools && Array.isArray(skillDef.allowedTools) 
+      ? skillDef.allowedTools.join(' ') 
+      : (skillDef.allowedTools || '');
+    
+    const newSkill: SkillEntry = {
+      name: skillDef.name,
+      description: skillDef.description || '',
+      instructions: skillDef.instructions || '',
+      category: (skillDef.metadata?.category as any) || 'general',
+      allowedTools: tools,
+      scope: 'global'
+    };
+
+    updateSkills([...state.skillsList, newSkill]);
+    setLibraryToast(`Attached "${skillDef.name}" to agent`);
+    setTimeout(() => setLibraryToast(null), 3000);
+    setShowAttachLibraryModal(false);
   };
 
   const updateKnowledge = (newDocs: typeof state.knowledgeDocs) => {
@@ -482,15 +573,54 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
             </div>
 
             <div className="lg:col-span-2 space-y-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Agent Capabilities</Label>
+              {libraryToast && (
+                <div className="p-2.5 bg-primary/10 border border-primary/30 text-primary text-xs font-mono rounded-sm flex items-center justify-between animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <Check className="size-3.5" />
+                    <span>{libraryToast}</span>
+                  </div>
+                  <Button variant="ghost" size="xs" onClick={() => setLibraryToast(null)} className="h-5 px-1">
+                    <X className="size-3" />
+                  </Button>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-1 border-b border-border/60">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-foreground">Agent Capabilities</Label>
+                  <Badge variant="outline" className="text-[10px] font-mono bg-muted/40">
+                    Agent Attached: {state.skillsList.length}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground bg-muted/20">
+                    Reusable Library: {availableWorkbenchSkills.length}
+                  </Badge>
+                </div>
+
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Show all tools:</span>
-                  <Switch 
-                    checked={showAllTools} 
-                    onCheckedChange={setShowAllTools} 
-                    className="scale-75" 
-                  />
+                  <Button 
+                    variant="outline" 
+                    size="xs" 
+                    onClick={() => setShowAttachLibraryModal(true)}
+                    className="h-7 text-xs font-mono gap-1 cursor-pointer"
+                  >
+                    <Library className="size-3 text-primary" /> Attach from Library...
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    size="xs" 
+                    onClick={addSkill}
+                    className="h-7 text-xs font-mono gap-1 cursor-pointer"
+                  >
+                    <Plus className="size-3" /> Add Skill
+                  </Button>
+                  <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-border">
+                    <span className="text-[11px] text-muted-foreground">Show all tools:</span>
+                    <Switch 
+                      checked={showAllTools} 
+                      onCheckedChange={setShowAllTools} 
+                      className="scale-75" 
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -499,11 +629,16 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                   <Zap className="h-12 w-12 text-muted-foreground/20 mx-auto" />
                   <div className="space-y-1">
                     <p className="font-medium">No skills assigned to agent</p>
-                    <p className="text-sm text-muted-foreground">Import from workbench or create a draft below.</p>
+                    <p className="text-sm text-muted-foreground">Attach from your reusable library or create an agent-specific draft below.</p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={addSkill}>
-                    <Plus className="mr-2 h-4 w-4" /> Create Draft Skill
-                  </Button>
+                  <div className="flex items-center justify-center gap-2 pt-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowAttachLibraryModal(true)}>
+                      <Library className="mr-1.5 h-3.5 w-3.5 text-primary" /> Attach from Library...
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={addSkill}>
+                      <Plus className="mr-1.5 h-3.5 w-3.5" /> Create Draft Skill
+                    </Button>
+                  </div>
                 </div>
               )}
               
@@ -522,16 +657,27 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
                   });
 
                   return (
-                    <Card key={index} className="relative overflow-hidden group">
+                    <Card key={index} className="relative overflow-hidden group border border-border">
                       <CardContent className="pt-6 space-y-4">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="absolute top-2 right-2 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => removeSkill(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                          <Button 
+                            variant="outline" 
+                            size="xs" 
+                            className="h-6 px-2 text-[10px] font-mono gap-1 border-border text-foreground hover:bg-muted cursor-pointer"
+                            onClick={() => handleSaveToLibrary(skill)}
+                            title="Save deep copy to Reusable Skill Library"
+                          >
+                            <Save className="size-3 text-primary" /> Save to Library
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive cursor-pointer"
+                            onClick={() => removeSkill(index)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div className="grid gap-1.5">
@@ -1016,6 +1162,130 @@ export function CapabilitiesStep({ fieldErrors = {} }: { fieldErrors?: Record<st
             </Button>
             <Button variant="default" size="sm" onClick={handleConfirmHarnessSwitch} className="gap-1.5 font-semibold">
               <Check className="h-3.5 w-3.5" /> Confirm & Apply {previewFrameworkMeta.shortLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Attach from Library Modal */}
+      <Dialog open={showAttachLibraryModal} onOpenChange={setShowAttachLibraryModal}>
+        <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Library className="h-5 w-5 text-primary" />
+              Attach Skill from Reusable Library
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Attaching copies the skill definition into this agent workspace. Modifying the agent skill later will NOT mutate the library original.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto divide-y divide-border/60 py-2">
+            {availableWorkbenchSkills.length === 0 ? (
+              <div className="py-10 text-center space-y-3">
+                <Library className="size-10 text-muted-foreground/30 mx-auto" />
+                <p className="text-sm text-muted-foreground font-medium">Your reusable skill library is empty.</p>
+                <p className="text-xs text-muted-foreground">Create reusable modular skills in the Skill Workbench.</p>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowAttachLibraryModal(false);
+                    navigate('/workbench/skills');
+                  }}
+                  className="font-mono text-xs"
+                >
+                  Open Skill Workbench →
+                </Button>
+              </div>
+            ) : (
+              availableWorkbenchSkills.map(skill => {
+                const isAlreadyAttached = state.skillsList.some(s => s.name.toLowerCase() === skill.name.toLowerCase());
+                return (
+                  <div key={skill.id} className="py-3 px-1 flex items-start justify-between gap-3">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-foreground truncate">{skill.name}</span>
+                        <Badge variant="outline" className="text-[9px] font-mono">
+                          {skill.metadata?.category || 'general'}
+                        </Badge>
+                        {isAlreadyAttached && (
+                          <Badge variant="green" className="text-[8px]">ALREADY ATTACHED</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                        {skill.description || "No description provided."}
+                      </p>
+                      {skill.allowedTools && skill.allowedTools.length > 0 && (
+                        <div className="text-[10px] font-mono text-muted-foreground">
+                          Tools: {Array.isArray(skill.allowedTools) ? skill.allowedTools.join(', ') : skill.allowedTools}
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      size="xs"
+                      variant={isAlreadyAttached ? "secondary" : "default"}
+                      onClick={() => handleAttachFromLibrary(skill)}
+                      disabled={isAlreadyAttached}
+                      className="shrink-0 text-xs font-mono font-medium gap-1 cursor-pointer"
+                    >
+                      <Plus className="size-3" /> {isAlreadyAttached ? "Attached" : "Attach (Copy)"}
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter className="border-t border-border pt-3">
+            <Button variant="outline" size="sm" onClick={() => setShowAttachLibraryModal(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Collision Handling Dialog for Save to Library */}
+      <Dialog open={Boolean(collisionSkill)} onOpenChange={(open) => !open && setCollisionSkill(null)}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+              <AlertCircle className="h-5 w-5" />
+              Skill Name Collision in Library
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              A skill named &ldquo;<strong className="text-foreground">{collisionSkill?.name}</strong>&rdquo; already exists in your Reusable Skill Library. How would you like to handle this save?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-3 bg-muted/40 border border-border text-xs space-y-2">
+            <div className="font-medium text-foreground">Choose an action:</div>
+            <ul className="list-disc list-inside space-y-1 text-muted-foreground text-[11px]">
+              <li><strong>Overwrite:</strong> Replaces the instructions and tools of the existing library skill with this agent's version.</li>
+              <li><strong>Save as Copy:</strong> Keeps the existing library skill intact and saves this as &ldquo;{collisionSkill?.name}-copy&rdquo;.</li>
+            </ul>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCollisionSkill(null)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleResolveCollisionRename}
+              className="text-xs font-mono font-semibold"
+            >
+              Save as Copy ({collisionSkill?.name}-copy)
+            </Button>
+            <Button 
+              variant="default" 
+              size="sm" 
+              onClick={handleResolveCollisionOverwrite}
+              className="text-xs font-mono font-bold"
+            >
+              Overwrite in Library
             </Button>
           </DialogFooter>
         </DialogContent>
