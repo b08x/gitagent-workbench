@@ -33,10 +33,12 @@ import {
   Zap,
   ChevronDown,
   ChevronRight,
-  RotateCcw
+  RotateCcw,
+  Plus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GuidedManagerDialog } from '../components/GuidedManagerDialog';
+import { PatternRegistry } from '@/src/app/workbench/agent/PatternRegistry';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   UserCheck,
@@ -54,7 +56,7 @@ export function PatternRegistryView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTopology, setSelectedTopology] = useState<string>('all');
   const [selectedComplexity, setSelectedComplexity] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'matrix'>('grid');
+  const [viewMode, setViewMode] = useState<'create' | 'grid' | 'matrix'>('create');
   const [expandedPatternId, setExpandedPatternId] = useState<string | null>(null);
   const [appliedFeedbackPattern, setAppliedFeedbackPattern] = useState<string | null>(null);
   const [managerPatternId, setManagerPatternId] = useState<string | null>(null);
@@ -177,13 +179,23 @@ export function PatternRegistryView() {
             <div className="flex bg-muted p-0.5 border border-border">
               <button
                 type="button"
+                onClick={() => setViewMode('create')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer",
+                  viewMode === 'create' ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Plus className="size-3.5 text-primary" /> Create Registry
+              </button>
+              <button
+                type="button"
                 onClick={() => setViewMode('grid')}
                 className={cn(
                   "px-3 py-1.5 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer",
                   viewMode === 'grid' ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <LayoutGrid className="size-3.5" /> Card Grid
+                <LayoutGrid className="size-3.5" /> Prerequisites Audit
               </button>
               <button
                 type="button"
@@ -299,7 +311,12 @@ export function PatternRegistryView() {
         </div>
       </div>
 
-      {/* VIEW 1: CARD GRID VIEW */}
+      {/* VIEW 0: CREATE PATTERN REGISTRY VIEW */}
+      {viewMode === 'create' && (
+        <PatternRegistry hideHeader={true} />
+      )}
+
+      {/* VIEW 1: CARD GRID VIEW (PREREQUISITES AUDIT) */}
       {viewMode === 'grid' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {filteredPatterns.map(pattern => {
