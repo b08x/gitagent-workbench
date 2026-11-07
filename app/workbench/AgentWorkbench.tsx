@@ -45,10 +45,12 @@ import {
   Code2,
   Loader2,
   ArrowRight,
-  RotateCcw
+  RotateCcw,
+  LayoutGrid
 } from 'lucide-react';
 import { ResetRestartDialog } from './components/ResetRestartDialog';
 import { GuidedManagerDialog } from './components/GuidedManagerDialog';
+import { PatternRegistryView } from './patterns/PatternRegistryView';
 import { AgentWizard } from './AgentWizard';
 import { RuntimeFrameworkStep } from '../wizard/steps/RuntimeFrameworkStep';
 import { IdentityStep } from '../wizard/steps/IdentityStep';
@@ -99,6 +101,7 @@ export function AgentWorkbench() {
 
   const activeStep = normalizeStep(searchParams.get('tab'));
   const isArchitectMode = searchParams.get('tab') === 'architect';
+  const isPatternsMode = searchParams.get('tab') === 'patterns' || searchParams.get('tab') === 'registry';
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [showInspector, setShowInspector] = useState(true);
   const [showResetDialog, setShowResetDialog] = useState(false);
@@ -301,6 +304,22 @@ export function AgentWorkbench() {
           <Button 
             variant="outline" 
             size="sm" 
+            onClick={() => setSearchParams({ tab: isPatternsMode ? activeStep : 'patterns' })}
+            className={cn(
+              "text-xs font-mono gap-1.5",
+              isPatternsMode 
+                ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs" 
+                : "border-border text-foreground hover:bg-muted font-bold"
+            )}
+            title="Visual Architecture Pattern Registry & Prerequisites"
+          >
+            <LayoutGrid className="size-3.5" />
+            <span className="hidden sm:inline">Pattern Registry</span>
+          </Button>
+
+          <Button 
+            variant="outline" 
+            size="sm" 
             onClick={() => setSearchParams({ tab: isArchitectMode ? activeStep : 'architect' })}
             className={cn(
               "text-xs font-medium gap-1.5 font-sans",
@@ -369,7 +388,7 @@ export function AgentWorkbench() {
       </div>
 
       {/* Explicit Stepper Component Header */}
-      {!isArchitectMode && (
+      {!isArchitectMode && !isPatternsMode && (
         <div className="border-b border-border bg-muted/30 px-4 sm:px-6 py-2.5 shrink-0 overflow-x-auto select-none">
           <nav className="flex items-center justify-between min-w-max gap-2 sm:gap-4">
             {WIZARD_STEPS.map((step, index) => {
@@ -431,6 +450,8 @@ export function AgentWorkbench() {
               <div className="h-full min-h-[580px]">
                 <AgentWizard onTabChange={(tab) => handleStepChange(normalizeStep(tab))} />
               </div>
+            ) : isPatternsMode ? (
+              <PatternRegistryView />
             ) : (
               <>
                 {activeStep === 'runtime' && (
@@ -506,7 +527,7 @@ export function AgentWorkbench() {
           </div>
 
           {/* Sticky Stepper Action Footer */}
-          {!isArchitectMode && (
+          {!isArchitectMode && !isPatternsMode && (
             <div className="h-14 border-t border-border bg-background px-6 flex items-center justify-between shrink-0 z-10 select-none">
               <Button
                 variant="outline"
