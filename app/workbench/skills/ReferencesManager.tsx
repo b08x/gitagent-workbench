@@ -81,10 +81,15 @@ export function ReferencesManager({ skill }: ReferencesManagerProps) {
             {expandedId === index && (
               <div className="p-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
                 <div className="grid gap-2">
-                  <Label>Filename</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Filename</Label>
+                    {(ref.filename.includes('..') || ref.filename.startsWith('/')) && (
+                      <span className="text-[10px] text-destructive font-mono">Invalid: cannot contain '..' or start with '/'</span>
+                    )}
+                  </div>
                   <Input 
                     value={ref.filename}
-                    onChange={(e) => updateReference(index, { filename: e.target.value })}
+                    onChange={(e) => updateReference(index, { filename: e.target.value.replace(/\.\./g, '') })}
                     placeholder="e.g., technical-spec.md"
                   />
                 </div>

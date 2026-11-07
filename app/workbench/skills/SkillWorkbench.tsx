@@ -27,7 +27,8 @@ import {
   CheckCircle2, 
   Sliders, 
   Upload,
-  Layers
+  Layers,
+  AlertTriangle
 } from 'lucide-react';
 import { SkillIdentityPanel } from './SkillIdentityPanel';
 import { AllowedToolsSelector } from './AllowedToolsSelector';
@@ -403,6 +404,18 @@ export function SkillWorkbench() {
 
                 {/* Actions */}
                 <div className="space-y-2 pt-2">
+                  {(agentState.skillsList || []).some(s => s.name === activeSkill.name) && (
+                    <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 text-[11px] font-mono space-y-1 text-foreground">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="size-3.5" />
+                        <span>Attached Dependency</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground leading-normal">
+                        This skill is bound to agent '{agentState.manifest.name || 'active agent'}'. Library edits remain isolated until you re-attach.
+                      </p>
+                    </div>
+                  )}
+
                   {addedFeedback && (
                     <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-mono flex items-center gap-1.5 leading-relaxed">
                       <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />

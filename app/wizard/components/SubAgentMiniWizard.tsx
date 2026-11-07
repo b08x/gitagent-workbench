@@ -27,9 +27,20 @@ export function SubAgentMiniWizard({ onSave, onCancel, initialData }: Props) {
   const [description, setDescription] = useState(initialData?.description || '');
   const [role, setRole] = useState(initialData?.role || '');
   const [permissions, setPermissions] = useState<string[]>(initialData?.permissions || []);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSave = () => {
-    onSave({ name, description, role, permissions });
+    const formatted = toKebabCase(name);
+    if (!formatted) {
+      setError('Subagent name is required.');
+      return;
+    }
+    if (!role.trim()) {
+      setError('Role is required.');
+      return;
+    }
+    setError(null);
+    onSave({ name: formatted, description, role, permissions });
   };
 
   const togglePermission = (perm: string) => {
@@ -95,6 +106,9 @@ export function SubAgentMiniWizard({ onSave, onCancel, initialData }: Props) {
             ))}
           </div>
         </div>
+        {error && (
+          <p className="text-xs font-mono text-destructive">{error}</p>
+        )}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
           <Button size="sm" onClick={handleSave} disabled={!name || !role}>Save Agent</Button>

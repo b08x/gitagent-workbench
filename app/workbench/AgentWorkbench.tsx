@@ -48,6 +48,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { ResetRestartDialog } from './components/ResetRestartDialog';
+import { GuidedManagerDialog } from './components/GuidedManagerDialog';
 import { AgentWizard } from './AgentWizard';
 import { RuntimeFrameworkStep } from '../wizard/steps/RuntimeFrameworkStep';
 import { IdentityStep } from '../wizard/steps/IdentityStep';
@@ -101,6 +102,7 @@ export function AgentWorkbench() {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [showInspector, setShowInspector] = useState(true);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showManagerDialog, setShowManagerDialog] = useState(false);
 
   const assembledPrompt = useMemo(() => assembleSystemPrompt(state), [state]);
   const tokenEstimate = Math.round(assembledPrompt.length / 4);
@@ -283,6 +285,17 @@ export function AgentWorkbench() {
             {state.git?.sync?.ahead > 0 && (
               <span className="text-[10px] font-bold text-[#b45309]">↑{state.git.sync.ahead}</span>
             )}
+          </Button>
+
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowManagerDialog(true)}
+            className="text-xs font-mono gap-1.5 border-primary/50 bg-primary/10 text-foreground hover:bg-primary/20 font-bold"
+            title="Open Guided Agent & Subagent Manager"
+          >
+            <SlidersHorizontal className="size-3.5 text-primary" />
+            <span className="hidden sm:inline">Agent Manager</span>
           </Button>
 
           <Button 
@@ -998,6 +1011,12 @@ export function AgentWorkbench() {
       <ResetRestartDialog 
         open={showResetDialog} 
         onOpenChange={setShowResetDialog} 
+      />
+
+      {/* Guided Agent & Subagent Manager */}
+      <GuidedManagerDialog
+        isOpen={showManagerDialog}
+        onClose={() => setShowManagerDialog(false)}
       />
     </div>
   );

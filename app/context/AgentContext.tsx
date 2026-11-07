@@ -16,6 +16,13 @@ import {
   executeGitSync,
   executeSimulateRemoteBehind
 } from '@/lib/gitagent/gitManager';
+import { 
+  ToolPolicy, 
+  ManagementProposal, 
+  ManagementJournalEntry, 
+  applyProposalBatch, 
+  rollbackProposal 
+} from '@/lib/management';
 
 export interface ScaffoldContextFile {
   name: string;
@@ -52,6 +59,10 @@ type Action =
   | { type: 'APPLY_DRAFT_PATCH'; payload: { patch: Partial<ExtendedWorkspace>; baseRevision?: number; jobId?: string } }
   | { type: 'APPLY_REPAIR'; payload: Partial<ExtendedWorkspace> }
   | { type: 'RECORD_TEST_RESULT'; payload: { status: 'passed' | 'failed'; model: string; revision?: string } }
+  | { type: 'SET_ACTIVE_PROPOSAL'; payload: ManagementProposal | null }
+  | { type: 'APPLY_MANAGEMENT_PROPOSAL'; payload: ManagementProposal }
+  | { type: 'ROLLBACK_MANAGEMENT_PROPOSAL'; payload: string }
+  | { type: 'UPDATE_TOOL_POLICY'; payload: ToolPolicy }
   | { type: 'RESET_WORKSPACE'; payload?: { template?: StructureType; targetFramework?: AgentFramework; repoName?: string; keepHistory?: boolean } };
 
 export interface ToolEntry {
@@ -186,6 +197,9 @@ interface ExtendedWorkspace extends AgentWorkspace {
   lastTestedRevision?: string;
   lastTestedModel?: string;
   testStatus?: 'not_run' | 'passed' | 'failed' | 'stale';
+  toolPolicy: ToolPolicy;
+  activeProposal?: ManagementProposal | null;
+  managementJournal?: ManagementJournalEntry[];
 }
 
 export const initialState: ExtendedWorkspace = {
@@ -306,6 +320,14 @@ export const initialState: ExtendedWorkspace = {
   },
   runtimeProviderId: 'anthropic',
   git: createDefaultGitState('my-gitagent'),
+  toolPolicy: {
+    mode: 'unrestricted',
+    allowedTools: [],
+    disabledTools: [],
+    perToolPermissions: {}
+  },
+  activeProposal: null,
+  managementJournal: [],
 };
 
 export function createDefaultWorkspace(
@@ -357,6 +379,9 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         history: (action.payload as any).history || initialState.history,
         runtimeProviderId: (action.payload as any).runtimeProviderId || initialState.runtimeProviderId,
         git: (action.payload as any).git || state.git || initialState.git,
+        toolPolicy: (action.payload as any).toolPolicy || state.toolPolicy || initialState.toolPolicy,
+        activeProposal: (action.payload as any).activeProposal || null,
+        managementJournal: (action.payload as any).managementJournal || state.managementJournal || initialState.managementJournal,
       };
     case 'UPDATE_META':
       const newState = { ...state, meta: { ...state.meta, ...action.payload }, revision: (state.revision || 1) + 1 };
@@ -389,6 +414,53 @@ function agentReducer(state: ExtendedWorkspace, action: Action): ExtendedWorkspa
         testStatus: action.payload.status,
         lastTestedModel: action.payload.model,
         lastTestedRevision: action.payload.revision || state.git?.head || `rev-${state.revision || 1}`
+      };
+    }
+    case 'SET_ACTIVE_PROPOSAL': {
+      return {
+        ...state,
+        activeProposal: action.payload
+      };
+    }
+    case 'APPLY_MANAGEMENT_PROPOSAL': {
+      const { updatedWorkspace, journalEntry } = applyProposalBatch(action.payload, state);
+      const journal = [journalEntry, ...(state.managementJournal || [])].slice(0, 20);
+      return {
+        ...state,
+        ...updatedWorkspace,
+        activeProposal: null,
+        managementJournal: journal,
+        testStatus: 'stale'
+      };
+    }
+    case 'ROLLBACK_MANAGEMENT_PROPOSAL': {
+      const journalList = state.managementJournal || [];
+      const entry = journalList.find(j => j.proposalId === action.payload && !j.rolledBack);
+      if (!entry) return state;
+      const restored = rollbackProposal(entry, state);
+      const updatedJournal = journalList.map(j => j.proposalId === action.payload ? { ...j, rolledBack: true } : j);
+      return {
+        ...state,
+        ...restored,
+        managementJournal: updatedJournal
+      };
+    }
+    case 'UPDATE_TOOL_POLICY': {
+      const nextPolicy = action.payload;
+      let nextToolsList = state.toolsList;
+      if (nextPolicy.mode === 'allowlist') {
+        nextToolsList = nextPolicy.allowedTools.map(tName => ({
+          name: tName,
+          description: `Policy allowlist: ${tName}`
+        }));
+      } else if (nextPolicy.mode === 'deny_all') {
+        nextToolsList = [];
+      }
+      return {
+        ...state,
+        toolPolicy: nextPolicy,
+        toolsList: nextToolsList,
+        revision: (state.revision || 1) + 1
       };
     }
     case 'UPDATE_WORKSPACE':

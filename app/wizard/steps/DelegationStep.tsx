@@ -13,13 +13,7 @@ export function DelegationStep({ fieldErrors = {} }: { fieldErrors?: Record<stri
   const { state, dispatch } = useAgentWorkspace();
   const [showAddAgent, setShowAddAgent] = useState(false);
 
-  if (state.selectedTemplate !== 'full') {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground italic">Delegation is only available for the Full template.</p>
-      </div>
-    );
-  }
+  // Subagent authoring is universally supported across all templates and runtimes.
 
   const updateDelegation = (mode: 'auto' | 'manual' | 'none') => {
     dispatch({

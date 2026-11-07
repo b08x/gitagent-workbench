@@ -54,6 +54,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { ResetRestartDialog } from './components/ResetRestartDialog';
+import { GuidedManagerDialog } from './components/GuidedManagerDialog';
 import { cn, formatErrorMessage } from '../../lib/utils';
 import { providers } from '../../lib/providers';
 import { synthesizeAgentSpec } from '../../lib/generation/agentSynthesizer';
@@ -196,6 +197,7 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
   const [inlineKeyInput, setInlineKeyInput] = useState('');
   const [showInlineKeyInput, setShowInlineKeyInput] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showManagerDialog, setShowManagerDialog] = useState(false);
   const [activeJob, setActiveJob] = useState<GenerationJob | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2141,6 +2143,12 @@ export function AgentWizard({ onTabChange }: { onTabChange?: (tab: string) => vo
         onRestartChat={handleRestartChat}
         onCancelActiveGeneration={handleCancel}
         isGenerating={isProcessing}
+      />
+
+      {/* Guided Agent Manager Dialog */}
+      <GuidedManagerDialog
+        isOpen={showManagerDialog}
+        onClose={() => setShowManagerDialog(false)}
       />
     </div>
   );
